@@ -1,0 +1,83 @@
+import type { Edge, Node } from "@xyflow/react";
+
+// ── Node taxonomy ──────────────────────────────────────────────────────────
+export type MindMapNodeType =
+  | "root"
+  | "idea"
+  | "task"
+  | "note"
+  | "question"
+  | "warning"
+  | "link";
+
+export type MindMapNodeStatus = "none" | "todo" | "doing" | "done" | "blocked";
+
+export type ChecklistItem = {
+  id: string;
+  text: string;
+  checked: boolean;
+};
+
+// Data payload carried by every React Flow node.
+export type MindMapNodeData = {
+  label: string;
+  description?: string;
+  parentId?: string | null;
+  collapsed?: boolean;
+  isRoot?: boolean;
+  type: MindMapNodeType;
+  status?: MindMapNodeStatus;
+  color?: string;
+  icon?: string;
+  tags?: string[];
+  link?: string;
+  checklist?: ChecklistItem[];
+  // Transient UI flags (not strictly persisted but harmless if stored)
+  searchMatch?: boolean;
+  hidden?: boolean;
+};
+
+export type MindMapNode = Node<MindMapNodeData>;
+
+export type MindMapViewport = {
+  x: number;
+  y: number;
+  zoom: number;
+};
+
+export type MindMapDocument = {
+  id: string;
+  title: string;
+  nodes: MindMapNode[];
+  edges: Edge[];
+  viewport?: MindMapViewport;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MindMapTheme = "light" | "dark" | "system";
+
+export type LayoutMode = "right-tree" | "bidirectional" | "vertical" | "radial";
+
+export type MindMapWorkspace = {
+  version: number;
+  documents: MindMapDocument[];
+  activeDocumentId: string | null;
+  theme: MindMapTheme;
+  sidebarCollapsed: boolean;
+  inspectorOpen: boolean;
+};
+
+export type SaveStatus = "idle" | "saving" | "saved" | "error";
+
+export type TemplateType =
+  | "blank"
+  | "project-plan"
+  | "research-map"
+  | "investment-thesis"
+  | "study-planner"
+  | "meeting-notes"
+  | "product-roadmap"
+  | "problem-solving";
+
+export type { Edge, Node };

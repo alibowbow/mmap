@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Design tokens ──────────────────────────────────────────────────────── */
+:root {
+  --surface-base: 248 250 252; /* slate-50 */
+  --surface-raised: 255 255 255;
+  --surface-overlay: 255 255 255;
+  --surface-sunken: 241 245 249;
+  --line: 226 232 240; /* slate-200 */
+  --ink: 15 23 42; /* slate-900 */
+  --ink-soft: 71 85 105; /* slate-600 */
+  --ink-faint: 148 163 184; /* slate-400 */
+  --brand: 99 102 241; /* indigo-500 */
+  --brand-soft: 224 231 255;
+  --grid-dot: 203 213 225;
+  --grid-glow-a: 224 231 255;
+  --grid-glow-b: 240 249 255;
+}
+
+.dark {
+  --surface-base: 8 11 20;
+  --surface-raised: 17 22 34;
+  --surface-overlay: 24 30 44;
+  --surface-sunken: 12 16 26;
+  --line: 38 47 66;
+  --ink: 237 242 252;
+  --ink-soft: 156 168 191;
+  --ink-faint: 100 113 138;
+  --brand: 129 140 248; /* indigo-400 */
+  --brand-soft: 49 46 90;
+  --grid-dot: 51 63 88;
+  --grid-glow-a: 30 30 70;
+  --grid-glow-b: 12 28 50;
+}
+
+* {
+  border-color: rgb(var(--line));
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: rgb(var(--surface-base));
+  color: rgb(var(--ink));
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
+}
+
+/* Dot grid + subtle gradient canvas backdrop */
+.mf-canvas-bg {
+  background-color: rgb(var(--surface-base));
+  background-image:
+    radial-gradient(
+      circle at 20% 10%,
+      rgb(var(--grid-glow-a) / 0.5),
+      transparent 45%
+    ),
+    radial-gradient(
+      circle at 85% 85%,
+      rgb(var(--grid-glow-b) / 0.45),
+      transparent 45%
+    );
+}
+
+/* Glassmorphism helper */
+.mf-glass {
+  background: rgb(var(--surface-overlay) / 0.72);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+/* Thin scrollbars */
+.mf-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.mf-scroll::-webkit-scrollbar-thumb {
+  background: rgb(var(--ink-faint) / 0.35);
+  border-radius: 999px;
+}
+.mf-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── React Flow overrides ───────────────────────────────────────────────── */
+.react-flow__attribution {
+  display: none;
+}
+
+.react-flow__node {
+  font-family: inherit;
+}
+
+.react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  min-height: 0;
+  border: none;
+}
+
+.react-flow__controls {
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgb(15 23 42 / 0.12);
+  border: 1px solid rgb(var(--line));
+}
+.react-flow__controls-button {
+  background: rgb(var(--surface-overlay));
+  border-bottom: 1px solid rgb(var(--line));
+  color: rgb(var(--ink-soft));
+  width: 30px;
+  height: 30px;
+}
+.react-flow__controls-button:hover {
+  background: rgb(var(--surface-raised));
+}
+.react-flow__controls-button svg {
+  fill: currentColor;
+}
+
+.react-flow__minimap {
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgb(var(--line));
+  background: rgb(var(--surface-overlay)) !important;
+}
+
+.react-flow__edge-path {
+  stroke: rgb(var(--ink-faint) / 0.6);
+  stroke-width: 2;
+}
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:focus .react-flow__edge-path {
+  stroke: rgb(var(--brand));
+}
+
+.react-flow__background {
+  color: rgb(var(--grid-dot));
+}
+
+/* Hide native focus ring on the pane */
+.react-flow__pane:focus {
+  outline: none;
+}
+
+/* Utility for safe-area bottom padding */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.bottom-safe {
+  bottom: env(safe-area-inset-bottom);
+}
