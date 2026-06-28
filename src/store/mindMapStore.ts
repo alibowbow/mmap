@@ -17,7 +17,6 @@ import {
   DEFAULT_NODE_STYLE,
   FONT_SIZE_MAX,
   FONT_SIZE_MIN,
-  LAYOUT_GAP_X,
   NODE_HEIGHT,
   NODE_TYPE_CONFIG,
   NODE_WIDTH,
@@ -537,20 +536,10 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const parent = getNodeMap(nodes).get(parentId);
       if (!parent) return null;
       const id = createId("n");
-      const siblings = nodes.filter((n) => n.data.parentId === parentId);
-      // Grow in the same direction as the parent's branch so children of a
-      // left-side node appear to the left (avoiding overlap with the root side).
-      const root = getRootNode(nodes);
-      const onLeft =
-        !!root && parent.id !== root.id && parent.position.x < root.position.x;
-      const dir = onLeft ? -1 : 1;
       const newNode: MindMapNode = {
         id,
         type: "mindmap",
-        position: {
-          x: parent.position.x + dir * (NODE_WIDTH + LAYOUT_GAP_X),
-          y: parent.position.y + siblings.length * (NODE_HEIGHT + 24),
-        },
+        position: { ...parent.position }, // temporary; auto-layout repositions it
         data: {
           label: DEFAULT_NODE_LABEL,
           parentId,
@@ -565,12 +554,10 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         const expanded = nds.map((n) =>
           n.id === parentId ? { ...n, data: { ...n.data, collapsed: false } } : n
         );
-        const nextNodes = [...expanded, newNode];
-        const nextEdges = [
-          ...eds,
-          { id: `e_${parentId}_${id}`, source: parentId, target: id, type: "mindmap" },
-        ];
-        return { nodes: nextNodes, edges: nextEdges };
+        const withNew = [...expanded, newNode];
+        // Re-run the active layout so the new node never overlaps siblings.
+        const laid = runLayout(withNew, get().activeLayoutMode);
+        return { nodes: laid, edges: buildEdgesFromNodes(laid) };
       });
       set({ selectedNodeId: id, editingNodeId: id });
       focusSoon(id);
