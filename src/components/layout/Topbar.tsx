@@ -3,6 +3,7 @@
 import {
   ALargeSmall,
   Command,
+  Download,
   Maximize,
   Monitor,
   Moon,
@@ -87,6 +88,8 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
   const fitToView = useMindMapStore((s) => s.fitToView);
   const openCommandPalette = useMindMapStore((s) => s.openCommandPalette);
   const openPresentationMode = useMindMapStore((s) => s.openPresentationMode);
+  const exportImage = useMindMapStore((s) => s.exportImage);
+  const setDialog = useMindMapStore((s) => s.setDialog);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -249,6 +252,44 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
               <ALargeSmall size={18} />
             </Button>
           }
+        />
+
+        <Dropdown
+          align="right"
+          width={200}
+          trigger={
+            <Tooltip label="내보내기">
+              <Button variant="ghost" size="icon" aria-label="내보내기">
+                <Download size={17} />
+              </Button>
+            </Tooltip>
+          }
+          items={[
+            {
+              id: "png",
+              label: "PNG 이미지 저장",
+              icon: <Icon name="Image" size={15} />,
+              onSelect: () => exportImage("png"),
+            },
+            {
+              id: "svg",
+              label: "SVG 이미지 저장",
+              icon: <Icon name="Image" size={15} />,
+              onSelect: () => exportImage("svg"),
+            },
+            {
+              id: "json",
+              label: "JSON 내보내기",
+              icon: <Icon name="FileJson" size={15} />,
+              onSelect: () => setDialog("export"),
+            },
+            {
+              id: "md",
+              label: "Markdown 내보내기",
+              icon: <Icon name="FileText" size={15} />,
+              onSelect: () => setDialog("export"),
+            },
+          ]}
         />
 
         <div className="mx-1 h-5 w-px bg-line" />

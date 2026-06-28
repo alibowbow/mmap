@@ -10,7 +10,9 @@ export type CommandId =
   | "open-templates"
   | "toggle-theme"
   | "export-json"
+  | "export-png"
   | "import-json"
+  | "import-outline"
   | "export-markdown"
   | "load-sample"
   | "presentation";
@@ -78,6 +80,13 @@ export const COMMANDS: CommandDef[] = [
     keywords: ["theme", "dark", "light", "테마"],
   },
   {
+    id: "export-png",
+    title: "PNG 이미지로 저장",
+    description: "현재 맵을 PNG 이미지로 다운로드",
+    icon: "Image",
+    keywords: ["png", "image", "이미지", "내보내기", "저장", "사진"],
+  },
+  {
     id: "export-json",
     title: "JSON 내보내기",
     description: "현재 문서를 JSON으로 저장",
@@ -90,6 +99,13 @@ export const COMMANDS: CommandDef[] = [
     description: "JSON 파일에서 문서 불러오기",
     icon: "Upload",
     keywords: ["import", "json", "가져오기"],
+  },
+  {
+    id: "import-outline",
+    title: "텍스트/아웃라인 가져오기",
+    description: "마크다운·아웃라인을 붙여넣어 맵 생성",
+    icon: "FileText",
+    keywords: ["import", "markdown", "outline", "텍스트", "아웃라인", "붙여넣기"],
   },
   {
     id: "export-markdown",

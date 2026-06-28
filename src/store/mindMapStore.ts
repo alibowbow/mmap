@@ -25,7 +25,10 @@ import {
   exportDocumentJson,
   exportMarkdown,
   exportOutlineText,
+  safeFileName,
 } from "@/lib/export";
+import { renderCanvasImage } from "@/lib/image";
+import { parseOutlineToTree } from "@/lib/outlineImport";
 import { createId } from "@/lib/id";
 import { runLayout, runSubtreeLayout } from "@/lib/layout";
 import {
@@ -91,6 +94,7 @@ export type MindMapState = {
   nodeStyle: string;
   levelFontSizes: number[];
   dialog: DialogType;
+  importTab: "json" | "outline";
   contextMenu: ContextMenuState;
   outlineOpen: boolean;
   // mobile
@@ -172,8 +176,10 @@ export type MindMapState = {
   // ── IO ──
   exportJson: () => string;
   importJson: (json: string) => boolean;
+  importOutline: (text: string) => boolean;
   exportMarkdown: () => string;
   exportOutlineText: () => string;
+  exportImage: (format: "png" | "svg") => Promise<void>;
 
   // ── UI actions ──
   toggleTheme: () => void;
@@ -186,6 +192,7 @@ export type MindMapState = {
   toggleInspector: () => void;
   setInspectorOpen: (open: boolean) => void;
   setDialog: (dialog: DialogType) => void;
+  setImportTab: (tab: "json" | "outline") => void;
   openContextMenu: (nodeId: string, x: number, y: number) => void;
   closeContextMenu: () => void;
   setOutlineOpen: (open: boolean) => void;
@@ -322,6 +329,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     nodeStyle: DEFAULT_NODE_STYLE,
     levelFontSizes: [...DEFAULT_LEVEL_FONT_SIZES],
     dialog: null,
+    importTab: "json",
     contextMenu: null,
     outlineOpen: true,
     mobileDrawerOpen: false,
@@ -865,7 +873,15 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         case "export-json":
           s.setDialog("export");
           break;
+        case "export-png":
+          s.exportImage("png");
+          break;
         case "import-json":
+          s.setImportTab("json");
+          s.setDialog("import");
+          break;
+        case "import-outline":
+          s.setImportTab("outline");
           s.setDialog("import");
           break;
         case "export-markdown":
@@ -963,6 +979,32 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       return true;
     },
 
+    importOutline: (text) => {
+      const result = parseOutlineToTree(text);
+      if (!result) {
+        get().addToast("가져올 내용이 없습니다", "error");
+        return false;
+      }
+      const doc = makeDocument(result.title, result.nodes, result.edges);
+      set((s) => ({
+        documents: [doc, ...s.documents],
+        activeDocumentId: doc.id,
+        nodes: doc.nodes,
+        edges: doc.edges,
+        selectedNodeId: getRootNode(doc.nodes)?.id ?? null,
+        history: [],
+        future: [],
+        dialog: null,
+        revision: s.revision + 1,
+      }));
+      get().addToast(
+        `아웃라인을 가져왔습니다 (노드 ${result.nodes.length}개)`,
+        "success"
+      );
+      get().fitToView();
+      return true;
+    },
+
     exportMarkdown: () => {
       const { documents, activeDocumentId } = get();
       const doc = documents.find((d) => d.id === activeDocumentId);
@@ -973,6 +1015,28 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const { documents, activeDocumentId } = get();
       const doc = documents.find((d) => d.id === activeDocumentId);
       return doc ? exportOutlineText(doc) : "";
+    },
+
+    // Generate a PNG/SVG of the current map and download it directly.
+    exportImage: async (format) => {
+      const { documents, activeDocumentId } = get();
+      const doc = documents.find((d) => d.id === activeDocumentId);
+      try {
+        const url = await renderCanvasImage(get().nodes, format);
+        const name = `${safeFileName(doc?.title ?? "mindforge")}.${format}`;
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        get().addToast(`${name} 저장됨`, "success");
+      } catch (e) {
+        get().addToast(
+          e instanceof Error ? e.message : "이미지 저장에 실패했습니다",
+          "error"
+        );
+      }
     },
 
     // ── UI ──
@@ -1022,6 +1086,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     setInspectorOpen: (open) => set({ inspectorOpen: open }),
 
     setDialog: (dialog) => set({ dialog, mobileMoreOpen: false }),
+
+    setImportTab: (importTab) => set({ importTab }),
 
     openContextMenu: (nodeId, x, y) =>
       set({ contextMenu: { nodeId, x, y }, selectedNodeId: nodeId }),

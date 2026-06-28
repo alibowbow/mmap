@@ -6,6 +6,7 @@ import {
   FilePlus2,
   FileText,
   HelpCircle,
+  Image as ImageIcon,
   LayoutTemplate,
   Presentation,
   Shapes,
@@ -46,6 +47,8 @@ export function MobileMoreMenu() {
   const setDialog = useMindMapStore((s) => s.setDialog);
   const openPresentationMode = useMindMapStore((s) => s.openPresentationMode);
   const toggleTheme = useMindMapStore((s) => s.toggleTheme);
+  const exportImage = useMindMapStore((s) => s.exportImage);
+  const setImportTab = useMindMapStore((s) => s.setImportTab);
   const font = useMindMapStore((s) => s.font);
   const setFont = useMindMapStore((s) => s.setFont);
   const nodeStyle = useMindMapStore((s) => s.nodeStyle);
@@ -105,19 +108,33 @@ export function MobileMoreMenu() {
                 onClick={() => setDialog("template")}
               />
               <Row
+                icon={<ImageIcon size={18} />}
+                label="PNG 이미지 저장"
+                onClick={() => {
+                  close();
+                  exportImage("png");
+                }}
+              />
+              <Row
                 icon={<FileJson size={18} />}
-                label="JSON 내보내기"
+                label="JSON / Markdown 내보내기"
                 onClick={() => setDialog("export")}
               />
               <Row
                 icon={<Upload size={18} />}
                 label="JSON 가져오기"
-                onClick={() => setDialog("import")}
+                onClick={() => {
+                  setImportTab("json");
+                  setDialog("import");
+                }}
               />
               <Row
                 icon={<FileText size={18} />}
-                label="Markdown 내보내기"
-                onClick={() => setDialog("export")}
+                label="텍스트/아웃라인 가져오기"
+                onClick={() => {
+                  setImportTab("outline");
+                  setDialog("import");
+                }}
               />
               <Row
                 icon={<Presentation size={18} />}
