@@ -26,6 +26,7 @@ export type NodeTypeConfig = {
 
 export const NODE_TYPE_CONFIG: Record<MindMapNodeType, NodeTypeConfig> = {
   root: { label: "중심", color: "#6366f1", accent: "indigo", icon: "Sparkles" },
+  plain: { label: "일반", color: "#64748b", accent: "slate", icon: "Type" },
   idea: { label: "아이디어", color: "#0ea5e9", accent: "sky", icon: "Lightbulb" },
   task: { label: "할 일", color: "#10b981", accent: "emerald", icon: "CheckSquare" },
   note: { label: "노트", color: "#64748b", accent: "slate", icon: "StickyNote" },
@@ -36,6 +37,7 @@ export const NODE_TYPE_CONFIG: Record<MindMapNodeType, NodeTypeConfig> = {
 
 export const NODE_TYPES: MindMapNodeType[] = [
   "root",
+  "plain",
   "idea",
   "task",
   "note",

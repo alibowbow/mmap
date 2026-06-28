@@ -2,6 +2,8 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  ArrowLeft,
+  ArrowRight,
   ChevronsDownUp,
   Copy,
   CornerDownRight,
@@ -9,6 +11,7 @@ import {
   Palette,
   Pencil,
   Plus,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import { useEffect } from "react";
@@ -22,6 +25,7 @@ import {
   NODE_TYPES,
   NODE_TYPE_CONFIG,
 } from "@/lib/constants";
+import { getRootNode } from "@/lib/tree";
 import { useMindMapStore } from "@/store/mindMapStore";
 
 function Item({
@@ -64,6 +68,8 @@ export function NodeContextMenu() {
   const duplicateSubtree = useMindMapStore((s) => s.duplicateSubtree);
   const autoLayoutSubtree = useMindMapStore((s) => s.autoLayoutSubtree);
   const deleteNode = useMindMapStore((s) => s.deleteNode);
+  const setNodeSide = useMindMapStore((s) => s.setNodeSide);
+  const rootId = useMindMapStore((s) => getRootNode(s.nodes)?.id);
 
   useEffect(() => {
     if (!menu) return;
@@ -179,6 +185,43 @@ export function NodeContextMenu() {
               </button>
             ))}
           </div>
+
+          {/* Branch direction (first-level branches only) */}
+          {!(node.data.isRoot || node.data.type === "root") &&
+            node.data.parentId === rootId && (
+              <>
+                <div className="my-1 h-px bg-line" />
+                <div className="flex items-center gap-1 px-2.5 py-1">
+                  <span className="text-ink-soft">
+                    <ArrowRight size={15} />
+                  </span>
+                  {(
+                    [
+                      { id: undefined, label: "자동", icon: <Sparkles size={13} /> },
+                      { id: "left", label: "왼쪽", icon: <ArrowLeft size={13} /> },
+                      { id: "right", label: "오른쪽", icon: <ArrowRight size={13} /> },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.label}
+                      onClick={() => {
+                        setNodeSide(node.id, opt.id);
+                        close();
+                      }}
+                      className={cn(
+                        "inline-flex flex-1 items-center justify-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-medium transition",
+                        (node.data.side ?? undefined) === opt.id
+                          ? "bg-brand/15 text-brand"
+                          : "text-ink-soft hover:bg-surface-raised"
+                      )}
+                    >
+                      {opt.icon}
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
 
           <div className="my-1 h-px bg-line" />
 

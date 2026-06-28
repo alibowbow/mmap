@@ -1,11 +1,14 @@
 "use client";
 
 import {
+  ArrowLeft,
+  ArrowRight,
   Check,
   Copy,
   LayoutGrid,
   Link2,
   Plus,
+  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
@@ -24,8 +27,9 @@ import {
   NODE_TYPE_CONFIG,
 } from "@/lib/constants";
 import { createId } from "@/lib/id";
+import { getRootNode } from "@/lib/tree";
 import { useMindMapStore } from "@/store/mindMapStore";
-import type { ChecklistItem, MindMapNode } from "@/types/mindmap";
+import type { BranchSide, ChecklistItem, MindMapNode } from "@/types/mindmap";
 
 function Section({
   label,
@@ -53,11 +57,15 @@ export function NodeEditorFields({ node }: { node: MindMapNode }) {
   const duplicateSubtree = useMindMapStore((s) => s.duplicateSubtree);
   const deleteSubtree = useMindMapStore((s) => s.deleteSubtree);
   const deleteNode = useMindMapStore((s) => s.deleteNode);
+  const setNodeSide = useMindMapStore((s) => s.setNodeSide);
+  const rootId = useMindMapStore((s) => getRootNode(s.nodes)?.id);
 
   const d = node.data;
   const [tagDraft, setTagDraft] = useState("");
   const [checkDraft, setCheckDraft] = useState("");
   const isRoot = d.isRoot || d.type === "root";
+  // Branch direction only makes sense for first-level branches off the root.
+  const isFirstLevel = !isRoot && d.parentId === rootId;
 
   const addTag = () => {
     const t = tagDraft.trim().replace(/^#/, "");
@@ -155,6 +163,38 @@ export function NodeEditorFields({ node }: { node: MindMapNode }) {
           })}
         </div>
       </Section>
+
+      {/* Branch direction (first-level branches only) */}
+      {isFirstLevel && (
+        <Section label="가지 방향 (양방향 레이아웃)">
+          <div className="flex gap-1.5">
+            {(
+              [
+                { id: undefined, label: "자동", icon: <Sparkles size={15} /> },
+                { id: "left" as BranchSide, label: "왼쪽", icon: <ArrowLeft size={15} /> },
+                { id: "right" as BranchSide, label: "오른쪽", icon: <ArrowRight size={15} /> },
+              ] as { id: BranchSide | undefined; label: string; icon: React.ReactNode }[]
+            ).map((opt) => {
+              const active = (d.side ?? undefined) === opt.id;
+              return (
+                <button
+                  key={opt.label}
+                  onClick={() => setNodeSide(node.id, opt.id)}
+                  className={cn(
+                    "inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-xs font-medium transition min-h-[40px]",
+                    active
+                      ? "border-brand bg-brand/10 text-ink"
+                      : "border-line text-ink-soft hover:bg-surface-overlay"
+                  )}
+                >
+                  {opt.icon}
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </Section>
+      )}
 
       {/* Color */}
       <Section label="색상">

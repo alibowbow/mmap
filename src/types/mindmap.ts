@@ -3,12 +3,16 @@ import type { Edge, Node } from "@xyflow/react";
 // ── Node taxonomy ──────────────────────────────────────────────────────────
 export type MindMapNodeType =
   | "root"
+  | "plain"
   | "idea"
   | "task"
   | "note"
   | "question"
   | "warning"
   | "link";
+
+// Which way a first-level branch extends from the root in bidirectional layout.
+export type BranchSide = "left" | "right";
 
 export type MindMapNodeStatus = "none" | "todo" | "doing" | "done" | "blocked";
 
@@ -29,6 +33,7 @@ export type MindMapNodeData = {
   status?: MindMapNodeStatus;
   color?: string;
   icon?: string;
+  side?: BranchSide; // explicit branch direction (bidirectional layout)
   tags?: string[];
   link?: string;
   checklist?: ChecklistItem[];

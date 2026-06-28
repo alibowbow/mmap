@@ -37,6 +37,8 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   const typeConf = NODE_TYPE_CONFIG[d.type] ?? NODE_TYPE_CONFIG.idea;
   const color = d.color ?? typeConf.color;
   const isRoot = d.isRoot || d.type === "root";
+  // "plain" nodes show only the user's text — no type icon/label or color rail.
+  const isPlain = d.type === "plain" && !isRoot;
 
   const statusConf =
     d.status && d.status !== "none" ? NODE_STATUS_CONFIG[d.status] : null;
@@ -101,40 +103,48 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
         />
       )}
 
-      {/* Left color rail */}
-      <div
-        className="absolute left-0 top-3 bottom-3 w-1 rounded-full"
-        style={{ background: color }}
-      />
+      {/* Left color rail (hidden for plain text nodes) */}
+      {!isPlain && (
+        <div
+          className="absolute left-0 top-3 bottom-3 w-1 rounded-full"
+          style={{ background: color }}
+        />
+      )}
 
-      <div className="relative px-3.5 py-3 pl-4">
-        {/* Header: icon + type + status */}
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <span
-            className="flex h-5 w-5 items-center justify-center rounded-md"
-            style={{ background: hexToRgba(color, 0.16), color }}
-          >
-            <Icon name={typeConf.icon} size={13} />
-          </span>
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
-            {typeConf.label}
-          </span>
-          {statusConf && (
-            <span
-              className="ml-auto inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
-              style={{
-                background: hexToRgba(statusConf.color, 0.14),
-                color: statusConf.color,
-              }}
-            >
+      <div className={cn("relative px-3.5 py-3", isPlain ? "pl-3.5" : "pl-4")}>
+        {/* Header: icon + type + status (plain nodes only show status, if any) */}
+        {(!isPlain || statusConf) && (
+          <div className="flex items-center gap-1.5 mb-1.5">
+            {!isPlain && (
+              <>
+                <span
+                  className="flex h-5 w-5 items-center justify-center rounded-md"
+                  style={{ background: hexToRgba(color, 0.16), color }}
+                >
+                  <Icon name={typeConf.icon} size={13} />
+                </span>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+                  {typeConf.label}
+                </span>
+              </>
+            )}
+            {statusConf && (
               <span
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ background: statusConf.dot }}
-              />
-              {statusConf.label}
-            </span>
-          )}
-        </div>
+                className="ml-auto inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
+                style={{
+                  background: hexToRgba(statusConf.color, 0.14),
+                  color: statusConf.color,
+                }}
+              >
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ background: statusConf.dot }}
+                />
+                {statusConf.label}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Label / inline editor */}
         {isEditing ? (

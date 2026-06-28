@@ -41,6 +41,7 @@ import {
 } from "@/lib/tree";
 import { parseImportJson } from "@/lib/validation";
 import type {
+  BranchSide,
   Edge,
   LayoutMode,
   MindMapDocument,
@@ -131,6 +132,7 @@ export type MindMapState = {
   duplicateSubtree: (nodeId: string) => void;
   deleteSubtree: (nodeId: string) => void;
   toggleCollapse: (nodeId: string) => void;
+  setNodeSide: (nodeId: string, side: BranchSide | undefined) => void;
   selectNode: (nodeId: string | null) => void;
   setEditingNode: (nodeId: string | null) => void;
 
@@ -683,6 +685,20 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         ),
         edges: eds,
       }));
+    },
+
+    // Set a first-level branch's direction and re-run the bidirectional layout
+    // so the change is immediately visible.
+    setNodeSide: (nodeId, side) => {
+      commit((nds) => {
+        const updated = nds.map((n) =>
+          n.id === nodeId ? { ...n, data: { ...n.data, side } } : n
+        );
+        const laid = runLayout(updated, "bidirectional");
+        return { nodes: laid, edges: buildEdgesFromNodes(laid) };
+      });
+      set({ activeLayoutMode: "bidirectional" });
+      requestAnimationFrame(() => get().fitToView());
     },
 
     selectNode: (nodeId) =>
