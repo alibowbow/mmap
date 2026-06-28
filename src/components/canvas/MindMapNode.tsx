@@ -81,8 +81,8 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   }, [isEditing, d.label]);
 
   const commitLabel = () => {
-    const trimmed = draft.trim();
-    updateNodeLabel(id, trimmed.length ? trimmed : d.label);
+    // Allow clearing the label (empty nodes show a placeholder).
+    updateNodeLabel(id, draft.trim());
     setEditingNode(null);
   };
 
