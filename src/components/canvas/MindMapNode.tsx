@@ -120,12 +120,16 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
         isMatch && !selected && "ring-2 ring-amber-400/80"
       )}
     >
-      {/* Hidden handles on both faces. The edge picks left/right per branch
-          direction so left-side branches connect parent-left → child-right. */}
+      {/* Hidden handles on all four faces. The edge picks the face that points
+          toward its child (left/right for trees, top/bottom for org/radial). */}
       <Handle id="left-target" type="target" position={Position.Left} />
       <Handle id="left-source" type="source" position={Position.Left} />
       <Handle id="right-target" type="target" position={Position.Right} />
       <Handle id="right-source" type="source" position={Position.Right} />
+      <Handle id="top-target" type="target" position={Position.Top} />
+      <Handle id="top-source" type="source" position={Position.Top} />
+      <Handle id="bottom-target" type="target" position={Position.Bottom} />
+      <Handle id="bottom-source" type="source" position={Position.Bottom} />
 
       {/* Root gradient sheen (skipped on the borderless line style) */}
       {isRoot && !isLine && (

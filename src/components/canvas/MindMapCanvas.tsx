@@ -57,16 +57,29 @@ function CanvasInner() {
       draggable: !presentationMode,
     }));
     const de: Edge[] = edges.map((e) => {
-      // Route each edge from the side that faces its child: left-side branches
-      // connect parent-left → child-right, right-side branches the other way.
+      // Route each edge from the face pointing toward its child. Horizontal
+      // trees use left/right, vertical/org & radial use top/bottom — chosen by
+      // whichever axis dominates the parent→child offset.
       const s = posMap.get(e.source);
       const t = posMap.get(e.target);
-      const leftBranch = !!s && !!t && t.x < s.x;
+      let sourceHandle = "right-source";
+      let targetHandle = "left-target";
+      if (s && t) {
+        const dx = t.x - s.x;
+        const dy = t.y - s.y;
+        if (Math.abs(dx) >= Math.abs(dy)) {
+          sourceHandle = dx < 0 ? "left-source" : "right-source";
+          targetHandle = dx < 0 ? "right-target" : "left-target";
+        } else {
+          sourceHandle = dy < 0 ? "top-source" : "bottom-source";
+          targetHandle = dy < 0 ? "bottom-target" : "top-target";
+        }
+      }
       return {
         ...e,
         type: "mindmap",
-        sourceHandle: leftBranch ? "left-source" : "right-source",
-        targetHandle: leftBranch ? "right-target" : "left-target",
+        sourceHandle,
+        targetHandle,
         hidden: hidden.has(e.source) || hidden.has(e.target),
       };
     });
