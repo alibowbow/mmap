@@ -119,10 +119,15 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
     }
   };
 
-  const onPointerEnd = () => {
+  // Actual release: clear the timer and disarm.
+  const onPointerUpCancel = () => {
     clearPressTimer();
     if (subtreeDrag.armedId === id) subtreeDrag.armedId = null;
   };
+
+  // Pointer leaving the element only cancels the pending timer — it must not
+  // disarm an in-progress drag (which would let the context menu slip through).
+  const onPointerLeave = () => clearPressTimer();
 
   // Per-style chrome (background, border, rounding, shadow).
   const chrome = cn(
@@ -149,9 +154,9 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
     <div
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
-      onPointerUp={onPointerEnd}
-      onPointerCancel={onPointerEnd}
-      onPointerLeave={onPointerEnd}
+      onPointerUp={onPointerUpCancel}
+      onPointerCancel={onPointerUpCancel}
+      onPointerLeave={onPointerLeave}
       style={{
         width: NODE_WIDTH,
         minHeight: isLine ? undefined : NODE_HEIGHT,

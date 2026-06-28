@@ -116,6 +116,9 @@ function CanvasInner() {
   const onNodeContextMenu = useCallback(
     (e: React.MouseEvent, node: Node) => {
       e.preventDefault();
+      // A long-press that armed (or started) a subtree drag must not also open
+      // the context menu / mobile sheet.
+      if (armedDrag.armedId || subtreeDrag.current) return;
       if (isMobile) {
         // On mobile a long-press opens the detail sheet instead of a menu.
         selectNode(node.id);
