@@ -1,7 +1,7 @@
 "use client";
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { ChevronRight, ExternalLink } from "lucide-react";
+import { ChevronRight, ExternalLink, MoreHorizontal } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/ui/Icon";
@@ -34,6 +34,7 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   const toggleCollapse = useMindMapStore((s) => s.toggleCollapse);
   const childCount = useMindMapStore((s) => countChildren(s.nodes, id));
   const nodeStyle = useMindMapStore((s) => s.nodeStyle);
+  const openContextMenu = useMindMapStore((s) => s.openContextMenu);
 
   const isEditing = editingNodeId === id;
   const typeConf = NODE_TYPE_CONFIG[d.type] ?? NODE_TYPE_CONFIG.idea;
@@ -129,24 +130,27 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   // disarm an in-progress drag (which would let the context menu slip through).
   const onPointerLeave = () => clearPressTimer();
 
+  // Clear selection treatment: a solid brand ring with an offset + lift.
+  const SEL =
+    "ring-2 ring-brand ring-offset-2 ring-offset-surface-base shadow-float scale-[1.03]";
   // Per-style chrome (background, border, rounding, shadow).
   const chrome = cn(
     "transition-all duration-150",
     style === "card" &&
       (selected
-        ? "rounded-2xl border border-transparent bg-surface-raised shadow-ring scale-[1.02]"
+        ? `rounded-2xl border border-brand bg-surface-raised ${SEL}`
         : "rounded-2xl border border-line bg-surface-raised shadow-node hover:shadow-float hover:-translate-y-0.5"),
     style === "soft" &&
       (selected
-        ? "rounded-[26px] border border-transparent bg-surface-raised shadow-ring scale-[1.02]"
+        ? `rounded-[26px] border border-brand bg-surface-raised ${SEL}`
         : "rounded-[26px] border border-line bg-surface-raised shadow-node hover:shadow-float hover:-translate-y-0.5"),
     isOutline &&
       (selected
-        ? "rounded-2xl border-2 bg-surface-base/30 shadow-ring scale-[1.02]"
+        ? `rounded-2xl border-2 bg-surface-base/30 ${SEL}`
         : "rounded-2xl border-2 bg-surface-base/30 hover:-translate-y-0.5"),
     isLine &&
       (selected
-        ? "rounded-md border-0 border-b-2 bg-transparent shadow-ring scale-[1.02]"
+        ? `rounded-md border-0 border-b-2 bg-transparent ${SEL}`
         : "rounded-md border-0 border-b-2 bg-transparent hover:-translate-y-0.5")
   );
 
@@ -337,6 +341,24 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
           </div>
         )}
       </div>
+
+      {/* Quick-edit menu button (no need to open the inspector). Visible on
+          hover and whenever the node is selected (tap-friendly on mobile). */}
+      <button
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          openContextMenu(id, e.clientX, e.clientY);
+        }}
+        aria-label="노드 편집 메뉴"
+        className={cn(
+          "nodrag absolute -top-3 -right-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-line bg-surface-raised text-ink-soft shadow-sm transition",
+          "hover:text-ink hover:border-brand/50",
+          selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+        )}
+      >
+        <MoreHorizontal size={15} />
+      </button>
 
       {/* Collapse / expand toggle */}
       {childCount > 0 && (
