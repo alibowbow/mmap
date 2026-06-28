@@ -48,6 +48,7 @@ function CanvasInner() {
   // Compute visible nodes/edges (hide collapsed subtrees) and selection flag.
   const { displayNodes, displayEdges } = useMemo(() => {
     const hidden = getHiddenNodeIds(nodes);
+    const posMap = new Map(nodes.map((n) => [n.id, n.position]));
     const dn: Node<MindMapNodeData>[] = nodes.map((n) => ({
       ...n,
       type: "mindmap",
@@ -55,11 +56,20 @@ function CanvasInner() {
       hidden: hidden.has(n.id),
       draggable: !presentationMode,
     }));
-    const de: Edge[] = edges.map((e) => ({
-      ...e,
-      type: "mindmap",
-      hidden: hidden.has(e.source) || hidden.has(e.target),
-    }));
+    const de: Edge[] = edges.map((e) => {
+      // Route each edge from the side that faces its child: left-side branches
+      // connect parent-left → child-right, right-side branches the other way.
+      const s = posMap.get(e.source);
+      const t = posMap.get(e.target);
+      const leftBranch = !!s && !!t && t.x < s.x;
+      return {
+        ...e,
+        type: "mindmap",
+        sourceHandle: leftBranch ? "left-source" : "right-source",
+        targetHandle: leftBranch ? "right-target" : "left-target",
+        hidden: hidden.has(e.source) || hidden.has(e.target),
+      };
+    });
     return { displayNodes: dn, displayEdges: de };
   }, [nodes, edges, selectedNodeId, presentationMode]);
 

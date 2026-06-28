@@ -86,9 +86,12 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
         isMatch && !selected && "ring-2 ring-amber-400/80"
       )}
     >
-      {/* Hidden handles — edges still connect, visuals come from custom edge */}
-      <Handle type="target" position={Position.Left} />
-      <Handle type="source" position={Position.Right} />
+      {/* Hidden handles on both faces. The edge picks left/right per branch
+          direction so left-side branches connect parent-left → child-right. */}
+      <Handle id="left-target" type="target" position={Position.Left} />
+      <Handle id="left-source" type="source" position={Position.Left} />
+      <Handle id="right-target" type="target" position={Position.Right} />
+      <Handle id="right-source" type="source" position={Position.Right} />
 
       {/* Root gradient sheen */}
       {isRoot && (
