@@ -11,14 +11,15 @@ import {
   type Node,
 } from "@xyflow/react";
 import { ChevronDown, Map as MapIcon } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { CanvasEmptyState } from "@/components/canvas/CanvasEmptyState";
 import { MindMapEdge } from "@/components/canvas/MindMapEdge";
 import { MindMapNode } from "@/components/canvas/MindMapNode";
 import { cn } from "@/lib/cn";
 import { NODE_TYPE_CONFIG } from "@/lib/constants";
-import { getHiddenNodeIds } from "@/lib/tree";
+import { subtreeDrag as armedDrag } from "@/lib/dragState";
+import { getDescendantIds, getHiddenNodeIds } from "@/lib/tree";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useMindMapStore } from "@/store/mindMapStore";
 import type { MindMapNodeData } from "@/types/mindmap";
@@ -42,8 +43,15 @@ function CanvasInner() {
   const registerFlow = useMindMapStore((s) => s.registerFlow);
   const updateViewport = useMindMapStore((s) => s.updateViewport);
   const setMobileSheetOpen = useMindMapStore((s) => s.setMobileSheetOpen);
+  const moveNodesBy = useMindMapStore((s) => s.moveNodesBy);
 
   const [miniMapOpen, setMiniMapOpen] = useState(false);
+  // Tracks an in-progress subtree drag (descendants follow the dragged node).
+  const subtreeDrag = useRef<{
+    id: string;
+    descIds: string[];
+    last: { x: number; y: number };
+  } | null>(null);
 
   // Compute visible nodes/edges (hide collapsed subtrees) and selection flag.
   const { displayNodes, displayEdges } = useMemo(() => {
@@ -124,6 +132,43 @@ function CanvasInner() {
     closeContextMenu();
   }, [selectNode, closeContextMenu]);
 
+  // Subtree drag: if the long-press armed this node, capture its descendants so
+  // they can follow the same delta during the drag.
+  const onNodeDragStart = useCallback(
+    (_: MouseEvent | TouchEvent, node: Node) => {
+      const state = useMindMapStore.getState();
+      if (armedDrag.armedId === node.id) {
+        subtreeDrag.current = {
+          id: node.id,
+          descIds: getDescendantIds(state.nodes, node.id),
+          last: { ...node.position },
+        };
+      } else {
+        subtreeDrag.current = null;
+      }
+    },
+    []
+  );
+
+  const onNodeDrag = useCallback(
+    (_: MouseEvent | TouchEvent, node: Node) => {
+      const ds = subtreeDrag.current;
+      if (!ds || ds.id !== node.id) return;
+      const dx = node.position.x - ds.last.x;
+      const dy = node.position.y - ds.last.y;
+      if (dx || dy) {
+        moveNodesBy(ds.descIds, dx, dy);
+        ds.last = { ...node.position };
+      }
+    },
+    [moveNodesBy]
+  );
+
+  const onNodeDragStop = useCallback(() => {
+    subtreeDrag.current = null;
+    armedDrag.armedId = null;
+  }, []);
+
   const isEmpty = nodes.length === 0;
 
   return (
@@ -138,6 +183,9 @@ function CanvasInner() {
         onNodeClick={onNodeClick}
         onNodeDoubleClick={onNodeDoubleClick}
         onNodeContextMenu={onNodeContextMenu}
+        onNodeDragStart={onNodeDragStart}
+        onNodeDrag={onNodeDrag}
+        onNodeDragStop={onNodeDragStop}
         onPaneClick={onPaneClick}
         onInit={registerFlow}
         onMoveEnd={(_, vp) => updateViewport(vp)}

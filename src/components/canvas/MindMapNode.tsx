@@ -13,6 +13,7 @@ import {
   NODE_WIDTH,
 } from "@/lib/constants";
 import { countChildren } from "@/lib/tree";
+import { subtreeDrag } from "@/lib/dragState";
 import { useMindMapStore } from "@/store/mindMapStore";
 import type { MindMapNodeData } from "@/types/mindmap";
 
@@ -86,6 +87,43 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
     setEditingNode(null);
   };
 
+  // Long-press → arm "drag subtree together" mode. A quick drag (movement
+  // before the timer) stays a single-node drag.
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressPos = useRef<{ x: number; y: number } | null>(null);
+
+  const clearPressTimer = () => {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (isEditing) return;
+    pressPos.current = { x: e.clientX, y: e.clientY };
+    clearPressTimer();
+    // Arm via a module ref (not the store) so it doesn't re-render mid-gesture.
+    pressTimer.current = setTimeout(() => {
+      subtreeDrag.armedId = id;
+      pressTimer.current = null;
+    }, 320);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    // Movement before the long-press fires → treat as a normal single drag.
+    if (pressTimer.current && pressPos.current) {
+      const dx = Math.abs(e.clientX - pressPos.current.x);
+      const dy = Math.abs(e.clientY - pressPos.current.y);
+      if (dx > 6 || dy > 6) clearPressTimer();
+    }
+  };
+
+  const onPointerEnd = () => {
+    clearPressTimer();
+    if (subtreeDrag.armedId === id) subtreeDrag.armedId = null;
+  };
+
   // Per-style chrome (background, border, rounding, shadow).
   const chrome = cn(
     "transition-all duration-150",
@@ -109,6 +147,11 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
 
   return (
     <div
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerEnd}
+      onPointerCancel={onPointerEnd}
+      onPointerLeave={onPointerEnd}
       style={{
         width: NODE_WIDTH,
         minHeight: isLine ? undefined : NODE_HEIGHT,

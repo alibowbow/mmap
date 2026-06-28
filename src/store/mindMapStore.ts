@@ -139,6 +139,7 @@ export type MindMapState = {
   setNodeSide: (nodeId: string, side: BranchSide | undefined) => void;
   selectNode: (nodeId: string | null) => void;
   setEditingNode: (nodeId: string | null) => void;
+  moveNodesBy: (ids: string[], dx: number, dy: number) => void;
 
   // ── Canvas actions ──
   onNodesChange: (changes: NodeChange[]) => void;
@@ -725,6 +726,19 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       set({ selectedNodeId: nodeId, contextMenu: null }),
 
     setEditingNode: (nodeId) => set({ editingNodeId: nodeId }),
+
+    // Shift a set of nodes by a delta (used to drag a subtree together).
+    moveNodesBy: (ids, dx, dy) => {
+      if (!ids.length || (dx === 0 && dy === 0)) return;
+      const idset = new Set(ids);
+      const next = get().nodes.map((n) =>
+        idset.has(n.id)
+          ? { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } }
+          : n
+      );
+      set({ nodes: next });
+      syncActiveDocument(next, get().edges, false);
+    },
 
     // ── Canvas ──
     onNodesChange: (changes) => {
