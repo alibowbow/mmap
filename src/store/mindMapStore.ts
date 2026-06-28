@@ -513,19 +513,25 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       if (!parent) return null;
       const id = createId("n");
       const siblings = nodes.filter((n) => n.data.parentId === parentId);
+      // Grow in the same direction as the parent's branch so children of a
+      // left-side node appear to the left (avoiding overlap with the root side).
+      const root = getRootNode(nodes);
+      const onLeft =
+        !!root && parent.id !== root.id && parent.position.x < root.position.x;
+      const dir = onLeft ? -1 : 1;
       const newNode: MindMapNode = {
         id,
         type: "mindmap",
         position: {
-          x: parent.position.x + NODE_WIDTH + LAYOUT_GAP_X,
+          x: parent.position.x + dir * (NODE_WIDTH + LAYOUT_GAP_X),
           y: parent.position.y + siblings.length * (NODE_HEIGHT + 24),
         },
         data: {
           label: DEFAULT_NODE_LABEL,
           parentId,
-          type: "idea",
+          type: "plain",
           status: "none",
-          color: NODE_TYPE_CONFIG.idea.color,
+          color: NODE_TYPE_CONFIG.plain.color,
           collapsed: false,
         },
       };
