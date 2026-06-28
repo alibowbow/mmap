@@ -69,6 +69,7 @@ export type MindMapWorkspace = {
   documents: MindMapDocument[];
   activeDocumentId: string | null;
   theme: MindMapTheme;
+  font: string;
   sidebarCollapsed: boolean;
   inspectorOpen: boolean;
 };

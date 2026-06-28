@@ -221,8 +221,8 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
           </div>
         )}
 
-        {/* Footer: link + child count */}
-        {(d.link || childCount > 0 || d.collapsed) && (
+        {/* Footer: link + collapsed indicator */}
+        {(d.link || (d.collapsed && childCount > 0)) && (
           <div className="mt-2 flex items-center gap-2 text-[10px] text-ink-faint">
             {d.link && (
               <a
@@ -234,11 +234,6 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
               >
                 <ExternalLink size={10} /> 링크
               </a>
-            )}
-            {childCount > 0 && (
-              <span className="inline-flex items-center gap-0.5">
-                {childCount}개 하위
-              </span>
             )}
             {d.collapsed && childCount > 0 && (
               <span className="rounded bg-surface-overlay px-1 py-0.5 text-ink-soft">

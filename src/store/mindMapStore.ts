@@ -11,6 +11,7 @@ import { create } from "zustand";
 
 import { COMMANDS, type CommandId } from "@/lib/commands";
 import {
+  DEFAULT_FONT,
   DEFAULT_NODE_LABEL,
   LAYOUT_GAP_X,
   NODE_HEIGHT,
@@ -83,6 +84,7 @@ export type MindMapState = {
   inspectorOpen: boolean;
   sidebarCollapsed: boolean;
   theme: MindMapTheme;
+  font: string;
   dialog: DialogType;
   contextMenu: ContextMenuState;
   outlineOpen: boolean;
@@ -170,6 +172,7 @@ export type MindMapState = {
   // ── UI actions ──
   toggleTheme: () => void;
   setTheme: (theme: MindMapTheme) => void;
+  setFont: (font: string) => void;
   toggleSidebar: () => void;
   toggleInspector: () => void;
   setInspectorOpen: (open: boolean) => void;
@@ -306,6 +309,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     inspectorOpen: true,
     sidebarCollapsed: false,
     theme: "system",
+    font: DEFAULT_FONT,
     dialog: null,
     contextMenu: null,
     outlineOpen: true,
@@ -453,6 +457,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           edges: active.edges,
           selectedNodeId: getRootNode(active.nodes)?.id ?? null,
           theme: ws.theme,
+          font: ws.font ?? DEFAULT_FONT,
           sidebarCollapsed: ws.sidebarCollapsed,
           inspectorOpen: ws.inspectorOpen,
           hydrated: true,
@@ -486,6 +491,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         documents,
         activeDocumentId,
         theme,
+        font,
         sidebarCollapsed,
         inspectorOpen,
         hydrated,
@@ -497,6 +503,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         documents,
         activeDocumentId,
         theme,
+        font,
         sidebarCollapsed,
         inspectorOpen,
       });
@@ -962,6 +969,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       applyThemeClass(theme);
       set((s) => ({ theme, revision: s.revision + 1 }));
     },
+
+    setFont: (font) => set((s) => ({ font, revision: s.revision + 1 })),
 
     toggleSidebar: () =>
       set((s) => ({

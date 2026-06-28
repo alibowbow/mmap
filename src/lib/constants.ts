@@ -89,6 +89,28 @@ export type LayoutOption = {
   icon: string;
 };
 
+// Selectable app fonts (id maps to a CSS variable defined in globals.css).
+export type FontOption = {
+  id: string;
+  label: string;
+  family: string; // value applied to font-family
+};
+
+export const FONT_OPTIONS: FontOption[] = [
+  { id: "inter", label: "기본 (Inter)", family: "var(--font-inter)" },
+  { id: "noto", label: "본고딕", family: "var(--font-noto)" },
+  { id: "myeongjo", label: "명조체", family: "var(--font-myeongjo)" },
+  { id: "jua", label: "둥근체 (Jua)", family: "var(--font-jua)" },
+  { id: "gaegu", label: "손글씨", family: "var(--font-gaegu)" },
+  { id: "mono", label: "고정폭", family: "var(--font-mono)" },
+];
+
+export const DEFAULT_FONT = "inter";
+
+export function fontFamilyFor(id: string): string {
+  return (FONT_OPTIONS.find((f) => f.id === id) ?? FONT_OPTIONS[0]).family;
+}
+
 export const LAYOUT_OPTIONS: LayoutOption[] = [
   {
     id: "right-tree",

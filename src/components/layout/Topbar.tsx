@@ -10,6 +10,7 @@ import {
   Redo2,
   Sidebar as SidebarIcon,
   Sun,
+  Type,
   Undo2,
 } from "lucide-react";
 import { useState } from "react";
@@ -19,7 +20,7 @@ import { Dropdown } from "@/components/ui/Dropdown";
 import { Icon } from "@/components/ui/Icon";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { cn } from "@/lib/cn";
-import { LAYOUT_OPTIONS } from "@/lib/constants";
+import { FONT_OPTIONS, LAYOUT_OPTIONS } from "@/lib/constants";
 import {
   selectActiveDocument,
   useMindMapStore,
@@ -70,6 +71,8 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
   const futureLen = useMindMapStore((s) => s.future.length);
   const theme = useMindMapStore((s) => s.theme);
   const toggleTheme = useMindMapStore((s) => s.toggleTheme);
+  const font = useMindMapStore((s) => s.font);
+  const setFont = useMindMapStore((s) => s.setFont);
   const autoLayout = useMindMapStore((s) => s.autoLayout);
   const activeLayoutMode = useMindMapStore((s) => s.activeLayoutMode);
   const fitToView = useMindMapStore((s) => s.fitToView);
@@ -82,7 +85,7 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
   const ThemeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-3 mf-glass">
+    <header className="relative z-30 flex h-14 shrink-0 items-center gap-2 border-b border-line px-3 mf-glass">
       {sidebarCollapsed && (
         <Tooltip label="사이드바 열기">
           <Button variant="ghost" size="icon" onClick={toggleSidebar}>
@@ -196,6 +199,23 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
             </Button>
           </Tooltip>
         )}
+
+        <Dropdown
+          align="right"
+          width={200}
+          trigger={
+            <Button variant="ghost" size="icon" aria-label="폰트 변경">
+              <Type size={17} />
+            </Button>
+          }
+          items={FONT_OPTIONS.map((opt) => ({
+            id: opt.id,
+            label: opt.label,
+            active: opt.id === font,
+            onSelect: () => setFont(opt.id),
+            icon: <span style={{ fontFamily: opt.family }}>가</span>,
+          }))}
+        />
 
         <div className="mx-1 h-5 w-px bg-line" />
 

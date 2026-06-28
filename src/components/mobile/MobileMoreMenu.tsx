@@ -9,9 +9,11 @@ import {
   LayoutTemplate,
   Presentation,
   SunMoon,
+  Type,
   Upload,
 } from "lucide-react";
 
+import { FONT_OPTIONS } from "@/lib/constants";
 import { useMindMapStore } from "@/store/mindMapStore";
 
 function Row({
@@ -43,8 +45,19 @@ export function MobileMoreMenu() {
   const setDialog = useMindMapStore((s) => s.setDialog);
   const openPresentationMode = useMindMapStore((s) => s.openPresentationMode);
   const toggleTheme = useMindMapStore((s) => s.toggleTheme);
+  const font = useMindMapStore((s) => s.font);
+  const setFont = useMindMapStore((s) => s.setFont);
+  const addToast = useMindMapStore((s) => s.addToast);
 
   const close = () => setOpen(false);
+
+  // Cycle through the available fonts and surface the new one via a toast.
+  const cycleFont = () => {
+    const idx = FONT_OPTIONS.findIndex((f) => f.id === font);
+    const next = FONT_OPTIONS[(idx + 1) % FONT_OPTIONS.length];
+    setFont(next.id);
+    addToast(`폰트: ${next.label}`, "info");
+  };
 
   return (
     <AnimatePresence>
@@ -103,6 +116,11 @@ export function MobileMoreMenu() {
                   close();
                   openPresentationMode();
                 }}
+              />
+              <Row
+                icon={<Type size={18} />}
+                label="폰트 변경"
+                onClick={cycleFont}
               />
               <Row
                 icon={<SunMoon size={18} />}

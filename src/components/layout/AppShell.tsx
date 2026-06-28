@@ -40,6 +40,7 @@ import {
 } from "@/hooks/useIsMobile";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { cn } from "@/lib/cn";
+import { fontFamilyFor } from "@/lib/constants";
 import {
   selectActiveDocument,
   selectSelectedNode,
@@ -56,7 +57,7 @@ function MobileTopbar() {
   const openCommandPalette = useMindMapStore((s) => s.openCommandPalette);
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-2 pt-[env(safe-area-inset-top)] mf-glass">
+    <header className="relative z-30 flex h-14 shrink-0 items-center gap-2 border-b border-line px-2 pt-[env(safe-area-inset-top)] mf-glass">
       <button
         onClick={() => setMobileDrawerOpen(true)}
         aria-label="문서 목록"
@@ -254,6 +255,7 @@ export function AppShell() {
   const hydrated = useMindMapStore((s) => s.hydrated);
   const theme = useMindMapStore((s) => s.theme);
   const setTheme = useMindMapStore((s) => s.setTheme);
+  const font = useMindMapStore((s) => s.font);
 
   const sidebarCollapsed = useMindMapStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useMindMapStore((s) => s.toggleSidebar);
@@ -290,7 +292,10 @@ export function AppShell() {
   const showTablet = isTablet && !presentationMode;
 
   return (
-    <div className="flex h-[100dvh] w-full overflow-hidden bg-surface-base text-ink">
+    <div
+      className="flex h-[100dvh] w-full overflow-hidden bg-surface-base text-ink"
+      style={{ fontFamily: fontFamilyFor(font) }}
+    >
       {/* Desktop sidebar (inline) */}
       {showDesktopChrome && !sidebarCollapsed && <Sidebar />}
 
