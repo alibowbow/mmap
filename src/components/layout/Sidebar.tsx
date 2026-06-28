@@ -87,9 +87,8 @@ function DocumentCard({ doc }: { doc: MindMapDocument }) {
           width={170}
           trigger={
             <button
-              onClick={(e) => e.stopPropagation()}
               aria-label="문서 메뉴"
-              className="opacity-0 group-hover:opacity-100 transition h-7 w-7 flex items-center justify-center rounded-lg text-ink-faint hover:bg-surface-raised"
+              className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition h-7 w-7 flex items-center justify-center rounded-lg text-ink-faint hover:bg-surface-raised"
             >
               <MoreHorizontal size={16} />
             </button>
