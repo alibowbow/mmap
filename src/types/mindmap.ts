@@ -70,6 +70,7 @@ export type MindMapWorkspace = {
   activeDocumentId: string | null;
   theme: MindMapTheme;
   font: string;
+  nodeStyle: string;
   sidebarCollapsed: boolean;
   inspectorOpen: boolean;
 };

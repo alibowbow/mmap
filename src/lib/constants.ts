@@ -7,8 +7,27 @@ import type {
 export const STORAGE_KEY = "mindforge-workspace-v1";
 export const WORKSPACE_VERSION = 1;
 
-export const DEFAULT_NODE_LABEL = "새 아이디어";
+// New nodes start empty so the user can type immediately.
+export const DEFAULT_NODE_LABEL = "";
 export const DEFAULT_ROOT_LABEL = "중심 주제";
+
+// Visual node styles selectable per workspace.
+export type NodeStyle = "card" | "soft" | "outline" | "line";
+
+export type NodeStyleOption = {
+  id: NodeStyle;
+  label: string;
+  icon: string; // lucide icon name
+};
+
+export const NODE_STYLE_OPTIONS: NodeStyleOption[] = [
+  { id: "card", label: "카드", icon: "Square" },
+  { id: "soft", label: "둥근", icon: "Circle" },
+  { id: "outline", label: "윤곽선", icon: "SquareDashed" },
+  { id: "line", label: "라인 (가지선 위 텍스트)", icon: "Minus" },
+];
+
+export const DEFAULT_NODE_STYLE: NodeStyle = "card";
 
 // Layout geometry tuned for readable, non-overlapping trees.
 export const NODE_WIDTH = 232;

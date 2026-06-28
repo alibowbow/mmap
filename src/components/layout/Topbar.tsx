@@ -8,6 +8,7 @@ import {
   PanelRight,
   Play,
   Redo2,
+  Shapes,
   Sidebar as SidebarIcon,
   Sun,
   Type,
@@ -20,7 +21,11 @@ import { Dropdown } from "@/components/ui/Dropdown";
 import { Icon } from "@/components/ui/Icon";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { cn } from "@/lib/cn";
-import { FONT_OPTIONS, LAYOUT_OPTIONS } from "@/lib/constants";
+import {
+  FONT_OPTIONS,
+  LAYOUT_OPTIONS,
+  NODE_STYLE_OPTIONS,
+} from "@/lib/constants";
 import {
   selectActiveDocument,
   useMindMapStore,
@@ -73,6 +78,8 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
   const toggleTheme = useMindMapStore((s) => s.toggleTheme);
   const font = useMindMapStore((s) => s.font);
   const setFont = useMindMapStore((s) => s.setFont);
+  const nodeStyle = useMindMapStore((s) => s.nodeStyle);
+  const setNodeStyle = useMindMapStore((s) => s.setNodeStyle);
   const autoLayout = useMindMapStore((s) => s.autoLayout);
   const activeLayoutMode = useMindMapStore((s) => s.activeLayoutMode);
   const fitToView = useMindMapStore((s) => s.fitToView);
@@ -199,6 +206,23 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
             </Button>
           </Tooltip>
         )}
+
+        <Dropdown
+          align="right"
+          width={230}
+          trigger={
+            <Button variant="ghost" size="icon" aria-label="노드 스타일">
+              <Shapes size={17} />
+            </Button>
+          }
+          items={NODE_STYLE_OPTIONS.map((opt) => ({
+            id: opt.id,
+            label: opt.label,
+            active: opt.id === nodeStyle,
+            onSelect: () => setNodeStyle(opt.id),
+            icon: <Icon name={opt.icon} size={15} />,
+          }))}
+        />
 
         <Dropdown
           align="right"

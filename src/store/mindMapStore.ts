@@ -13,6 +13,7 @@ import { COMMANDS, type CommandId } from "@/lib/commands";
 import {
   DEFAULT_FONT,
   DEFAULT_NODE_LABEL,
+  DEFAULT_NODE_STYLE,
   LAYOUT_GAP_X,
   NODE_HEIGHT,
   NODE_TYPE_CONFIG,
@@ -85,6 +86,7 @@ export type MindMapState = {
   sidebarCollapsed: boolean;
   theme: MindMapTheme;
   font: string;
+  nodeStyle: string;
   dialog: DialogType;
   contextMenu: ContextMenuState;
   outlineOpen: boolean;
@@ -173,6 +175,7 @@ export type MindMapState = {
   toggleTheme: () => void;
   setTheme: (theme: MindMapTheme) => void;
   setFont: (font: string) => void;
+  setNodeStyle: (style: string) => void;
   toggleSidebar: () => void;
   toggleInspector: () => void;
   setInspectorOpen: (open: boolean) => void;
@@ -310,6 +313,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     sidebarCollapsed: false,
     theme: "system",
     font: DEFAULT_FONT,
+    nodeStyle: DEFAULT_NODE_STYLE,
     dialog: null,
     contextMenu: null,
     outlineOpen: true,
@@ -458,6 +462,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           selectedNodeId: getRootNode(active.nodes)?.id ?? null,
           theme: ws.theme,
           font: ws.font ?? DEFAULT_FONT,
+          nodeStyle: ws.nodeStyle ?? DEFAULT_NODE_STYLE,
           sidebarCollapsed: ws.sidebarCollapsed,
           inspectorOpen: ws.inspectorOpen,
           hydrated: true,
@@ -492,6 +497,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         activeDocumentId,
         theme,
         font,
+        nodeStyle,
         sidebarCollapsed,
         inspectorOpen,
         hydrated,
@@ -504,6 +510,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         activeDocumentId,
         theme,
         font,
+        nodeStyle,
         sidebarCollapsed,
         inspectorOpen,
       });
@@ -971,6 +978,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     },
 
     setFont: (font) => set((s) => ({ font, revision: s.revision + 1 })),
+
+    setNodeStyle: (nodeStyle) =>
+      set((s) => ({ nodeStyle, revision: s.revision + 1 })),
 
     toggleSidebar: () =>
       set((s) => ({

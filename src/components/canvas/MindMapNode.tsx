@@ -32,6 +32,7 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   const setEditingNode = useMindMapStore((s) => s.setEditingNode);
   const toggleCollapse = useMindMapStore((s) => s.toggleCollapse);
   const childCount = useMindMapStore((s) => countChildren(s.nodes, id));
+  const nodeStyle = useMindMapStore((s) => s.nodeStyle);
 
   const isEditing = editingNodeId === id;
   const typeConf = NODE_TYPE_CONFIG[d.type] ?? NODE_TYPE_CONFIG.idea;
@@ -39,6 +40,17 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   const isRoot = d.isRoot || d.type === "root";
   // "plain" nodes show only the user's text — no type icon/label or color rail.
   const isPlain = d.type === "plain" && !isRoot;
+
+  // Visual style (workspace-wide): card / soft / outline / line.
+  const style = nodeStyle === "soft" || nodeStyle === "outline" || nodeStyle === "line"
+    ? nodeStyle
+    : "card";
+  const isLine = style === "line";
+  const isOutline = style === "outline";
+  // The type header (icon + label) is hidden for plain and root nodes.
+  const hideTypeHeader = isPlain || isRoot;
+  // The left color rail only appears on the filled card/soft styles.
+  const showRail = (style === "card" || style === "soft") && !isPlain;
 
   const statusConf =
     d.status && d.status !== "none" ? NODE_STATUS_CONFIG[d.status] : null;
@@ -74,15 +86,37 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
     setEditingNode(null);
   };
 
+  // Per-style chrome (background, border, rounding, shadow).
+  const chrome = cn(
+    "transition-all duration-150",
+    style === "card" &&
+      (selected
+        ? "rounded-2xl border border-transparent bg-surface-raised shadow-ring scale-[1.02]"
+        : "rounded-2xl border border-line bg-surface-raised shadow-node hover:shadow-float hover:-translate-y-0.5"),
+    style === "soft" &&
+      (selected
+        ? "rounded-[26px] border border-transparent bg-surface-raised shadow-ring scale-[1.02]"
+        : "rounded-[26px] border border-line bg-surface-raised shadow-node hover:shadow-float hover:-translate-y-0.5"),
+    isOutline &&
+      (selected
+        ? "rounded-2xl border-2 bg-surface-base/30 shadow-ring scale-[1.02]"
+        : "rounded-2xl border-2 bg-surface-base/30 hover:-translate-y-0.5"),
+    isLine &&
+      (selected
+        ? "rounded-md border-0 border-b-2 bg-transparent shadow-ring scale-[1.02]"
+        : "rounded-md border-0 border-b-2 bg-transparent hover:-translate-y-0.5")
+  );
+
   return (
     <div
-      style={{ width: NODE_WIDTH, minHeight: NODE_HEIGHT }}
+      style={{
+        width: NODE_WIDTH,
+        minHeight: isLine ? undefined : NODE_HEIGHT,
+        borderColor: isOutline || isLine ? color : undefined,
+      }}
       className={cn(
-        "group relative rounded-2xl border transition-all duration-150",
-        "bg-surface-raised",
-        selected
-          ? "border-transparent shadow-ring scale-[1.02]"
-          : "border-line shadow-node hover:shadow-float hover:-translate-y-0.5",
+        "group relative",
+        chrome,
         isMatch && !selected && "ring-2 ring-amber-400/80"
       )}
     >
@@ -93,8 +127,8 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
       <Handle id="right-target" type="target" position={Position.Right} />
       <Handle id="right-source" type="source" position={Position.Right} />
 
-      {/* Root gradient sheen */}
-      {isRoot && (
+      {/* Root gradient sheen (skipped on the borderless line style) */}
+      {isRoot && !isLine && (
         <div
           className="pointer-events-none absolute inset-0 rounded-2xl opacity-90"
           style={{
@@ -106,19 +140,25 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
         />
       )}
 
-      {/* Left color rail (hidden for plain text nodes) */}
-      {!isPlain && (
+      {/* Left color rail (filled card/soft styles only) */}
+      {showRail && (
         <div
           className="absolute left-0 top-3 bottom-3 w-1 rounded-full"
           style={{ background: color }}
         />
       )}
 
-      <div className={cn("relative px-3.5 py-3", isPlain ? "pl-3.5" : "pl-4")}>
-        {/* Header: icon + type + status (plain nodes only show status, if any) */}
-        {(!isPlain || statusConf) && (
+      <div
+        className={cn(
+          "relative px-3.5",
+          isLine ? "py-2" : "py-3",
+          showRail ? "pl-4" : "pl-3.5"
+        )}
+      >
+        {/* Header: icon + type + status (root/plain hide the type label) */}
+        {(!hideTypeHeader || statusConf) && (
           <div className="flex items-center gap-1.5 mb-1.5">
-            {!isPlain && (
+            {!hideTypeHeader && (
               <>
                 <span
                   className="flex h-5 w-5 items-center justify-center rounded-md"
@@ -167,16 +207,18 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
               e.stopPropagation();
             }}
             rows={2}
-            className="nodrag w-full resize-none rounded-lg bg-surface-base border border-brand/50 px-2 py-1 text-sm font-medium text-ink focus:outline-none focus:ring-2 focus:ring-brand/40"
+            placeholder="내용 입력…"
+            className="nodrag w-full resize-none rounded-lg bg-surface-base border border-brand/50 px-2 py-1 text-sm font-medium text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-brand/40"
           />
         ) : (
           <div
             className={cn(
-              "text-sm font-semibold leading-snug text-ink break-words",
-              isRoot && "text-[15px]"
+              "text-sm font-semibold leading-snug break-words",
+              isRoot && "text-[15px]",
+              d.label ? "text-ink" : "text-ink-faint font-normal italic"
             )}
           >
-            {d.label || "제목 없음"}
+            {d.label || "내용 입력…"}
           </div>
         )}
 

@@ -8,12 +8,13 @@ import {
   HelpCircle,
   LayoutTemplate,
   Presentation,
+  Shapes,
   SunMoon,
   Type,
   Upload,
 } from "lucide-react";
 
-import { FONT_OPTIONS } from "@/lib/constants";
+import { FONT_OPTIONS, NODE_STYLE_OPTIONS } from "@/lib/constants";
 import { useMindMapStore } from "@/store/mindMapStore";
 
 function Row({
@@ -47,6 +48,8 @@ export function MobileMoreMenu() {
   const toggleTheme = useMindMapStore((s) => s.toggleTheme);
   const font = useMindMapStore((s) => s.font);
   const setFont = useMindMapStore((s) => s.setFont);
+  const nodeStyle = useMindMapStore((s) => s.nodeStyle);
+  const setNodeStyle = useMindMapStore((s) => s.setNodeStyle);
   const addToast = useMindMapStore((s) => s.addToast);
 
   const close = () => setOpen(false);
@@ -57,6 +60,13 @@ export function MobileMoreMenu() {
     const next = FONT_OPTIONS[(idx + 1) % FONT_OPTIONS.length];
     setFont(next.id);
     addToast(`폰트: ${next.label}`, "info");
+  };
+
+  const cycleNodeStyle = () => {
+    const idx = NODE_STYLE_OPTIONS.findIndex((s) => s.id === nodeStyle);
+    const next = NODE_STYLE_OPTIONS[(idx + 1) % NODE_STYLE_OPTIONS.length];
+    setNodeStyle(next.id);
+    addToast(`노드 스타일: ${next.label}`, "info");
   };
 
   return (
@@ -116,6 +126,11 @@ export function MobileMoreMenu() {
                   close();
                   openPresentationMode();
                 }}
+              />
+              <Row
+                icon={<Shapes size={18} />}
+                label="노드 스타일"
+                onClick={cycleNodeStyle}
               />
               <Row
                 icon={<Type size={18} />}

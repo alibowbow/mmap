@@ -35,6 +35,7 @@ function migrateWorkspace(
       parsed.activeDocumentId ?? parsed.documents?.[0]?.id ?? null,
     theme: parsed.theme ?? "system",
     font: parsed.font ?? "inter",
+    nodeStyle: parsed.nodeStyle ?? "card",
     sidebarCollapsed: parsed.sidebarCollapsed ?? false,
     inspectorOpen: parsed.inspectorOpen ?? true,
   };
