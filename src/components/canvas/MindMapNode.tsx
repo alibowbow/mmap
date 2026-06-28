@@ -7,6 +7,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 import {
+  fontSizeForDepth,
   NODE_HEIGHT,
   NODE_STATUS_CONFIG,
   NODE_TYPE_CONFIG,
@@ -35,6 +36,9 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   const childCount = useMindMapStore((s) => countChildren(s.nodes, id));
   const nodeStyle = useMindMapStore((s) => s.nodeStyle);
   const openContextMenu = useMindMapStore((s) => s.openContextMenu);
+  const levelFontSizes = useMindMapStore((s) => s.levelFontSizes);
+  // Label size depends on the node's depth (per-level sizing).
+  const labelSize = fontSizeForDepth(levelFontSizes, d._depth ?? 0);
 
   const isEditing = editingNodeId === id;
   const typeConf = NODE_TYPE_CONFIG[d.type] ?? NODE_TYPE_CONFIG.idea;
@@ -264,13 +268,14 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
             }}
             rows={2}
             placeholder="내용 입력…"
-            className="nodrag w-full resize-none rounded-lg bg-surface-base border border-brand/50 px-2 py-1 text-sm font-medium text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-brand/40"
+            style={{ fontSize: labelSize }}
+            className="nodrag w-full resize-none rounded-lg bg-surface-base border border-brand/50 px-2 py-1 font-medium text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-brand/40"
           />
         ) : (
           <div
+            style={{ fontSize: labelSize }}
             className={cn(
-              "text-sm font-semibold leading-snug break-words",
-              isRoot && "text-[15px]",
+              "font-semibold leading-snug break-words",
               d.label ? "text-ink" : "text-ink-faint font-normal italic"
             )}
           >

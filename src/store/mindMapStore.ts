@@ -12,8 +12,11 @@ import { create } from "zustand";
 import { COMMANDS, type CommandId } from "@/lib/commands";
 import {
   DEFAULT_FONT,
+  DEFAULT_LEVEL_FONT_SIZES,
   DEFAULT_NODE_LABEL,
   DEFAULT_NODE_STYLE,
+  FONT_SIZE_MAX,
+  FONT_SIZE_MIN,
   LAYOUT_GAP_X,
   NODE_HEIGHT,
   NODE_TYPE_CONFIG,
@@ -87,6 +90,7 @@ export type MindMapState = {
   theme: MindMapTheme;
   font: string;
   nodeStyle: string;
+  levelFontSizes: number[];
   dialog: DialogType;
   contextMenu: ContextMenuState;
   outlineOpen: boolean;
@@ -177,6 +181,8 @@ export type MindMapState = {
   setTheme: (theme: MindMapTheme) => void;
   setFont: (font: string) => void;
   setNodeStyle: (style: string) => void;
+  setLevelFontSize: (level: number, size: number) => void;
+  resetLevelFontSizes: () => void;
   toggleSidebar: () => void;
   toggleInspector: () => void;
   setInspectorOpen: (open: boolean) => void;
@@ -315,6 +321,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     theme: "system",
     font: DEFAULT_FONT,
     nodeStyle: DEFAULT_NODE_STYLE,
+    levelFontSizes: [...DEFAULT_LEVEL_FONT_SIZES],
     dialog: null,
     contextMenu: null,
     outlineOpen: true,
@@ -464,6 +471,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           theme: ws.theme,
           font: ws.font ?? DEFAULT_FONT,
           nodeStyle: ws.nodeStyle ?? DEFAULT_NODE_STYLE,
+          levelFontSizes: ws.levelFontSizes ?? [...DEFAULT_LEVEL_FONT_SIZES],
           sidebarCollapsed: ws.sidebarCollapsed,
           inspectorOpen: ws.inspectorOpen,
           hydrated: true,
@@ -499,6 +507,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         theme,
         font,
         nodeStyle,
+        levelFontSizes,
         sidebarCollapsed,
         inspectorOpen,
         hydrated,
@@ -512,6 +521,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         theme,
         font,
         nodeStyle,
+        levelFontSizes,
         sidebarCollapsed,
         inspectorOpen,
       });
@@ -995,6 +1005,20 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
 
     setNodeStyle: (nodeStyle) =>
       set((s) => ({ nodeStyle, revision: s.revision + 1 })),
+
+    setLevelFontSize: (level, size) =>
+      set((s) => {
+        const clamped = Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, size));
+        const next = [...s.levelFontSizes];
+        next[level] = clamped;
+        return { levelFontSizes: next, revision: s.revision + 1 };
+      }),
+
+    resetLevelFontSizes: () =>
+      set((s) => ({
+        levelFontSizes: [...DEFAULT_LEVEL_FONT_SIZES],
+        revision: s.revision + 1,
+      })),
 
     toggleSidebar: () =>
       set((s) => ({

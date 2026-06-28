@@ -29,6 +29,19 @@ export const NODE_STYLE_OPTIONS: NodeStyleOption[] = [
 
 export const DEFAULT_NODE_STYLE: NodeStyle = "card";
 
+// Per-level (depth) font sizes for node labels. Index = depth, last entry is
+// used for that depth and deeper.
+export const LEVEL_FONT_LABELS = ["중심", "1단계", "2단계", "3단계+"];
+export const DEFAULT_LEVEL_FONT_SIZES = [18, 15, 14, 13];
+export const FONT_SIZE_MIN = 10;
+export const FONT_SIZE_MAX = 34;
+
+// Resolve a node's label size from its depth.
+export function fontSizeForDepth(sizes: number[], depth: number): number {
+  if (!sizes.length) return 14;
+  return sizes[Math.min(depth, sizes.length - 1)] ?? 14;
+}
+
 // Layout geometry tuned for readable, non-overlapping trees.
 export const NODE_WIDTH = 232;
 export const NODE_HEIGHT = 76;

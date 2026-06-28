@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ALargeSmall,
   Command,
   Maximize,
   Monitor,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { FontSizeMenu } from "@/components/toolbar/FontSizeMenu";
 import { Button } from "@/components/ui/Button";
 import { Dropdown } from "@/components/ui/Dropdown";
 import { Icon } from "@/components/ui/Icon";
@@ -239,6 +241,14 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
             onSelect: () => setFont(opt.id),
             icon: <span style={{ fontFamily: opt.family }}>가</span>,
           }))}
+        />
+
+        <FontSizeMenu
+          trigger={
+            <Button variant="ghost" size="icon" aria-label="레벨별 글자 크기">
+              <ALargeSmall size={18} />
+            </Button>
+          }
         />
 
         <div className="mx-1 h-5 w-px bg-line" />

@@ -40,6 +40,7 @@ export type MindMapNodeData = {
   // Transient UI flags (not strictly persisted but harmless if stored)
   searchMatch?: boolean;
   hidden?: boolean;
+  _depth?: number; // computed depth, injected at render for per-level sizing
 };
 
 export type MindMapNode = Node<MindMapNodeData>;
@@ -71,6 +72,7 @@ export type MindMapWorkspace = {
   theme: MindMapTheme;
   font: string;
   nodeStyle: string;
+  levelFontSizes: number[];
   sidebarCollapsed: boolean;
   inspectorOpen: boolean;
 };

@@ -19,7 +19,11 @@ import { MindMapNode } from "@/components/canvas/MindMapNode";
 import { cn } from "@/lib/cn";
 import { NODE_TYPE_CONFIG } from "@/lib/constants";
 import { subtreeDrag as armedDrag } from "@/lib/dragState";
-import { getDescendantIds, getHiddenNodeIds } from "@/lib/tree";
+import {
+  computeDepths,
+  getDescendantIds,
+  getHiddenNodeIds,
+} from "@/lib/tree";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useMindMapStore } from "@/store/mindMapStore";
 import type { MindMapNodeData } from "@/types/mindmap";
@@ -57,12 +61,14 @@ function CanvasInner() {
   const { displayNodes, displayEdges } = useMemo(() => {
     const hidden = getHiddenNodeIds(nodes);
     const posMap = new Map(nodes.map((n) => [n.id, n.position]));
+    const depths = computeDepths(nodes);
     const dn: Node<MindMapNodeData>[] = nodes.map((n) => ({
       ...n,
       type: "mindmap",
       selected: n.id === selectedNodeId,
       hidden: hidden.has(n.id),
       draggable: !presentationMode,
+      data: { ...n.data, _depth: depths.get(n.id) ?? 0 },
     }));
     const de: Edge[] = edges.map((e) => {
       // Route each edge from the face pointing toward its child. Horizontal

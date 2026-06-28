@@ -1,4 +1,8 @@
-import { STORAGE_KEY, WORKSPACE_VERSION } from "@/lib/constants";
+import {
+  DEFAULT_LEVEL_FONT_SIZES,
+  STORAGE_KEY,
+  WORKSPACE_VERSION,
+} from "@/lib/constants";
 import type { MindMapWorkspace } from "@/types/mindmap";
 
 export type LoadResult =
@@ -36,6 +40,10 @@ function migrateWorkspace(
     theme: parsed.theme ?? "system",
     font: parsed.font ?? "inter",
     nodeStyle: parsed.nodeStyle ?? "card",
+    levelFontSizes:
+      Array.isArray(parsed.levelFontSizes) && parsed.levelFontSizes.length
+        ? parsed.levelFontSizes
+        : [...DEFAULT_LEVEL_FONT_SIZES],
     sidebarCollapsed: parsed.sidebarCollapsed ?? false,
     inspectorOpen: parsed.inspectorOpen ?? true,
   };

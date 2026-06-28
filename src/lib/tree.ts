@@ -58,6 +58,23 @@ export function getSubtreeIds(nodes: MindMapNode[], nodeId: string): string[] {
   return [nodeId, ...getDescendantIds(nodes, nodeId)];
 }
 
+// Depth of every node in one pass (root = 0). Used for per-level sizing.
+export function computeDepths(nodes: MindMapNode[]): Map<string, number> {
+  const map = getNodeMap(nodes);
+  const depths = new Map<string, number>();
+  const depthOf = (id: string): number => {
+    const cached = depths.get(id);
+    if (cached !== undefined) return cached;
+    const node = map.get(id);
+    const parentId = node?.data.parentId;
+    const d = parentId && map.has(parentId) ? depthOf(parentId) + 1 : 0;
+    depths.set(id, d);
+    return d;
+  };
+  for (const n of nodes) depthOf(n.id);
+  return depths;
+}
+
 export function getDepth(nodes: MindMapNode[], nodeId: string): number {
   const map = getNodeMap(nodes);
   let depth = 0;
