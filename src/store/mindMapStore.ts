@@ -76,7 +76,8 @@ export type MindMapState = {
   edges: Edge[];
 
   // ── Selection / editing ──
-  selectedNodeId: string | null;
+  selectedNodeId: string | null; // primary selection (inspector / single-node UI)
+  selectedNodeIds: string[]; // full multi-selection set
   editingNodeId: string | null;
 
   // ── Search ──
@@ -145,8 +146,11 @@ export type MindMapState = {
   toggleCollapse: (nodeId: string) => void;
   setNodeSide: (nodeId: string, side: BranchSide | undefined) => void;
   selectNode: (nodeId: string | null) => void;
+  toggleNodeSelection: (nodeId: string) => void;
   setEditingNode: (nodeId: string | null) => void;
   moveNodesBy: (ids: string[], dx: number, dy: number) => void;
+  bulkUpdateData: (ids: string[], partial: Partial<MindMapNodeData>) => void;
+  bulkDelete: (ids: string[]) => void;
 
   // ── Canvas actions ──
   onNodesChange: (changes: NodeChange[]) => void;
@@ -209,6 +213,11 @@ export type MindMapState = {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+// Keep the primary id and the multi-selection set in sync for single selects.
+function selectionFor(id: string | null) {
+  return { selectedNodeId: id, selectedNodeIds: id ? [id] : [] };
 }
 
 function applyThemeClass(theme: MindMapTheme) {
@@ -314,6 +323,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     edges: [],
 
     selectedNodeId: null,
+    selectedNodeIds: [],
     editingNodeId: null,
 
     searchQuery: "",
@@ -375,7 +385,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         activeDocumentId: doc.id,
         nodes: doc.nodes,
         edges: doc.edges,
-        selectedNodeId: getRootNode(doc.nodes)?.id ?? null,
+        ...selectionFor(getRootNode(doc.nodes)?.id ?? null),
         editingNodeId: null,
         history: [],
         future: [],
@@ -418,9 +428,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         activeDocumentId: wasActive ? nextDocs[0].id : s.activeDocumentId,
         nodes: wasActive ? nextDocs[0].nodes : s.nodes,
         edges: wasActive ? nextDocs[0].edges : s.edges,
-        selectedNodeId: wasActive
-          ? getRootNode(nextDocs[0].nodes)?.id ?? null
-          : s.selectedNodeId,
+        ...(wasActive
+          ? selectionFor(getRootNode(nextDocs[0].nodes)?.id ?? null)
+          : {}),
         history: wasActive ? [] : s.history,
         future: wasActive ? [] : s.future,
         revision: s.revision + 1,
@@ -446,7 +456,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         activeDocumentId: documentId,
         nodes: doc.nodes,
         edges: doc.edges,
-        selectedNodeId: getRootNode(doc.nodes)?.id ?? null,
+        ...selectionFor(getRootNode(doc.nodes)?.id ?? null),
         editingNodeId: null,
         history: [],
         future: [],
@@ -474,7 +484,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           activeDocumentId: activeId,
           nodes: active.nodes,
           edges: active.edges,
-          selectedNodeId: getRootNode(active.nodes)?.id ?? null,
+          ...selectionFor(getRootNode(active.nodes)?.id ?? null),
           theme: ws.theme,
           font: ws.font ?? DEFAULT_FONT,
           nodeStyle: ws.nodeStyle ?? DEFAULT_NODE_STYLE,
@@ -494,7 +504,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           activeDocumentId: sample.id,
           nodes: sample.nodes,
           edges: sample.edges,
-          selectedNodeId: getRootNode(sample.nodes)?.id ?? null,
+          ...selectionFor(getRootNode(sample.nodes)?.id ?? null),
           hydrated: true,
         });
         if ("corrupted" in result && result.corrupted) {
@@ -567,7 +577,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         const laid = runLayout(withNew, get().activeLayoutMode);
         return { nodes: laid, edges: buildEdgesFromNodes(laid) };
       });
-      set({ selectedNodeId: id, editingNodeId: id });
+      set({ ...selectionFor(id), editingNodeId: id });
       focusSoon(id);
       return id;
     },
@@ -624,7 +634,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         return { nodes: nextNodes, edges: buildEdgesFromNodes(nextNodes) };
       });
       set((s) => ({
-        selectedNodeId: parentId,
+        ...selectionFor(parentId),
         editingNodeId: null,
         mobileSheetOpen: false,
         contextMenu: null,
@@ -647,7 +657,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         return { nodes: nextNodes, edges: buildEdgesFromNodes(nextNodes) };
       });
       set({
-        selectedNodeId: parentId,
+        ...selectionFor(parentId),
         editingNodeId: null,
         mobileSheetOpen: false,
         contextMenu: null,
@@ -698,7 +708,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         return { nodes: nextNodes, edges: [...eds, ...newEdges] };
       });
       const newRootId = idMap.get(nodeId)!;
-      set({ selectedNodeId: newRootId });
+      set({ ...selectionFor(newRootId) });
       get().addToast("하위 트리를 복제했습니다", "success");
     },
 
@@ -728,9 +738,63 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     },
 
     selectNode: (nodeId) =>
-      set({ selectedNodeId: nodeId, contextMenu: null }),
+      set({
+        selectedNodeId: nodeId,
+        selectedNodeIds: nodeId ? [nodeId] : [],
+        contextMenu: null,
+      }),
+
+    // Add/remove a node from the multi-selection (Shift/⌘ + click).
+    toggleNodeSelection: (nodeId) =>
+      set((s) => {
+        const exists = s.selectedNodeIds.includes(nodeId);
+        const next = exists
+          ? s.selectedNodeIds.filter((id) => id !== nodeId)
+          : [...s.selectedNodeIds, nodeId];
+        return {
+          selectedNodeIds: next,
+          selectedNodeId: next.length ? next[next.length - 1] : null,
+          contextMenu: null,
+        };
+      }),
 
     setEditingNode: (nodeId) => set({ editingNodeId: nodeId }),
+
+    // Apply the same data patch to many nodes at once.
+    bulkUpdateData: (ids, partial) => {
+      if (!ids.length) return;
+      const idset = new Set(ids);
+      commit((nds, eds) => ({
+        nodes: nds.map((n) =>
+          idset.has(n.id) ? { ...n, data: { ...n.data, ...partial } } : n
+        ),
+        edges: eds,
+      }));
+    },
+
+    // Delete several nodes (and their subtrees), skipping the root.
+    bulkDelete: (ids) => {
+      const { nodes } = get();
+      const map = getNodeMap(nodes);
+      const toRemove = new Set<string>();
+      for (const id of ids) {
+        const node = map.get(id);
+        if (!node || node.data.isRoot || !node.data.parentId) continue;
+        for (const sid of getSubtreeIds(nodes, id)) toRemove.add(sid);
+      }
+      if (!toRemove.size) return;
+      commit((nds) => {
+        const next = nds.filter((n) => !toRemove.has(n.id));
+        return { nodes: next, edges: buildEdgesFromNodes(next) };
+      });
+      set({
+        selectedNodeId: null,
+        selectedNodeIds: [],
+        editingNodeId: null,
+        contextMenu: null,
+        mobileSheetOpen: false,
+      });
+    },
 
     // Shift a set of nodes by a delta (used to drag a subtree together).
     moveNodesBy: (ids, dx, dy) => {
@@ -968,7 +1032,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         activeDocumentId: doc.id,
         nodes: doc.nodes,
         edges: doc.edges,
-        selectedNodeId: getRootNode(doc.nodes)?.id ?? null,
+        ...selectionFor(getRootNode(doc.nodes)?.id ?? null),
         history: [],
         future: [],
         dialog: null,
@@ -991,7 +1055,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         activeDocumentId: doc.id,
         nodes: doc.nodes,
         edges: doc.edges,
-        selectedNodeId: getRootNode(doc.nodes)?.id ?? null,
+        ...selectionFor(getRootNode(doc.nodes)?.id ?? null),
         history: [],
         future: [],
         dialog: null,
@@ -1090,7 +1154,11 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     setImportTab: (importTab) => set({ importTab }),
 
     openContextMenu: (nodeId, x, y) =>
-      set({ contextMenu: { nodeId, x, y }, selectedNodeId: nodeId }),
+      set({
+        contextMenu: { nodeId, x, y },
+        selectedNodeId: nodeId,
+        selectedNodeIds: [nodeId],
+      }),
     closeContextMenu: () => set({ contextMenu: null }),
 
     setOutlineOpen: (open) => set({ outlineOpen: open }),
@@ -1101,7 +1169,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     openPresentationMode: () => {
       const { selectedNodeId, nodes } = get();
       const target = selectedNodeId ?? getRootNode(nodes)?.id ?? null;
-      set({ presentationMode: true, selectedNodeId: target });
+      set({ presentationMode: true, ...selectionFor(target) });
       if (target) focusSoon(target);
     },
     closePresentationMode: () => {
@@ -1115,7 +1183,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const idx = order.indexOf(selectedNodeId ?? "");
       const next = order[Math.min(order.length - 1, idx + 1)] ?? order[0];
       if (next) {
-        set({ selectedNodeId: next });
+        set({ ...selectionFor(next) });
         get().focusNode(next);
       }
     },
@@ -1125,7 +1193,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const idx = order.indexOf(selectedNodeId ?? "");
       const prev = order[Math.max(0, idx - 1)] ?? order[0];
       if (prev) {
-        set({ selectedNodeId: prev });
+        set({ ...selectionFor(prev) });
         get().focusNode(prev);
       }
     },

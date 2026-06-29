@@ -27,6 +27,7 @@ import { MobileMoreMenu } from "@/components/mobile/MobileMoreMenu";
 import { MobileNodeSheet } from "@/components/mobile/MobileNodeSheet";
 import { MobileSearchOverlay } from "@/components/mobile/MobileSearchOverlay";
 import { SearchPanel } from "@/components/panels/SearchPanel";
+import { BulkActionBar } from "@/components/toolbar/BulkActionBar";
 import { CommandPalette } from "@/components/toolbar/CommandPalette";
 import { FloatingToolbar } from "@/components/toolbar/FloatingToolbar";
 import { NodeContextMenu } from "@/components/toolbar/NodeContextMenu";
@@ -310,6 +311,9 @@ export function AppShell() {
 
         <div className="relative min-h-0 flex-1">
           <MindMapCanvas />
+
+          {/* Bulk edit bar appears when multiple nodes are selected */}
+          {!presentationMode && <BulkActionBar />}
 
           {/* Floating toolbar on desktop/tablet */}
           {!isMobile && !presentationMode && <FloatingToolbar />}

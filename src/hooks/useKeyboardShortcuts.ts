@@ -80,7 +80,11 @@ export function useKeyboardShortcuts(): void {
       }
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
-        if (selected) store.deleteNode(selected);
+        if (store.selectedNodeIds.length > 1) {
+          store.bulkDelete(store.selectedNodeIds);
+        } else if (selected) {
+          store.deleteNode(selected);
+        }
         return;
       }
       if (store.presentationMode) {

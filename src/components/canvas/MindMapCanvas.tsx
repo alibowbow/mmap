@@ -35,12 +35,13 @@ function CanvasInner() {
   const isMobile = useIsMobile();
   const nodes = useMindMapStore((s) => s.nodes);
   const edges = useMindMapStore((s) => s.edges);
-  const selectedNodeId = useMindMapStore((s) => s.selectedNodeId);
+  const selectedNodeIds = useMindMapStore((s) => s.selectedNodeIds);
   const presentationMode = useMindMapStore((s) => s.presentationMode);
 
   const onNodesChange = useMindMapStore((s) => s.onNodesChange);
   const onEdgesChange = useMindMapStore((s) => s.onEdgesChange);
   const selectNode = useMindMapStore((s) => s.selectNode);
+  const toggleNodeSelection = useMindMapStore((s) => s.toggleNodeSelection);
   const setEditingNode = useMindMapStore((s) => s.setEditingNode);
   const openContextMenu = useMindMapStore((s) => s.openContextMenu);
   const closeContextMenu = useMindMapStore((s) => s.closeContextMenu);
@@ -62,10 +63,11 @@ function CanvasInner() {
     const hidden = getHiddenNodeIds(nodes);
     const posMap = new Map(nodes.map((n) => [n.id, n.position]));
     const depths = computeDepths(nodes);
+    const selectedSet = new Set(selectedNodeIds);
     const dn: Node<MindMapNodeData>[] = nodes.map((n) => ({
       ...n,
       type: "mindmap",
-      selected: n.id === selectedNodeId,
+      selected: selectedSet.has(n.id),
       hidden: hidden.has(n.id),
       draggable: !presentationMode,
       data: { ...n.data, _depth: depths.get(n.id) ?? 0 },
@@ -98,14 +100,16 @@ function CanvasInner() {
       };
     });
     return { displayNodes: dn, displayEdges: de };
-  }, [nodes, edges, selectedNodeId, presentationMode]);
+  }, [nodes, edges, selectedNodeIds, presentationMode]);
 
   const onNodeClick = useCallback(
-    (_: React.MouseEvent, node: Node) => {
-      selectNode(node.id);
+    (e: React.MouseEvent, node: Node) => {
+      // Shift / Cmd / Ctrl + click toggles multi-selection.
+      if (e.shiftKey || e.metaKey || e.ctrlKey) toggleNodeSelection(node.id);
+      else selectNode(node.id);
       closeContextMenu();
     },
-    [selectNode, closeContextMenu]
+    [selectNode, toggleNodeSelection, closeContextMenu]
   );
 
   const onNodeDoubleClick = useCallback(
@@ -203,6 +207,8 @@ function CanvasInner() {
         nodesDraggable={!presentationMode}
         nodesConnectable={false}
         elementsSelectable
+        multiSelectionKeyCode={null}
+        selectionKeyCode={null}
         panOnScroll
         panOnScrollSpeed={0.6}
         zoomOnPinch
