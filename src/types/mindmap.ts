@@ -37,6 +37,11 @@ export type MindMapNodeData = {
   tags?: string[];
   link?: string;
   checklist?: ChecklistItem[];
+  // Cross-document links (drill-down). A node can be a "portal" into another
+  // map (linkedDocId); a sub-map's root points back to its source.
+  linkedDocId?: string;
+  backDocId?: string;
+  backNodeId?: string;
   // Transient UI flags (not strictly persisted but harmless if stored)
   searchMatch?: boolean;
   hidden?: boolean;

@@ -1,7 +1,13 @@
 "use client";
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { ChevronRight, ExternalLink, MoreHorizontal } from "lucide-react";
+import {
+  ChevronRight,
+  CornerUpLeft,
+  ExternalLink,
+  Map as MapIcon,
+  MoreHorizontal,
+} from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/ui/Icon";
@@ -36,6 +42,7 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   const childCount = useMindMapStore((s) => countChildren(s.nodes, id));
   const nodeStyle = useMindMapStore((s) => s.nodeStyle);
   const openContextMenu = useMindMapStore((s) => s.openContextMenu);
+  const openLinkedDoc = useMindMapStore((s) => s.openLinkedDoc);
   const levelFontSizes = useMindMapStore((s) => s.levelFontSizes);
   // Label size depends on the node's depth (per-level sizing).
   const labelSize = fontSizeForDepth(levelFontSizes, d._depth ?? 0);
@@ -287,6 +294,34 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
           <p className="mt-1 text-[11px] leading-snug text-ink-soft line-clamp-2">
             {d.description}
           </p>
+        )}
+
+        {/* Cross-map navigation chips */}
+        {(d.linkedDocId || d.backDocId) && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {d.linkedDocId && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openLinkedDoc(d.linkedDocId!);
+                }}
+                className="nodrag inline-flex items-center gap-1 rounded-full bg-brand/12 px-2 py-1 text-[11px] font-medium text-brand transition hover:bg-brand/20"
+              >
+                <MapIcon size={12} /> 맵 열기
+              </button>
+            )}
+            {d.backDocId && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openLinkedDoc(d.backDocId!, d.backNodeId);
+                }}
+                className="nodrag inline-flex items-center gap-1 rounded-full bg-surface-overlay px-2 py-1 text-[11px] font-medium text-ink-soft border border-line transition hover:text-ink"
+              >
+                <CornerUpLeft size={12} /> 상위 맵
+              </button>
+            )}
+          </div>
         )}
 
         {/* Checklist progress (tasks) */}

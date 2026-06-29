@@ -143,6 +143,8 @@ export type MindMapState = {
   deleteNode: (nodeId: string) => void;
   duplicateSubtree: (nodeId: string) => void;
   deleteSubtree: (nodeId: string) => void;
+  promoteNodeToMap: (nodeId: string) => void;
+  openLinkedDoc: (docId: string, nodeId?: string) => void;
   toggleCollapse: (nodeId: string) => void;
   setNodeSide: (nodeId: string, side: BranchSide | undefined) => void;
   selectNode: (nodeId: string | null) => void;
@@ -710,6 +712,88 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const newRootId = idMap.get(nodeId)!;
       set({ ...selectionFor(newRootId) });
       get().addToast("하위 트리를 복제했습니다", "success");
+    },
+
+    // Promote a node into its own map: move its subtree to a new document
+    // (with the node as root), turn the original node into a linked portal,
+    // and add a back-link on the new map's root.
+    promoteNodeToMap: (nodeId) => {
+      const { nodes, activeDocumentId } = get();
+      const node = getNodeMap(nodes).get(nodeId);
+      if (!node || node.data.isRoot || !node.data.parentId) {
+        get().addToast("이 노드는 새 맵으로 분리할 수 없습니다", "error");
+        return;
+      }
+      const subtreeIds = getSubtreeIds(nodes, nodeId); // node + descendants
+      const idMap = new Map<string, string>();
+      for (const oldId of subtreeIds) {
+        idMap.set(oldId, createId(oldId === nodeId ? "root" : "n"));
+      }
+      const newNodes: MindMapNode[] = subtreeIds.map((oldId) => {
+        const original = getNodeMap(nodes).get(oldId)!;
+        const isSubRoot = oldId === nodeId;
+        const clone = cloneNode(original);
+        return {
+          ...clone,
+          id: idMap.get(oldId)!,
+          selected: false,
+          data: {
+            ...clone.data,
+            parentId: isSubRoot
+              ? null
+              : idMap.get(original.data.parentId ?? "") ?? null,
+            isRoot: isSubRoot,
+            type: isSubRoot ? "root" : clone.data.type,
+            collapsed: false,
+            linkedDocId: undefined,
+            backDocId: isSubRoot ? activeDocumentId ?? undefined : undefined,
+            backNodeId: isSubRoot ? nodeId : undefined,
+          },
+        };
+      });
+      const laid = runLayout(newNodes, "right-tree");
+      const newDoc = makeDocument(
+        node.data.label || "새 맵",
+        laid,
+        buildEdgesFromNodes(laid)
+      );
+
+      // Update the current document: drop the moved descendants and turn the
+      // node into a portal linking to the new map.
+      const descIds = new Set(getDescendantIds(nodes, nodeId));
+      commit((nds) => {
+        const nextNodes = nds
+          .filter((n) => !descIds.has(n.id))
+          .map((n) =>
+            n.id === nodeId
+              ? {
+                  ...n,
+                  data: { ...n.data, collapsed: false, linkedDocId: newDoc.id },
+                }
+              : n
+          );
+        return { nodes: nextNodes, edges: buildEdgesFromNodes(nextNodes) };
+      });
+
+      set((s) => ({ documents: [newDoc, ...s.documents] }));
+      get().setActiveDocument(newDoc.id);
+      get().addToast("새 맵으로 분리했습니다", "success");
+    },
+
+    openLinkedDoc: (docId, nodeId) => {
+      if (!get().documents.some((d) => d.id === docId)) {
+        get().addToast("연결된 맵을 찾을 수 없습니다", "error");
+        return;
+      }
+      get().setActiveDocument(docId);
+      if (nodeId) {
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            get().selectNode(nodeId);
+            get().focusNode(nodeId);
+          })
+        );
+      }
     },
 
     toggleCollapse: (nodeId) => {

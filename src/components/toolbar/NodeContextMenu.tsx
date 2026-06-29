@@ -8,10 +8,12 @@ import {
   Copy,
   CornerDownRight,
   LayoutGrid,
+  Map as MapIcon,
   Palette,
   Pencil,
   Plus,
   Sparkles,
+  SquareArrowOutUpRight,
   Trash2,
 } from "lucide-react";
 import { useEffect } from "react";
@@ -67,6 +69,8 @@ export function NodeContextMenu() {
   const toggleCollapse = useMindMapStore((s) => s.toggleCollapse);
   const duplicateSubtree = useMindMapStore((s) => s.duplicateSubtree);
   const autoLayoutSubtree = useMindMapStore((s) => s.autoLayoutSubtree);
+  const promoteNodeToMap = useMindMapStore((s) => s.promoteNodeToMap);
+  const openLinkedDoc = useMindMapStore((s) => s.openLinkedDoc);
   const deleteNode = useMindMapStore((s) => s.deleteNode);
   const setNodeSide = useMindMapStore((s) => s.setNodeSide);
   const rootId = useMindMapStore((s) => getRootNode(s.nodes)?.id);
@@ -249,6 +253,30 @@ export function NodeContextMenu() {
               close();
             }}
           />
+
+          <div className="my-1 h-px bg-line" />
+
+          {node.data.linkedDocId ? (
+            <Item
+              icon={<MapIcon size={15} />}
+              label="연결된 맵 열기"
+              onClick={() => {
+                openLinkedDoc(node.data.linkedDocId!);
+                close();
+              }}
+            />
+          ) : (
+            !(node.data.isRoot || node.data.type === "root") && (
+              <Item
+                icon={<SquareArrowOutUpRight size={15} />}
+                label="새 맵으로 분리"
+                onClick={() => {
+                  promoteNodeToMap(node.id);
+                  close();
+                }}
+              />
+            )
+          )}
           {!(node.data.isRoot || node.data.type === "root") && (
             <>
               <div className="my-1 h-px bg-line" />

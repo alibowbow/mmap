@@ -7,8 +7,10 @@ import {
   Copy,
   LayoutGrid,
   Link2,
+  Map as MapIcon,
   Plus,
   Sparkles,
+  SquareArrowOutUpRight,
   Trash2,
   X,
 } from "lucide-react";
@@ -57,6 +59,8 @@ export function NodeEditorFields({ node }: { node: MindMapNode }) {
   const duplicateSubtree = useMindMapStore((s) => s.duplicateSubtree);
   const deleteSubtree = useMindMapStore((s) => s.deleteSubtree);
   const deleteNode = useMindMapStore((s) => s.deleteNode);
+  const promoteNodeToMap = useMindMapStore((s) => s.promoteNodeToMap);
+  const openLinkedDoc = useMindMapStore((s) => s.openLinkedDoc);
   const setNodeSide = useMindMapStore((s) => s.setNodeSide);
   const rootId = useMindMapStore((s) => getRootNode(s.nodes)?.id);
 
@@ -344,6 +348,27 @@ export function NodeEditorFields({ node }: { node: MindMapNode }) {
           />
         </div>
       </Section>
+
+      {/* Cross-map link */}
+      {!isRoot && (
+        <Section label="맵 연결">
+          {d.linkedDocId ? (
+            <Button
+              className="w-full justify-center"
+              onClick={() => openLinkedDoc(d.linkedDocId!)}
+            >
+              <MapIcon size={15} /> 연결된 맵 열기
+            </Button>
+          ) : (
+            <Button
+              className="w-full justify-center"
+              onClick={() => promoteNodeToMap(node.id)}
+            >
+              <SquareArrowOutUpRight size={15} /> 새 맵으로 분리
+            </Button>
+          )}
+        </Section>
+      )}
 
       {/* Actions */}
       <Section label="작업">
