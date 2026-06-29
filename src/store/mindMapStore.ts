@@ -97,6 +97,8 @@ export type MindMapState = {
   levelFontSizes: number[];
   edgeStyle: string;
   edgeAnimated: boolean;
+  edgeWidth: number;
+  edgeColorMode: string;
   nodeTint: boolean;
   dialog: DialogType;
   importTab: "json" | "outline";
@@ -200,6 +202,8 @@ export type MindMapState = {
   setNodeStyle: (style: string) => void;
   setEdgeStyle: (style: string) => void;
   setEdgeAnimated: (on: boolean) => void;
+  setEdgeWidth: (w: number) => void;
+  setEdgeColorMode: (mode: string) => void;
   setNodeTint: (on: boolean) => void;
   setLevelFontSize: (level: number, size: number) => void;
   resetLevelFontSizes: () => void;
@@ -352,6 +356,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     levelFontSizes: [...DEFAULT_LEVEL_FONT_SIZES],
     edgeStyle: "curved",
     edgeAnimated: false,
+    edgeWidth: 2,
+    edgeColorMode: "default",
     nodeTint: false,
     dialog: null,
     importTab: "json",
@@ -506,6 +512,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           levelFontSizes: ws.levelFontSizes ?? [...DEFAULT_LEVEL_FONT_SIZES],
           edgeStyle: ws.edgeStyle ?? "curved",
           edgeAnimated: ws.edgeAnimated ?? false,
+          edgeWidth: ws.edgeWidth ?? 2,
+          edgeColorMode: ws.edgeColorMode ?? "default",
           nodeTint: ws.nodeTint ?? false,
           sidebarCollapsed: ws.sidebarCollapsed,
           inspectorOpen: ws.inspectorOpen,
@@ -545,6 +553,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         levelFontSizes,
         edgeStyle,
         edgeAnimated,
+        edgeWidth,
+        edgeColorMode,
         nodeTint,
         sidebarCollapsed,
         inspectorOpen,
@@ -562,6 +572,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         levelFontSizes,
         edgeStyle,
         edgeAnimated,
+        edgeWidth,
+        edgeColorMode,
         nodeTint,
         sidebarCollapsed,
         inspectorOpen,
@@ -1261,6 +1273,10 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       set((s) => ({ edgeStyle, revision: s.revision + 1 })),
     setEdgeAnimated: (edgeAnimated) =>
       set((s) => ({ edgeAnimated, revision: s.revision + 1 })),
+    setEdgeWidth: (edgeWidth) =>
+      set((s) => ({ edgeWidth, revision: s.revision + 1 })),
+    setEdgeColorMode: (edgeColorMode) =>
+      set((s) => ({ edgeColorMode, revision: s.revision + 1 })),
     setNodeTint: (nodeTint) =>
       set((s) => ({ nodeTint, revision: s.revision + 1 })),
 

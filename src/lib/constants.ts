@@ -39,6 +39,17 @@ export const EDGE_STYLE_OPTIONS: EdgeStyleOption[] = [
 ];
 export const DEFAULT_EDGE_STYLE: EdgeStyle = "curved";
 
+export const EDGE_WIDTH_OPTIONS = [
+  { id: "thin", label: "얇게", value: 1.5 },
+  { id: "normal", label: "보통", value: 2 },
+  { id: "thick", label: "굵게", value: 3 },
+];
+export type EdgeColorMode = "default" | "node";
+export const EDGE_COLOR_OPTIONS: { id: EdgeColorMode; label: string }[] = [
+  { id: "default", label: "기본" },
+  { id: "node", label: "노드색" },
+];
+
 // Per-level (depth) font sizes for node labels. Index = depth, last entry is
 // used for that depth and deeper.
 export const LEVEL_FONT_LABELS = ["중심", "1단계", "2단계", "3단계+"];

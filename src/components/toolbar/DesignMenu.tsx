@@ -5,7 +5,12 @@ import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
-import { EDGE_STYLE_OPTIONS, NODE_STYLE_OPTIONS } from "@/lib/constants";
+import {
+  EDGE_COLOR_OPTIONS,
+  EDGE_STYLE_OPTIONS,
+  EDGE_WIDTH_OPTIONS,
+  NODE_STYLE_OPTIONS,
+} from "@/lib/constants";
 import { useMindMapStore } from "@/store/mindMapStore";
 
 function Toggle({
@@ -52,6 +57,10 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
   const setEdgeStyle = useMindMapStore((s) => s.setEdgeStyle);
   const edgeAnimated = useMindMapStore((s) => s.edgeAnimated);
   const setEdgeAnimated = useMindMapStore((s) => s.setEdgeAnimated);
+  const edgeWidth = useMindMapStore((s) => s.edgeWidth);
+  const setEdgeWidth = useMindMapStore((s) => s.setEdgeWidth);
+  const edgeColorMode = useMindMapStore((s) => s.edgeColorMode);
+  const setEdgeColorMode = useMindMapStore((s) => s.setEdgeColorMode);
 
   useEffect(() => {
     if (!open) return;
@@ -127,6 +136,46 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
               onChange={setEdgeAnimated}
               label="엣지 애니메이션"
             />
+
+            <div className="mt-2 flex items-center gap-2">
+              <span className="w-12 shrink-0 text-xs text-ink-soft">두께</span>
+              <div className="flex flex-1 gap-1.5">
+                {EDGE_WIDTH_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    onClick={() => setEdgeWidth(o.value)}
+                    className={cn(
+                      "flex-1 rounded-lg border px-1 py-1.5 text-[11px] font-medium transition",
+                      edgeWidth === o.value
+                        ? "border-brand bg-brand/10 text-ink"
+                        : "border-line text-ink-soft hover:bg-surface-raised"
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-2 flex items-center gap-2">
+              <span className="w-12 shrink-0 text-xs text-ink-soft">색</span>
+              <div className="flex flex-1 gap-1.5">
+                {EDGE_COLOR_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    onClick={() => setEdgeColorMode(o.id)}
+                    className={cn(
+                      "flex-1 rounded-lg border px-1 py-1.5 text-[11px] font-medium transition",
+                      edgeColorMode === o.id
+                        ? "border-brand bg-brand/10 text-ink"
+                        : "border-line text-ink-soft hover:bg-surface-raised"
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

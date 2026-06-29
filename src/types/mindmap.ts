@@ -80,6 +80,8 @@ export type MindMapWorkspace = {
   levelFontSizes: number[];
   edgeStyle: string;
   edgeAnimated: boolean;
+  edgeWidth: number;
+  edgeColorMode: string;
   nodeTint: boolean;
   sidebarCollapsed: boolean;
   inspectorOpen: boolean;

@@ -180,7 +180,7 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
         borderColor: isOutline || isLine ? color : undefined,
       }}
       className={cn(
-        "group relative",
+        "group relative animate-scale-in",
         chrome,
         isMatch && !selected && "ring-2 ring-amber-400/80",
         // Highlight when this node is the drop target for a re-parent drag.

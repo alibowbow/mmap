@@ -37,6 +37,8 @@ function CanvasInner() {
   const edges = useMindMapStore((s) => s.edges);
   const selectedNodeIds = useMindMapStore((s) => s.selectedNodeIds);
   const presentationMode = useMindMapStore((s) => s.presentationMode);
+  const edgeWidth = useMindMapStore((s) => s.edgeWidth);
+  const edgeColorMode = useMindMapStore((s) => s.edgeColorMode);
 
   const onNodesChange = useMindMapStore((s) => s.onNodesChange);
   const onEdgesChange = useMindMapStore((s) => s.onEdgesChange);
@@ -67,6 +69,14 @@ function CanvasInner() {
   const { displayNodes, displayEdges } = useMemo(() => {
     const hidden = getHiddenNodeIds(nodes);
     const posMap = new Map(nodes.map((n) => [n.id, n.position]));
+    const colorOf = new Map(
+      nodes.map((n) => [
+        n.id,
+        n.data.color ??
+          NODE_TYPE_CONFIG[n.data.type]?.color ??
+          "#94a3b8",
+      ])
+    );
     const depths = computeDepths(nodes);
     const selectedSet = new Set(selectedNodeIds);
     const dn: Node<MindMapNodeData>[] = nodes.map((n) => ({
@@ -96,16 +106,26 @@ function CanvasInner() {
           targetHandle = dy < 0 ? "bottom-target" : "top-target";
         }
       }
+      const stroke =
+        edgeColorMode === "node" ? colorOf.get(e.source) : undefined;
       return {
         ...e,
         type: "mindmap",
         sourceHandle,
         targetHandle,
+        style: { strokeWidth: edgeWidth, ...(stroke ? { stroke } : {}) },
         hidden: hidden.has(e.source) || hidden.has(e.target),
       };
     });
     return { displayNodes: dn, displayEdges: de };
-  }, [nodes, edges, selectedNodeIds, presentationMode]);
+  }, [
+    nodes,
+    edges,
+    selectedNodeIds,
+    presentationMode,
+    edgeWidth,
+    edgeColorMode,
+  ]);
 
   const onNodeClick = useCallback(
     (e: React.MouseEvent, node: Node) => {
