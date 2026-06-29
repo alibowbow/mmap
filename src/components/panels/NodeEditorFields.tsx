@@ -202,7 +202,7 @@ export function NodeEditorFields({ node }: { node: MindMapNode }) {
 
       {/* Color */}
       <Section label="색상">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {NODE_COLOR_PALETTE.map((c) => {
             const active = (d.color ?? "") === c;
             return (
@@ -220,6 +220,22 @@ export function NodeEditorFields({ node }: { node: MindMapNode }) {
               </button>
             );
           })}
+          {/* Custom hex picker */}
+          <label
+            className="relative h-8 w-8 cursor-pointer overflow-hidden rounded-full border-2 border-dashed border-line"
+            title="직접 색상 선택"
+            style={{
+              background:
+                "conic-gradient(from 0deg, #ef4444, #f59e0b, #22c55e, #06b6d4, #6366f1, #ec4899, #ef4444)",
+            }}
+          >
+            <input
+              type="color"
+              value={d.color ?? "#6366f1"}
+              onChange={(e) => updateNodeData(node.id, { color: e.target.value })}
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            />
+          </label>
         </div>
       </Section>
 

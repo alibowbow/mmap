@@ -29,6 +29,16 @@ export const NODE_STYLE_OPTIONS: NodeStyleOption[] = [
 
 export const DEFAULT_NODE_STYLE: NodeStyle = "card";
 
+// Edge shapes.
+export type EdgeStyle = "curved" | "step" | "straight";
+export type EdgeStyleOption = { id: EdgeStyle; label: string; icon: string };
+export const EDGE_STYLE_OPTIONS: EdgeStyleOption[] = [
+  { id: "curved", label: "곡선", icon: "Spline" },
+  { id: "step", label: "직각", icon: "Network" },
+  { id: "straight", label: "직선", icon: "Minus" },
+];
+export const DEFAULT_EDGE_STYLE: EdgeStyle = "curved";
+
 // Per-level (depth) font sizes for node labels. Index = depth, last entry is
 // used for that depth and deeper.
 export const LEVEL_FONT_LABELS = ["중심", "1단계", "2단계", "3단계+"];

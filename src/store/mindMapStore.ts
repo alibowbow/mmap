@@ -95,6 +95,9 @@ export type MindMapState = {
   font: string;
   nodeStyle: string;
   levelFontSizes: number[];
+  edgeStyle: string;
+  edgeAnimated: boolean;
+  nodeTint: boolean;
   dialog: DialogType;
   importTab: "json" | "outline";
   contextMenu: ContextMenuState;
@@ -195,6 +198,9 @@ export type MindMapState = {
   setTheme: (theme: MindMapTheme) => void;
   setFont: (font: string) => void;
   setNodeStyle: (style: string) => void;
+  setEdgeStyle: (style: string) => void;
+  setEdgeAnimated: (on: boolean) => void;
+  setNodeTint: (on: boolean) => void;
   setLevelFontSize: (level: number, size: number) => void;
   resetLevelFontSizes: () => void;
   toggleSidebar: () => void;
@@ -344,6 +350,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     font: DEFAULT_FONT,
     nodeStyle: DEFAULT_NODE_STYLE,
     levelFontSizes: [...DEFAULT_LEVEL_FONT_SIZES],
+    edgeStyle: "curved",
+    edgeAnimated: false,
+    nodeTint: false,
     dialog: null,
     importTab: "json",
     contextMenu: null,
@@ -495,6 +504,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           font: ws.font ?? DEFAULT_FONT,
           nodeStyle: ws.nodeStyle ?? DEFAULT_NODE_STYLE,
           levelFontSizes: ws.levelFontSizes ?? [...DEFAULT_LEVEL_FONT_SIZES],
+          edgeStyle: ws.edgeStyle ?? "curved",
+          edgeAnimated: ws.edgeAnimated ?? false,
+          nodeTint: ws.nodeTint ?? false,
           sidebarCollapsed: ws.sidebarCollapsed,
           inspectorOpen: ws.inspectorOpen,
           hydrated: true,
@@ -531,6 +543,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         font,
         nodeStyle,
         levelFontSizes,
+        edgeStyle,
+        edgeAnimated,
+        nodeTint,
         sidebarCollapsed,
         inspectorOpen,
         hydrated,
@@ -545,6 +560,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         font,
         nodeStyle,
         levelFontSizes,
+        edgeStyle,
+        edgeAnimated,
+        nodeTint,
         sidebarCollapsed,
         inspectorOpen,
       });
@@ -1238,6 +1256,13 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
 
     setNodeStyle: (nodeStyle) =>
       set((s) => ({ nodeStyle, revision: s.revision + 1 })),
+
+    setEdgeStyle: (edgeStyle) =>
+      set((s) => ({ edgeStyle, revision: s.revision + 1 })),
+    setEdgeAnimated: (edgeAnimated) =>
+      set((s) => ({ edgeAnimated, revision: s.revision + 1 })),
+    setNodeTint: (nodeTint) =>
+      set((s) => ({ nodeTint, revision: s.revision + 1 })),
 
     setLevelFontSize: (level, size) =>
       set((s) => {

@@ -44,6 +44,9 @@ function migrateWorkspace(
       Array.isArray(parsed.levelFontSizes) && parsed.levelFontSizes.length
         ? parsed.levelFontSizes
         : [...DEFAULT_LEVEL_FONT_SIZES],
+    edgeStyle: parsed.edgeStyle ?? "curved",
+    edgeAnimated: parsed.edgeAnimated ?? false,
+    nodeTint: parsed.nodeTint ?? false,
     sidebarCollapsed: parsed.sidebarCollapsed ?? false,
     inspectorOpen: parsed.inspectorOpen ?? true,
   };

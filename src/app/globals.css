@@ -155,6 +155,17 @@ body {
   stroke: rgb(var(--ink-faint) / 0.6);
   stroke-width: 2;
 }
+
+/* Flowing dashed edges (animated mode) */
+.mf-edge-flow {
+  stroke-dasharray: 6 6;
+  animation: mf-edge-dash 0.55s linear infinite;
+}
+@keyframes mf-edge-dash {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
 .react-flow__edge.selected .react-flow__edge-path,
 .react-flow__edge:focus .react-flow__edge-path {
   stroke: rgb(var(--brand));

@@ -8,14 +8,20 @@ import {
   HelpCircle,
   Image as ImageIcon,
   LayoutTemplate,
+  Palette,
   Presentation,
   Shapes,
+  Spline,
   SunMoon,
   Type,
   Upload,
 } from "lucide-react";
 
-import { FONT_OPTIONS, NODE_STYLE_OPTIONS } from "@/lib/constants";
+import {
+  EDGE_STYLE_OPTIONS,
+  FONT_OPTIONS,
+  NODE_STYLE_OPTIONS,
+} from "@/lib/constants";
 import { useMindMapStore } from "@/store/mindMapStore";
 
 function Row({
@@ -53,6 +59,10 @@ export function MobileMoreMenu() {
   const setFont = useMindMapStore((s) => s.setFont);
   const nodeStyle = useMindMapStore((s) => s.nodeStyle);
   const setNodeStyle = useMindMapStore((s) => s.setNodeStyle);
+  const edgeStyle = useMindMapStore((s) => s.edgeStyle);
+  const setEdgeStyle = useMindMapStore((s) => s.setEdgeStyle);
+  const nodeTint = useMindMapStore((s) => s.nodeTint);
+  const setNodeTint = useMindMapStore((s) => s.setNodeTint);
   const addToast = useMindMapStore((s) => s.addToast);
 
   const close = () => setOpen(false);
@@ -70,6 +80,18 @@ export function MobileMoreMenu() {
     const next = NODE_STYLE_OPTIONS[(idx + 1) % NODE_STYLE_OPTIONS.length];
     setNodeStyle(next.id);
     addToast(`노드 스타일: ${next.label}`, "info");
+  };
+
+  const cycleEdgeStyle = () => {
+    const idx = EDGE_STYLE_OPTIONS.findIndex((s) => s.id === edgeStyle);
+    const next = EDGE_STYLE_OPTIONS[(idx + 1) % EDGE_STYLE_OPTIONS.length];
+    setEdgeStyle(next.id);
+    addToast(`엣지 모양: ${next.label}`, "info");
+  };
+
+  const toggleTint = () => {
+    setNodeTint(!nodeTint);
+    addToast(nodeTint ? "색 채움 해제" : "색 채움 적용", "info");
   };
 
   return (
@@ -148,6 +170,16 @@ export function MobileMoreMenu() {
                 icon={<Shapes size={18} />}
                 label="노드 스타일"
                 onClick={cycleNodeStyle}
+              />
+              <Row
+                icon={<Spline size={18} />}
+                label="엣지 모양"
+                onClick={cycleEdgeStyle}
+              />
+              <Row
+                icon={<Palette size={18} />}
+                label="색 채움(틴트)"
+                onClick={toggleTint}
               />
               <Row
                 icon={<Type size={18} />}

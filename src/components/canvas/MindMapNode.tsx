@@ -44,6 +44,7 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   const openContextMenu = useMindMapStore((s) => s.openContextMenu);
   const openLinkedDoc = useMindMapStore((s) => s.openLinkedDoc);
   const isDropTarget = useMindMapStore((s) => s.dropTargetId === id);
+  const nodeTint = useMindMapStore((s) => s.nodeTint);
   const levelFontSizes = useMindMapStore((s) => s.levelFontSizes);
   // Label size depends on the node's depth (per-level sizing).
   const labelSize = fontSizeForDepth(levelFontSizes, d._depth ?? 0);
@@ -208,6 +209,17 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
               0.16
             )}, ${hexToRgba(color, 0.02)})`,
           }}
+        />
+      )}
+
+      {/* Color tint fill (filled card/soft styles, non-root) */}
+      {nodeTint && showRail && !isRoot && (
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-0",
+            style === "soft" ? "rounded-[26px]" : "rounded-2xl"
+          )}
+          style={{ background: hexToRgba(color, 0.12) }}
         />
       )}
 

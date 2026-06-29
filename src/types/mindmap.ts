@@ -78,6 +78,9 @@ export type MindMapWorkspace = {
   font: string;
   nodeStyle: string;
   levelFontSizes: number[];
+  edgeStyle: string;
+  edgeAnimated: boolean;
+  nodeTint: boolean;
   sidebarCollapsed: boolean;
   inspectorOpen: boolean;
 };
