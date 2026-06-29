@@ -17,7 +17,7 @@ import { CanvasEmptyState } from "@/components/canvas/CanvasEmptyState";
 import { MindMapEdge } from "@/components/canvas/MindMapEdge";
 import { MindMapNode } from "@/components/canvas/MindMapNode";
 import { cn } from "@/lib/cn";
-import { NODE_TYPE_CONFIG } from "@/lib/constants";
+import { NODE_HEIGHT, NODE_TYPE_CONFIG, NODE_WIDTH } from "@/lib/constants";
 import { subtreeDrag as armedDrag } from "@/lib/dragState";
 import {
   computeDepths,
@@ -49,6 +49,9 @@ function CanvasInner() {
   const updateViewport = useMindMapStore((s) => s.updateViewport);
   const setMobileSheetOpen = useMindMapStore((s) => s.setMobileSheetOpen);
   const moveNodesBy = useMindMapStore((s) => s.moveNodesBy);
+  const pushHistory = useMindMapStore((s) => s.pushHistory);
+  const setDropTargetId = useMindMapStore((s) => s.setDropTargetId);
+  const reparentNode = useMindMapStore((s) => s.reparentNode);
 
   const [miniMapOpen, setMiniMapOpen] = useState(false);
   // Tracks an in-progress subtree drag (descendants follow the dragged node).
@@ -57,6 +60,8 @@ function CanvasInner() {
     descIds: string[];
     last: { x: number; y: number };
   } | null>(null);
+  // Tracks a single-node drag for re-parent detection.
+  const reparent = useRef<{ id: string; descendants: Set<string> } | null>(null);
 
   // Compute visible nodes/edges (hide collapsed subtrees) and selection flag.
   const { displayNodes, displayEdges } = useMemo(() => {
@@ -150,37 +155,75 @@ function CanvasInner() {
   const onNodeDragStart = useCallback(
     (_: MouseEvent | TouchEvent, node: Node) => {
       const state = useMindMapStore.getState();
+      // Snapshot once so the whole drag (move / subtree / re-parent) is one undo.
+      pushHistory();
+      const descIds = getDescendantIds(state.nodes, node.id);
+      reparent.current = { id: node.id, descendants: new Set(descIds) };
       if (armedDrag.armedId === node.id) {
         subtreeDrag.current = {
           id: node.id,
-          descIds: getDescendantIds(state.nodes, node.id),
+          descIds,
           last: { ...node.position },
         };
       } else {
         subtreeDrag.current = null;
       }
     },
-    []
+    [pushHistory]
   );
 
   const onNodeDrag = useCallback(
     (_: MouseEvent | TouchEvent, node: Node) => {
       const ds = subtreeDrag.current;
-      if (!ds || ds.id !== node.id) return;
-      const dx = node.position.x - ds.last.x;
-      const dy = node.position.y - ds.last.y;
-      if (dx || dy) {
-        moveNodesBy(ds.descIds, dx, dy);
-        ds.last = { ...node.position };
+      if (ds && ds.id === node.id) {
+        const dx = node.position.x - ds.last.x;
+        const dy = node.position.y - ds.last.y;
+        if (dx || dy) {
+          moveNodesBy(ds.descIds, dx, dy);
+          ds.last = { ...node.position };
+        }
+        return; // subtree drags don't re-parent
+      }
+      // Re-parent detection: the dragged node's center over another node.
+      const rp = reparent.current;
+      if (!rp || rp.id !== node.id) return;
+      const cx = node.position.x + NODE_WIDTH / 2;
+      const cy = node.position.y + NODE_HEIGHT / 2;
+      let targetId: string | null = null;
+      for (const n of useMindMapStore.getState().nodes) {
+        if (n.id === node.id || rp.descendants.has(n.id)) continue;
+        const w = n.measured?.width ?? NODE_WIDTH;
+        const h = n.measured?.height ?? NODE_HEIGHT;
+        if (
+          cx >= n.position.x &&
+          cx <= n.position.x + w &&
+          cy >= n.position.y &&
+          cy <= n.position.y + h
+        ) {
+          targetId = n.id;
+          break;
+        }
+      }
+      if (useMindMapStore.getState().dropTargetId !== targetId) {
+        setDropTargetId(targetId);
       }
     },
-    [moveNodesBy]
+    [moveNodesBy, setDropTargetId]
   );
 
-  const onNodeDragStop = useCallback(() => {
-    subtreeDrag.current = null;
-    armedDrag.armedId = null;
-  }, []);
+  const onNodeDragStop = useCallback(
+    (_: MouseEvent | TouchEvent, node: Node) => {
+      const targetId = useMindMapStore.getState().dropTargetId;
+      if (targetId && !subtreeDrag.current) {
+        reparentNode(node.id, targetId);
+      }
+      setDropTargetId(null);
+      subtreeDrag.current = null;
+      reparent.current = null;
+      armedDrag.armedId = null;
+    },
+    [reparentNode, setDropTargetId]
+  );
 
   const isEmpty = nodes.length === 0;
 

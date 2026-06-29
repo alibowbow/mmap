@@ -79,6 +79,7 @@ export type MindMapState = {
   selectedNodeId: string | null; // primary selection (inspector / single-node UI)
   selectedNodeIds: string[]; // full multi-selection set
   editingNodeId: string | null;
+  dropTargetId: string | null; // node currently hovered as a re-parent target
 
   // ── Search ──
   searchQuery: string;
@@ -153,6 +154,8 @@ export type MindMapState = {
   moveNodesBy: (ids: string[], dx: number, dy: number) => void;
   bulkUpdateData: (ids: string[], partial: Partial<MindMapNodeData>) => void;
   bulkDelete: (ids: string[]) => void;
+  setDropTargetId: (id: string | null) => void;
+  reparentNode: (nodeId: string, newParentId: string) => void;
 
   // ── Canvas actions ──
   onNodesChange: (changes: NodeChange[]) => void;
@@ -327,6 +330,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     selectedNodeId: null,
     selectedNodeIds: [],
     editingNodeId: null,
+    dropTargetId: null,
 
     searchQuery: "",
     searchTypes: [],
@@ -878,6 +882,36 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         contextMenu: null,
         mobileSheetOpen: false,
       });
+    },
+
+    setDropTargetId: (id) => set({ dropTargetId: id }),
+
+    // Re-parent a node onto a new parent (drag & drop). History is captured by
+    // the drag start, so this mutation doesn't push its own history entry.
+    reparentNode: (nodeId, newParentId) => {
+      const { nodes } = get();
+      if (nodeId === newParentId) return;
+      const map = getNodeMap(nodes);
+      const node = map.get(nodeId);
+      const target = map.get(newParentId);
+      if (!node || !target) return;
+      if (node.data.isRoot || !node.data.parentId) return; // root stays root
+      if (node.data.parentId === newParentId) return; // no change
+      const descendants = new Set(getDescendantIds(nodes, nodeId));
+      if (descendants.has(newParentId)) return; // would create a cycle
+
+      const updated = nodes.map((n) => {
+        if (n.id === nodeId)
+          return { ...n, data: { ...n.data, parentId: newParentId } };
+        if (n.id === newParentId)
+          return { ...n, data: { ...n.data, collapsed: false } };
+        return n;
+      });
+      const laid = runSubtreeLayout(updated, newParentId, get().activeLayoutMode);
+      set({ nodes: laid, edges: buildEdgesFromNodes(laid), dropTargetId: null });
+      syncActiveDocument(laid, buildEdgesFromNodes(laid));
+      requestAnimationFrame(() => get().focusNode(nodeId));
+      get().addToast("부모를 변경했습니다", "success");
     },
 
     // Shift a set of nodes by a delta (used to drag a subtree together).

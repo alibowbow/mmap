@@ -43,6 +43,7 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   const nodeStyle = useMindMapStore((s) => s.nodeStyle);
   const openContextMenu = useMindMapStore((s) => s.openContextMenu);
   const openLinkedDoc = useMindMapStore((s) => s.openLinkedDoc);
+  const isDropTarget = useMindMapStore((s) => s.dropTargetId === id);
   const levelFontSizes = useMindMapStore((s) => s.levelFontSizes);
   // Label size depends on the node's depth (per-level sizing).
   const labelSize = fontSizeForDepth(levelFontSizes, d._depth ?? 0);
@@ -180,7 +181,10 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
       className={cn(
         "group relative",
         chrome,
-        isMatch && !selected && "ring-2 ring-amber-400/80"
+        isMatch && !selected && "ring-2 ring-amber-400/80",
+        // Highlight when this node is the drop target for a re-parent drag.
+        isDropTarget &&
+          "ring-2 ring-emerald-500 ring-offset-2 ring-offset-surface-base"
       )}
     >
       {/* Hidden handles on all four faces. The edge picks the face that points
