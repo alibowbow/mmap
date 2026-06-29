@@ -86,14 +86,19 @@ export async function renderCanvasImage(
   }
 }
 
-// Size the edges SVG to its content bounds (with padding) so it isn't clipped
-// during image capture. Returns a function that restores the original attrs.
+// React Flow v12 renders each edge as its own <svg> (default 300×150) inside
+// the .react-flow__edges container; edge paths use absolute flow coordinates
+// and overflow that tiny box, so html-to-image clips them away. Temporarily
+// give every edge <svg> a viewBox/size/position covering the full content
+// bounds (1:1, so paths stay aligned with the nodes), then restore.
 function expandEdgesSvg(
   viewportEl: HTMLElement,
   bounds: { x: number; y: number; width: number; height: number }
 ): () => void {
-  const svg = viewportEl.querySelector<SVGSVGElement>(".react-flow__edges");
-  if (!svg) return () => {};
+  const svgs = Array.from(
+    viewportEl.querySelectorAll<SVGSVGElement>(".react-flow__edges svg")
+  );
+  if (!svgs.length) return () => {};
 
   const pad = 400;
   const x = Math.round(bounds.x - pad);
@@ -101,36 +106,65 @@ function expandEdgesSvg(
   const w = Math.round(bounds.width + pad * 2);
   const h = Math.round(bounds.height + pad * 2);
 
-  const prev = {
-    width: svg.getAttribute("width"),
-    height: svg.getAttribute("height"),
-    viewBox: svg.getAttribute("viewBox"),
-    cssWidth: svg.style.width,
-    cssHeight: svg.style.height,
-    left: svg.style.left,
-    top: svg.style.top,
-    transform: svg.style.transform,
-  };
+  const restores: Array<() => void> = [];
 
-  svg.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
-  svg.setAttribute("width", `${w}`);
-  svg.setAttribute("height", `${h}`);
-  svg.style.width = `${w}px`;
-  svg.style.height = `${h}px`;
-  svg.style.left = `${x}px`;
-  svg.style.top = `${y}px`;
-  svg.style.transform = "none";
+  // Edge stroke color comes from a CSS class; html-to-image may not inline it,
+  // rasterizing the path as stroke:none (invisible). Force an inline stroke.
+  const paths = Array.from(
+    viewportEl.querySelectorAll<SVGPathElement>(".react-flow__edge-path")
+  );
+  for (const p of paths) {
+    const cs = getComputedStyle(p);
+    const prevStroke = p.style.stroke;
+    const prevWidth = p.style.strokeWidth;
+    p.style.stroke = cs.stroke;
+    p.style.strokeWidth = cs.strokeWidth;
+    restores.push(() => {
+      p.style.stroke = prevStroke;
+      p.style.strokeWidth = prevWidth;
+    });
+  }
 
-  return () => {
-    const setOrRemove = (attr: string, val: string | null) =>
-      val === null ? svg.removeAttribute(attr) : svg.setAttribute(attr, val);
-    setOrRemove("width", prev.width);
-    setOrRemove("height", prev.height);
-    setOrRemove("viewBox", prev.viewBox);
-    svg.style.width = prev.cssWidth;
-    svg.style.height = prev.cssHeight;
-    svg.style.left = prev.left;
-    svg.style.top = prev.top;
-    svg.style.transform = prev.transform;
-  };
+  for (const svg of svgs) {
+    const prev = {
+      width: svg.getAttribute("width"),
+      height: svg.getAttribute("height"),
+      viewBox: svg.getAttribute("viewBox"),
+      cssWidth: svg.style.width,
+      cssHeight: svg.style.height,
+      left: svg.style.left,
+      top: svg.style.top,
+      position: svg.style.position,
+      overflow: svg.style.overflow,
+      transform: svg.style.transform,
+    };
+
+    svg.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
+    svg.setAttribute("width", `${w}`);
+    svg.setAttribute("height", `${h}`);
+    svg.style.width = `${w}px`;
+    svg.style.height = `${h}px`;
+    svg.style.position = "absolute";
+    svg.style.left = `${x}px`;
+    svg.style.top = `${y}px`;
+    svg.style.overflow = "visible";
+    svg.style.transform = "none";
+
+    restores.push(() => {
+      const setOrRemove = (attr: string, val: string | null) =>
+        val === null ? svg.removeAttribute(attr) : svg.setAttribute(attr, val);
+      setOrRemove("width", prev.width);
+      setOrRemove("height", prev.height);
+      setOrRemove("viewBox", prev.viewBox);
+      svg.style.width = prev.cssWidth;
+      svg.style.height = prev.cssHeight;
+      svg.style.left = prev.left;
+      svg.style.top = prev.top;
+      svg.style.position = prev.position;
+      svg.style.overflow = prev.overflow;
+      svg.style.transform = prev.transform;
+    });
+  }
+
+  return () => restores.forEach((r) => r());
 }
