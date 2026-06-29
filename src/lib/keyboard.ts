@@ -34,6 +34,7 @@ export const SHORTCUT_GROUPS: {
       { keys: ["Shift", "Enter"], label: "편집 중 줄바꿈" },
       { keys: ["Delete"], label: "선택 노드 삭제" },
       { keys: ["F2"], label: "선택 노드 제목 편집" },
+      { keys: ["Mod", "D"], label: "하위 트리 복제" },
     ],
   },
   {
@@ -42,6 +43,7 @@ export const SHORTCUT_GROUPS: {
       { keys: ["Mod", "K"], label: "커맨드 팔레트" },
       { keys: ["Mod", "F"], label: "검색" },
       { keys: ["Mod", "S"], label: "저장" },
+      { keys: ["↑", "↓", "←", "→"], label: "노드 간 이동" },
       { keys: ["Space"], label: "캔버스 이동 모드" },
       { keys: ["Esc"], label: "선택 해제 / 닫기" },
     ],
