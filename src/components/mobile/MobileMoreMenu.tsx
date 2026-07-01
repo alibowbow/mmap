@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  FileImage,
   FileJson,
   FilePlus2,
   FileText,
@@ -9,16 +10,21 @@ import {
   Image as ImageIcon,
   LayoutTemplate,
   Palette,
+  Paintbrush,
   Presentation,
+  Ruler,
   Shapes,
   Spline,
   SunMoon,
   Type,
   Upload,
+  Zap,
 } from "lucide-react";
 
 import {
+  EDGE_COLOR_OPTIONS,
   EDGE_STYLE_OPTIONS,
+  EDGE_WIDTH_OPTIONS,
   FONT_OPTIONS,
   NODE_STYLE_OPTIONS,
 } from "@/lib/constants";
@@ -61,6 +67,12 @@ export function MobileMoreMenu() {
   const setNodeStyle = useMindMapStore((s) => s.setNodeStyle);
   const edgeStyle = useMindMapStore((s) => s.edgeStyle);
   const setEdgeStyle = useMindMapStore((s) => s.setEdgeStyle);
+  const edgeWidth = useMindMapStore((s) => s.edgeWidth);
+  const setEdgeWidth = useMindMapStore((s) => s.setEdgeWidth);
+  const edgeColorMode = useMindMapStore((s) => s.edgeColorMode);
+  const setEdgeColorMode = useMindMapStore((s) => s.setEdgeColorMode);
+  const edgeAnimated = useMindMapStore((s) => s.edgeAnimated);
+  const setEdgeAnimated = useMindMapStore((s) => s.setEdgeAnimated);
   const nodeTint = useMindMapStore((s) => s.nodeTint);
   const setNodeTint = useMindMapStore((s) => s.setNodeTint);
   const addToast = useMindMapStore((s) => s.addToast);
@@ -87,6 +99,25 @@ export function MobileMoreMenu() {
     const next = EDGE_STYLE_OPTIONS[(idx + 1) % EDGE_STYLE_OPTIONS.length];
     setEdgeStyle(next.id);
     addToast(`엣지 모양: ${next.label}`, "info");
+  };
+
+  const cycleEdgeWidth = () => {
+    const idx = EDGE_WIDTH_OPTIONS.findIndex((o) => o.value === edgeWidth);
+    const next = EDGE_WIDTH_OPTIONS[(idx + 1) % EDGE_WIDTH_OPTIONS.length];
+    setEdgeWidth(next.value);
+    addToast(`엣지 두께: ${next.label}`, "info");
+  };
+
+  const cycleEdgeColor = () => {
+    const idx = EDGE_COLOR_OPTIONS.findIndex((o) => o.id === edgeColorMode);
+    const next = EDGE_COLOR_OPTIONS[(idx + 1) % EDGE_COLOR_OPTIONS.length];
+    setEdgeColorMode(next.id);
+    addToast(`엣지 색: ${next.label}`, "info");
+  };
+
+  const toggleEdgeAnimated = () => {
+    setEdgeAnimated(!edgeAnimated);
+    addToast(edgeAnimated ? "엣지 애니메이션 해제" : "엣지 애니메이션 적용", "info");
   };
 
   const toggleTint = () => {
@@ -138,6 +169,14 @@ export function MobileMoreMenu() {
                 }}
               />
               <Row
+                icon={<FileImage size={18} />}
+                label="SVG 이미지 저장"
+                onClick={() => {
+                  close();
+                  exportImage("svg");
+                }}
+              />
+              <Row
                 icon={<FileJson size={18} />}
                 label="JSON / Markdown 내보내기"
                 onClick={() => setDialog("export")}
@@ -175,6 +214,21 @@ export function MobileMoreMenu() {
                 icon={<Spline size={18} />}
                 label="엣지 모양"
                 onClick={cycleEdgeStyle}
+              />
+              <Row
+                icon={<Ruler size={18} />}
+                label="엣지 두께"
+                onClick={cycleEdgeWidth}
+              />
+              <Row
+                icon={<Paintbrush size={18} />}
+                label="엣지 색"
+                onClick={cycleEdgeColor}
+              />
+              <Row
+                icon={<Zap size={18} />}
+                label="엣지 애니메이션"
+                onClick={toggleEdgeAnimated}
               />
               <Row
                 icon={<Palette size={18} />}
