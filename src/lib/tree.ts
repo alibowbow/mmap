@@ -130,6 +130,16 @@ function collectDescendants(
   return out;
 }
 
+// DFS order of currently-visible nodes (presentation navigation/reveal).
+export function getVisibleDfsOrder(nodes: MindMapNode[]): string[] {
+  const hidden = getHiddenNodeIds(nodes);
+  const order: string[] = [];
+  walkTree(nodes, (node) => {
+    if (!hidden.has(node.id)) order.push(node.id);
+  });
+  return order;
+}
+
 // Count direct children for badge display.
 export function countChildren(nodes: MindMapNode[], nodeId: string): number {
   return nodes.reduce(

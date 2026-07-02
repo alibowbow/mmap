@@ -42,11 +42,10 @@ import {
   buildEdgesFromNodes,
   getChildrenMap,
   getDescendantIds,
-  getHiddenNodeIds,
   getNodeMap,
   getRootNode,
   getSubtreeIds,
-  walkTree,
+  getVisibleDfsOrder,
 } from "@/lib/tree";
 import { parseImportJson } from "@/lib/validation";
 import type {
@@ -134,6 +133,9 @@ export type MindMapState = {
 
   // ── Modes ──
   presentationMode: boolean;
+  presentationIndex: number; // current step in the visible DFS order
+  presentationReveal: boolean; // step-reveal: only show nodes up to the step
+  setPresentationReveal: (on: boolean) => void;
   activeLayoutMode: LayoutMode;
 
   // ── Flow api ──
@@ -430,6 +432,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     hydrated: false,
 
     presentationMode: false,
+    presentationIndex: 0,
+    presentationReveal: true,
+    setPresentationReveal: (presentationReveal) => set({ presentationReveal }),
     activeLayoutMode: "right-tree",
 
     flow: null,
@@ -1572,47 +1577,45 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
 
     openPresentationMode: () => {
       const { selectedNodeId, nodes } = get();
-      const target = selectedNodeId ?? getRootNode(nodes)?.id ?? null;
-      set({ presentationMode: true, ...selectionFor(target) });
+      const order = getVisibleDfsOrder(nodes);
+      // Start from the selected node's step (or the root) so a presenter can
+      // jump into the middle of a large map.
+      const idx = Math.max(0, order.indexOf(selectedNodeId ?? ""));
+      const target = order[idx] ?? null;
+      set({
+        presentationMode: true,
+        presentationIndex: idx,
+        ...selectionFor(target),
+        contextMenu: null,
+        editingNodeId: null,
+      });
       if (target) focusSoon(target);
     },
     closePresentationMode: () => {
-      set({ presentationMode: false });
+      set({ presentationMode: false, presentationIndex: 0 });
       get().fitToView();
     },
 
     presentationNext: () => {
-      const order = visibleOrder(get().nodes);
-      const { selectedNodeId } = get();
-      const idx = order.indexOf(selectedNodeId ?? "");
-      const next = order[Math.min(order.length - 1, idx + 1)] ?? order[0];
+      const order = getVisibleDfsOrder(get().nodes);
+      const idx = Math.min(order.length - 1, get().presentationIndex + 1);
+      const next = order[idx];
       if (next) {
-        set({ ...selectionFor(next) });
+        set({ presentationIndex: idx, ...selectionFor(next) });
         get().focusNode(next);
       }
     },
     presentationPrev: () => {
-      const order = visibleOrder(get().nodes);
-      const { selectedNodeId } = get();
-      const idx = order.indexOf(selectedNodeId ?? "");
-      const prev = order[Math.max(0, idx - 1)] ?? order[0];
+      const order = getVisibleDfsOrder(get().nodes);
+      const idx = Math.max(0, get().presentationIndex - 1);
+      const prev = order[idx];
       if (prev) {
-        set({ ...selectionFor(prev) });
+        set({ presentationIndex: idx, ...selectionFor(prev) });
         get().focusNode(prev);
       }
     },
   };
 });
-
-// DFS order of currently-visible nodes (used for presentation navigation).
-function visibleOrder(nodes: MindMapNode[]): string[] {
-  const hidden = getHiddenNodeIds(nodes);
-  const order: string[] = [];
-  walkTree(nodes, (node) => {
-    if (!hidden.has(node.id)) order.push(node.id);
-  });
-  return order;
-}
 
 // Selector helpers used across components.
 export function selectActiveDocument(

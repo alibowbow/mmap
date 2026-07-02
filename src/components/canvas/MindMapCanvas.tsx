@@ -27,6 +27,7 @@ import {
   computeDepths,
   getDescendantIds,
   getHiddenNodeIds,
+  getVisibleDfsOrder,
 } from "@/lib/tree";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useMindMapStore } from "@/store/mindMapStore";
@@ -41,6 +42,8 @@ function CanvasInner() {
   const edges = useMindMapStore((s) => s.edges);
   const selectedNodeIds = useMindMapStore((s) => s.selectedNodeIds);
   const presentationMode = useMindMapStore((s) => s.presentationMode);
+  const presentationIndex = useMindMapStore((s) => s.presentationIndex);
+  const presentationReveal = useMindMapStore((s) => s.presentationReveal);
   const edgeWidth = useMindMapStore((s) => s.edgeWidth);
   const edgeColorMode = useMindMapStore((s) => s.edgeColorMode);
   const canvasBg = useMindMapStore((s) => s.canvasBg);
@@ -89,14 +92,31 @@ function CanvasInner() {
     );
     const depths = computeDepths(nodes);
     const selectedSet = new Set(selectedNodeIds);
+    // Presentation: step-reveal hides nodes beyond the current step, and the
+    // spotlight dims everything except the current node.
+    let revealed: Set<string> | null = null;
+    let currentId: string | null = null;
+    if (presentationMode) {
+      const order = getVisibleDfsOrder(nodes);
+      currentId = order[presentationIndex] ?? null;
+      if (presentationReveal) {
+        revealed = new Set(order.slice(0, presentationIndex + 1));
+      }
+    }
     const dn: Node<MindMapNodeData>[] = nodes.map((n) => ({
       ...n,
       type: "mindmap",
       selected: selectedSet.has(n.id),
-      hidden: hidden.has(n.id),
+      hidden: hidden.has(n.id) || (revealed ? !revealed.has(n.id) : false),
       draggable: !presentationMode,
-      data: { ...n.data, _depth: depths.get(n.id) ?? 0 },
+      data: {
+        ...n.data,
+        _depth: depths.get(n.id) ?? 0,
+        _dimmed: presentationMode && currentId !== null && n.id !== currentId,
+      },
     }));
+    const nodeHidden = (id: string) =>
+      hidden.has(id) || (revealed ? !revealed.has(id) : false);
     // Route an edge from the face pointing toward its far end. Horizontal
     // spans use left/right, vertical spans top/bottom — chosen by whichever
     // axis dominates the offset.
@@ -126,7 +146,7 @@ function CanvasInner() {
         type: "mindmap",
         ...handlesFor(e.source, e.target),
         style: { strokeWidth: edgeWidth, ...(stroke ? { stroke } : {}) },
-        hidden: hidden.has(e.source) || hidden.has(e.target),
+        hidden: nodeHidden(e.source) || nodeHidden(e.target),
       };
     });
     // Free-form relations render on top as dashed, arrowed edges.
@@ -140,7 +160,7 @@ function CanvasInner() {
         ...handlesFor(r.source, r.target),
         markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
         data: { label: r.label, relSelected: r.id === selectedRelationId },
-        hidden: hidden.has(r.source) || hidden.has(r.target),
+        hidden: nodeHidden(r.source) || nodeHidden(r.target),
         zIndex: 5,
       });
     }
@@ -152,6 +172,8 @@ function CanvasInner() {
     selectedNodeIds,
     selectedRelationId,
     presentationMode,
+    presentationIndex,
+    presentationReveal,
     edgeWidth,
     edgeColorMode,
   ]);

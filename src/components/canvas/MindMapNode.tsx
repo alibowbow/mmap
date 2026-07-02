@@ -183,6 +183,8 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
       className={cn(
         "group relative animate-scale-in",
         chrome,
+        // Presentation spotlight: fade every node except the current one.
+        d._dimmed && "opacity-35 transition-opacity duration-300",
         isMatch && !selected && "ring-2 ring-amber-400/80",
         // Highlight when this node is the drop target for a re-parent drag.
         isDropTarget &&

@@ -47,6 +47,7 @@ export type MindMapNodeData = {
   searchMatch?: boolean;
   hidden?: boolean;
   _depth?: number; // computed depth, injected at render for per-level sizing
+  _dimmed?: boolean; // presentation spotlight: fade non-current nodes
 };
 
 export type MindMapNode = Node<MindMapNodeData>;
