@@ -131,6 +131,12 @@ export type MindMapState = {
   revision: number;
   hydrated: boolean;
 
+  // ── Tutorial ──
+  tutorialStep: number | null; // null = off
+  startTutorial: () => void;
+  setTutorialStep: (step: number) => void;
+  endTutorial: () => void;
+
   // ── Modes ──
   presentationMode: boolean;
   presentationIndex: number; // current step in the visible DFS order
@@ -431,6 +437,21 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     lastSavedAt: null,
     revision: 0,
     hydrated: false,
+
+    tutorialStep: null,
+    // The tutorial starts on a fresh document so every step matches what the
+    // user sees (root labelled 중심 주제, no other nodes).
+    startTutorial: () => {
+      get().createDocument();
+      set({
+        tutorialStep: 0,
+        mobileMoreOpen: false,
+        dialog: null,
+        commandPaletteOpen: false,
+      });
+    },
+    setTutorialStep: (tutorialStep) => set({ tutorialStep }),
+    endTutorial: () => set({ tutorialStep: null }),
 
     presentationMode: false,
     presentationIndex: 0,

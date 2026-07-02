@@ -33,6 +33,7 @@ import { BulkActionBar } from "@/components/toolbar/BulkActionBar";
 import { CommandPalette } from "@/components/toolbar/CommandPalette";
 import { FloatingToolbar } from "@/components/toolbar/FloatingToolbar";
 import { NodeContextMenu } from "@/components/toolbar/NodeContextMenu";
+import { TutorialCoach } from "@/components/tutorial/TutorialCoach";
 import { Button } from "@/components/ui/Button";
 import { ToastViewport } from "@/components/ui/Toast";
 import { useDebouncedEffect } from "@/hooks/useDebouncedEffect";
@@ -171,6 +172,7 @@ function PresentationControls() {
 function OnboardingHint({ mobile }: { mobile: boolean }) {
   const [show, setShow] = useState(false);
   const setDialog = useMindMapStore((s) => s.setDialog);
+  const startTutorial = useMindMapStore((s) => s.startTutorial);
 
   useEffect(() => {
     try {
@@ -220,13 +222,22 @@ function OnboardingHint({ mobile }: { mobile: boolean }) {
               variant="primary"
               onClick={() => {
                 dismiss();
+                startTutorial();
+              }}
+            >
+              튜토리얼 시작
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                dismiss();
                 setDialog("shortcuts");
               }}
             >
-              단축키 보기
+              단축키
             </Button>
             <Button size="sm" variant="ghost" onClick={dismiss}>
-              시작하기
+              건너뛰기
             </Button>
           </div>
         </motion.div>
@@ -397,6 +408,8 @@ export function AppShell() {
 
       {/* Presentation overlay */}
       {presentationMode && <PresentationControls />}
+
+      <TutorialCoach />
 
       <ToastViewport />
     </div>

@@ -8,6 +8,7 @@ import {
   Grid3x3,
   FilePlus2,
   FileText,
+  GraduationCap,
   HelpCircle,
   Image as ImageIcon,
   LayoutTemplate,
@@ -83,6 +84,7 @@ export function MobileMoreMenu() {
   const setCanvasBg = useMindMapStore((s) => s.setCanvasBg);
   const accent = useMindMapStore((s) => s.accent);
   const setAccent = useMindMapStore((s) => s.setAccent);
+  const startTutorial = useMindMapStore((s) => s.startTutorial);
   const addToast = useMindMapStore((s) => s.addToast);
 
   const close = () => setOpen(false);
@@ -278,6 +280,14 @@ export function MobileMoreMenu() {
                 onClick={() => {
                   toggleTheme();
                   close();
+                }}
+              />
+              <Row
+                icon={<GraduationCap size={18} />}
+                label="튜토리얼"
+                onClick={() => {
+                  close();
+                  startTutorial();
                 }}
               />
               <Row

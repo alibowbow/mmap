@@ -18,7 +18,7 @@ import {
   SquareArrowOutUpRight,
   Trash2,
 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
@@ -88,23 +88,42 @@ export function NodeContextMenu() {
     return () => window.removeEventListener("wheel", onScroll);
   }, [menu, close]);
 
+  // Clamp to the viewport using the menu's real size (it varies with the
+  // node's options), so items like 삭제 are never cut off screen.
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!menu) {
+      setPos(null);
+      return;
+    }
+    const el = menuRef.current;
+    // offsetWidth/Height ignore the entrance scale transform.
+    const w = el?.offsetWidth ?? 230;
+    const h = el?.offsetHeight ?? 420;
+    setPos({
+      x: Math.max(8, Math.min(menu.x, window.innerWidth - w - 12)),
+      y: Math.max(8, Math.min(menu.y, window.innerHeight - h - 12)),
+    });
+  }, [menu]);
+
   if (!menu || !node) return null;
 
-  // Keep the menu inside the viewport.
-  const x = Math.min(menu.x, window.innerWidth - 230);
-  const y = Math.min(menu.y, window.innerHeight - 420);
+  const x = pos?.x ?? menu.x;
+  const y = pos?.y ?? menu.y;
 
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-[90]" onClick={close} onContextMenu={(e) => { e.preventDefault(); close(); }}>
         <motion.div
+          ref={menuRef}
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.96 }}
           transition={{ duration: 0.12 }}
-          style={{ left: x, top: y }}
+          style={{ left: x, top: y, maxHeight: "calc(100vh - 24px)" }}
           onClick={(e) => e.stopPropagation()}
-          className="absolute w-56 rounded-2xl border border-line bg-surface-overlay/95 backdrop-blur-xl p-1.5 shadow-float"
+          className="absolute w-56 overflow-y-auto mf-scroll rounded-2xl border border-line bg-surface-overlay/95 backdrop-blur-xl p-1.5 shadow-float"
         >
           <Item
             icon={<Plus size={15} />}

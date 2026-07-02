@@ -217,7 +217,11 @@ export function layoutRadialTree(
   const childrenMap = getChildrenMap(nodes);
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const positions: PosMap = {};
-  const ringGap = 240;
+  // Elliptical rings: cards are much wider than tall, so the horizontal
+  // radius must account for NODE_WIDTH or side branches sit flush against
+  // the root (circle radius 240 left only an 8px gap).
+  const ringGapX = NODE_WIDTH + 150;
+  const ringGapY = NODE_HEIGHT + 130;
 
   // Count leaves to distribute angular space proportionally.
   const leafCount = (nodeId: string): number => {
@@ -237,10 +241,9 @@ export function layoutRadialTree(
     const node = nodeMap.get(nodeId);
     if (!node) return;
     const mid = (startAngle + endAngle) / 2;
-    const radius = depth * ringGap;
     positions[nodeId] = {
-      x: Math.cos(mid) * radius,
-      y: Math.sin(mid) * radius,
+      x: Math.cos(mid) * depth * ringGapX,
+      y: Math.sin(mid) * depth * ringGapY,
     };
     const kids = visibleChildren(childrenMap, node);
     if (kids.length === 0) {
