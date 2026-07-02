@@ -468,6 +468,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         edges: doc.edges,
         relations: [],
         selectedRelationId: null,
+        activeLayoutMode: "right-tree",
         ...selectionFor(getRootNode(doc.nodes)?.id ?? null),
         editingNodeId: null,
         history: [],
@@ -514,6 +515,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         edges: wasActive ? nextDocs[0].edges : s.edges,
         relations: wasActive ? nextDocs[0].relations ?? [] : s.relations,
         selectedRelationId: wasActive ? null : s.selectedRelationId,
+        activeLayoutMode: wasActive
+          ? nextDocs[0].layoutMode ?? "right-tree"
+          : s.activeLayoutMode,
         ...(wasActive
           ? selectionFor(getRootNode(nextDocs[0].nodes)?.id ?? null)
           : {}),
@@ -556,6 +560,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         relations: doc.relations ?? [],
         selectedRelationId: null,
         connectMode: false,
+        activeLayoutMode: doc.layoutMode ?? "right-tree",
         ...selectionFor(getRootNode(doc.nodes)?.id ?? null),
         editingNodeId: null,
         history: [],
@@ -586,6 +591,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           nodes: active.nodes,
           edges: active.edges,
           relations: active.relations ?? [],
+          activeLayoutMode: active.layoutMode ?? "right-tree",
           ...selectionFor(getRootNode(active.nodes)?.id ?? null),
           theme: ws.theme,
           font: ws.font ?? DEFAULT_FONT,
@@ -1001,7 +1007,14 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         const laid = runLayout(updated, "bidirectional");
         return { nodes: laid, edges: buildEdgesFromNodes(laid) };
       });
-      set({ activeLayoutMode: "bidirectional" });
+      set((s) => ({
+        activeLayoutMode: "bidirectional",
+        documents: s.documents.map((d) =>
+          d.id === s.activeDocumentId
+            ? { ...d, layoutMode: "bidirectional" as LayoutMode }
+            : d
+        ),
+      }));
       requestAnimationFrame(() => get().fitToView());
     },
 
@@ -1249,7 +1262,14 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         const laid = runLayout(nds, layoutMode);
         return { nodes: laid, edges: buildEdgesFromNodes(laid) };
       });
-      set({ activeLayoutMode: layoutMode });
+      // Remember the mode on the document so edge-face routing stays correct
+      // across document switches and reloads.
+      set((s) => ({
+        activeLayoutMode: layoutMode,
+        documents: s.documents.map((d) =>
+          d.id === s.activeDocumentId ? { ...d, layoutMode } : d
+        ),
+      }));
       requestAnimationFrame(() => get().fitToView());
     },
 

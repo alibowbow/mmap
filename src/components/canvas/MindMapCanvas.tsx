@@ -47,6 +47,7 @@ function CanvasInner() {
   const edgeWidth = useMindMapStore((s) => s.edgeWidth);
   const edgeColorMode = useMindMapStore((s) => s.edgeColorMode);
   const canvasBg = useMindMapStore((s) => s.canvasBg);
+  const activeLayoutMode = useMindMapStore((s) => s.activeLayoutMode);
   const relations = useMindMapStore((s) => s.relations);
   const connectMode = useMindMapStore((s) => s.connectMode);
   const selectedRelationId = useMindMapStore((s) => s.selectedRelationId);
@@ -117,26 +118,43 @@ function CanvasInner() {
     }));
     const nodeHidden = (id: string) =>
       hidden.has(id) || (revealed ? !revealed.has(id) : false);
-    // Route an edge from the face pointing toward its far end. Horizontal
-    // spans use left/right, vertical spans top/bottom — chosen by whichever
-    // axis dominates the offset.
+    const horizontalFaces = (dx: number) =>
+      dx < 0
+        ? { sourceHandle: "left-source", targetHandle: "right-target" }
+        : { sourceHandle: "right-source", targetHandle: "left-target" };
+    const verticalFaces = (dy: number) =>
+      dy < 0
+        ? { sourceHandle: "top-source", targetHandle: "bottom-target" }
+        : { sourceHandle: "bottom-source", targetHandle: "top-target" };
+    // Free-relation routing: pick the face by whichever axis dominates.
     const handlesFor = (sourceId: string, targetId: string) => {
       const s = posMap.get(sourceId);
       const t = posMap.get(targetId);
-      let sourceHandle = "right-source";
-      let targetHandle = "left-target";
-      if (s && t) {
-        const dx = t.x - s.x;
-        const dy = t.y - s.y;
-        if (Math.abs(dx) >= Math.abs(dy)) {
-          sourceHandle = dx < 0 ? "left-source" : "right-source";
-          targetHandle = dx < 0 ? "right-target" : "left-target";
-        } else {
-          sourceHandle = dy < 0 ? "top-source" : "bottom-source";
-          targetHandle = dy < 0 ? "bottom-target" : "top-target";
-        }
+      if (!s || !t) return horizontalFaces(1);
+      const dx = t.x - s.x;
+      const dy = t.y - s.y;
+      return Math.abs(dx) >= Math.abs(dy)
+        ? horizontalFaces(dx)
+        : verticalFaces(dy);
+    };
+    // Tree-edge routing follows the layout so branches never leave an odd
+    // face (e.g. a right-tree child slightly above its parent must still exit
+    // the parent's right face, or edges tangle across siblings).
+    const treeHandlesFor = (sourceId: string, targetId: string) => {
+      const s = posMap.get(sourceId);
+      const t = posMap.get(targetId);
+      if (!s || !t) return horizontalFaces(1);
+      const dx = t.x - s.x;
+      const dy = t.y - s.y;
+      if (activeLayoutMode === "vertical") return verticalFaces(dy);
+      if (activeLayoutMode === "radial") {
+        return Math.abs(dx) >= Math.abs(dy)
+          ? horizontalFaces(dx)
+          : verticalFaces(dy);
       }
-      return { sourceHandle, targetHandle };
+      // right-tree / bidirectional: strictly horizontal by the side the
+      // child sits on.
+      return horizontalFaces(dx);
     };
     const de: Edge[] = edges.map((e) => {
       const stroke =
@@ -144,7 +162,7 @@ function CanvasInner() {
       return {
         ...e,
         type: "mindmap",
-        ...handlesFor(e.source, e.target),
+        ...treeHandlesFor(e.source, e.target),
         style: { strokeWidth: edgeWidth, ...(stroke ? { stroke } : {}) },
         hidden: nodeHidden(e.source) || nodeHidden(e.target),
       };
@@ -176,6 +194,7 @@ function CanvasInner() {
     presentationReveal,
     edgeWidth,
     edgeColorMode,
+    activeLayoutMode,
   ]);
 
   const onNodeClick = useCallback(

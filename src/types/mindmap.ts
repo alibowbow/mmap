@@ -74,6 +74,7 @@ export type MindMapDocument = {
   relations?: MindMapRelation[];
   viewport?: MindMapViewport;
   pinned?: boolean;
+  layoutMode?: LayoutMode; // last auto-layout applied (edge-face routing)
   createdAt: string;
   updatedAt: string;
 };
