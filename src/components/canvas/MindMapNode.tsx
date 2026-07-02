@@ -182,6 +182,9 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
       }}
       className={cn(
         "group relative animate-scale-in",
+        // Root node centers its text vertically → make it a flex column so the
+        // content wrapper can stretch to the node's min-height.
+        isRoot && !isLine && "flex flex-col",
         chrome,
         // Presentation spotlight: fade every node except the current one.
         d._dimmed && "opacity-35 transition-opacity duration-300",
@@ -238,7 +241,10 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
         className={cn(
           "relative px-3.5",
           isLine ? "py-2" : "py-3",
-          showRail ? "pl-4" : "pl-3.5"
+          showRail ? "pl-4" : "pl-3.5",
+          // Root: fill the node height and center its label both axes.
+          isRoot && !isLine &&
+            "flex flex-1 flex-col items-center justify-center text-center"
         )}
       >
         {/* Header: icon + type + status (root/plain hide the type label) */}
@@ -295,13 +301,17 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
             rows={2}
             placeholder="내용 입력…"
             style={{ fontSize: labelSize }}
-            className="nodrag w-full resize-none rounded-lg bg-surface-base border border-brand/50 px-2 py-1 font-medium text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-brand/40"
+            className={cn(
+              "nodrag w-full resize-none rounded-lg bg-surface-base border border-brand/50 px-2 py-1 font-medium text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-brand/40",
+              isRoot && "text-center"
+            )}
           />
         ) : (
           <div
             style={{ fontSize: labelSize }}
             className={cn(
               "font-semibold leading-snug break-words",
+              isRoot && "w-full text-center",
               d.label ? "text-ink" : "text-ink-faint font-normal italic"
             )}
           >
