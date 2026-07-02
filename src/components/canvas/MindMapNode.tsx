@@ -246,7 +246,18 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
         position={Position.Top}
         offset={10}
       >
-        <div className="flex items-center gap-0.5 rounded-full border border-line bg-surface-overlay/95 p-1 shadow-float backdrop-blur-xl">
+        {/* Stop pointer/touch events from reaching the React Flow pane: on
+            touch the pane's gesture handler preventDefaults touchstart, which
+            cancels the button's click (the ⋯ / palette taps were being lost). */}
+        <div
+          onPointerDownCapture={(e) => e.stopPropagation()}
+          onTouchStartCapture={(e) => e.stopPropagation()}
+          // Stop the click from bubbling to React Flow ancestors: a bubbled
+          // click reaches a handler that closes the context menu, and React
+          // batches that with openContextMenu so the menu never appears.
+          onClick={(e) => e.stopPropagation()}
+          className="nodrag nopan flex items-center gap-0.5 rounded-full border border-line bg-surface-overlay/95 p-1 shadow-float backdrop-blur-xl"
+        >
           {swatchesOpen ? (
             <>
               {NODE_COLOR_PALETTE.slice(0, 7).map((c) => (
