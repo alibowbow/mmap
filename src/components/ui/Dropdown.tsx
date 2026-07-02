@@ -35,18 +35,30 @@ export function Dropdown({
 
   useEffect(() => {
     if (!open) return;
-    const onClick = (e: MouseEvent) => {
+    // Capture-phase pointerdown: the React Flow pane (d3-zoom) stops mousedown
+    // propagation, so a bubble listener never fires for canvas clicks and the
+    // menu would stay open covering the map.
+    const onDown = (e: PointerEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false);
       }
     };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
   }, [open]);
 
   return (
     <div ref={ref} className={cn("relative inline-flex", className)}>
-      <div onClick={() => setOpen((o) => !o)}>{trigger}</div>
+      {/* Stop propagation here so the trigger toggles the menu without also
+          firing click handlers on parent elements (e.g. a document card). */}
+      <div
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+      >
+        {trigger}
+      </div>
       <AnimatePresence>
         {open && (
           <motion.div
@@ -64,7 +76,8 @@ export function Dropdown({
               <button
                 key={item.id}
                 disabled={item.disabled}
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   item.onSelect?.();
                   setOpen(false);
                 }}

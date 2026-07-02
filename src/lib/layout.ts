@@ -87,6 +87,22 @@ export function layoutRightTree(
   return applyPositions(nodes, positions, root.id);
 }
 
+// Count visible leaves of a subtree (for balancing the two sides).
+function countVisibleLeaves(
+  childrenMap: Map<string, MindMapNode[]>,
+  nodeMap: Map<string, MindMapNode>,
+  nodeId: string
+): number {
+  const node = nodeMap.get(nodeId);
+  if (!node) return 1;
+  const kids = visibleChildren(childrenMap, node);
+  if (kids.length === 0) return 1;
+  return kids.reduce(
+    (acc, k) => acc + countVisibleLeaves(childrenMap, nodeMap, k.id),
+    0
+  );
+}
+
 export function layoutBidirectionalTree(
   nodes: MindMapNode[],
   rootId?: string
@@ -96,13 +112,38 @@ export function layoutBidirectionalTree(
   const childrenMap = getChildrenMap(nodes);
   const positions: PosMap = {};
   const topKids = visibleChildren(childrenMap, root);
-
-  // Balance subtree leaf counts across the two sides for symmetry.
-  const half = Math.ceil(topKids.length / 2);
-  const rightKids = topKids.slice(0, half);
-  const leftKids = topKids.slice(half);
-
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+
+  // Honour an explicit `side` per first-level branch; auto-distribute the rest
+  // to the lighter side so the map stays balanced left/right.
+  const rightKids: MindMapNode[] = [];
+  const leftKids: MindMapNode[] = [];
+  let rightLeaves = 0;
+  let leftLeaves = 0;
+  const autoKids: MindMapNode[] = [];
+  for (const k of topKids) {
+    const leaves = countVisibleLeaves(childrenMap, nodeMap, k.id);
+    if (k.data.side === "left") {
+      leftKids.push(k);
+      leftLeaves += leaves;
+    } else if (k.data.side === "right") {
+      rightKids.push(k);
+      rightLeaves += leaves;
+    } else {
+      autoKids.push(k);
+    }
+  }
+  for (const k of autoKids) {
+    const leaves = countVisibleLeaves(childrenMap, nodeMap, k.id);
+    if (rightLeaves <= leftLeaves) {
+      rightKids.push(k);
+      rightLeaves += leaves;
+    } else {
+      leftKids.push(k);
+      leftLeaves += leaves;
+    }
+  }
+
   let cursorRight = 0;
   let cursorLeft = 0;
 
@@ -176,7 +217,11 @@ export function layoutRadialTree(
   const childrenMap = getChildrenMap(nodes);
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const positions: PosMap = {};
-  const ringGap = 240;
+  // Elliptical rings: cards are much wider than tall, so the horizontal
+  // radius must account for NODE_WIDTH or side branches sit flush against
+  // the root (circle radius 240 left only an 8px gap).
+  const ringGapX = NODE_WIDTH + 150;
+  const ringGapY = NODE_HEIGHT + 130;
 
   // Count leaves to distribute angular space proportionally.
   const leafCount = (nodeId: string): number => {
@@ -196,10 +241,9 @@ export function layoutRadialTree(
     const node = nodeMap.get(nodeId);
     if (!node) return;
     const mid = (startAngle + endAngle) / 2;
-    const radius = depth * ringGap;
     positions[nodeId] = {
-      x: Math.cos(mid) * radius,
-      y: Math.sin(mid) * radius,
+      x: Math.cos(mid) * depth * ringGapX,
+      y: Math.sin(mid) * depth * ringGapY,
     };
     const kids = visibleChildren(childrenMap, node);
     if (kids.length === 0) {

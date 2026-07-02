@@ -3,7 +3,50 @@
 import { useEffect } from "react";
 
 import { isEditableTarget, modPressed } from "@/lib/keyboard";
+import { getHiddenNodeIds } from "@/lib/tree";
 import { useMindMapStore } from "@/store/mindMapStore";
+import type { MindMapNode } from "@/types/mindmap";
+
+type Dir = "up" | "down" | "left" | "right";
+
+// Select the nearest visible node lying in the arrow's direction relative to
+// the current node's center. A directional cone (perpendicular offset weighted
+// heavier) keeps navigation intuitive on the bidirectional radial layout.
+function nearestInDirection(
+  nodes: MindMapNode[],
+  fromId: string,
+  dir: Dir
+): string | null {
+  const from = nodes.find((n) => n.id === fromId);
+  if (!from) return null;
+  const hidden = getHiddenNodeIds(nodes);
+  const fx = from.position.x;
+  const fy = from.position.y;
+  let best: string | null = null;
+  let bestScore = Infinity;
+  for (const n of nodes) {
+    if (n.id === fromId || hidden.has(n.id)) continue;
+    const dx = n.position.x - fx;
+    const dy = n.position.y - fy;
+    let primary: number;
+    let perp: number;
+    if (dir === "left" || dir === "right") {
+      primary = dir === "right" ? dx : -dx;
+      perp = Math.abs(dy);
+    } else {
+      primary = dir === "down" ? dy : -dy;
+      perp = Math.abs(dx);
+    }
+    if (primary <= 0) continue; // not in this direction
+    if (perp > primary * 1.6) continue; // outside the cone
+    const score = primary + perp * 2;
+    if (score < bestScore) {
+      bestScore = score;
+      best = n.id;
+    }
+  }
+  return best;
+}
 
 // Global keyboard shortcuts. Wired once at the app shell level.
 export function useKeyboardShortcuts(): void {
@@ -17,6 +60,11 @@ export function useKeyboardShortcuts(): void {
         if (store.contextMenu) {
           store.closeContextMenu();
           return;
+        }
+        if (store.connectMode) return store.setConnectMode(false);
+        if (store.selectedRelationId) return store.selectRelation(null);
+        if (store.focusModeNodeId && !store.editingNodeId) {
+          return store.exitFocusMode();
         }
         if (store.commandPaletteOpen) return store.closeCommandPalette();
         if (store.dialog) return store.setDialog(null);
@@ -55,6 +103,23 @@ export function useKeyboardShortcuts(): void {
           else store.undo();
           return;
         }
+        if (key === "d") {
+          e.preventDefault();
+          if (store.selectedNodeId) store.duplicateSubtree(store.selectedNodeId);
+          return;
+        }
+        // Copy/paste subtrees — only outside text fields so the browser's
+        // native clipboard keeps working while typing.
+        if (key === "c" && !editable && store.selectedNodeId) {
+          e.preventDefault();
+          store.copySubtree(store.selectedNodeId);
+          return;
+        }
+        if (key === "v" && !editable && store.selectedNodeId) {
+          e.preventDefault();
+          store.pasteSubtree(store.selectedNodeId);
+          return;
+        }
       }
 
       // The rest only apply when not typing in a field.
@@ -80,12 +145,34 @@ export function useKeyboardShortcuts(): void {
       }
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
-        if (selected) store.deleteNode(selected);
+        if (store.selectedRelationId) {
+          store.removeRelation(store.selectedRelationId);
+        } else if (store.selectedNodeIds.length > 1) {
+          store.bulkDelete(store.selectedNodeIds);
+        } else if (selected) {
+          store.deleteNode(selected);
+        }
         return;
       }
       if (store.presentationMode) {
         if (e.key === "ArrowRight") return store.presentationNext();
         if (e.key === "ArrowLeft") return store.presentationPrev();
+        return;
+      }
+
+      // Arrow keys move the selection to the nearest node in that direction.
+      const dirMap: Record<string, Dir> = {
+        ArrowUp: "up",
+        ArrowDown: "down",
+        ArrowLeft: "left",
+        ArrowRight: "right",
+      };
+      const dir = dirMap[e.key];
+      if (dir && selected) {
+        e.preventDefault();
+        const next = nearestInDirection(store.nodes, selected, dir);
+        if (next) store.selectNode(next);
+        return;
       }
     };
 

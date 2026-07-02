@@ -1,18 +1,33 @@
 "use client";
 
-import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { ChevronRight, ExternalLink } from "lucide-react";
+import { Handle, NodeToolbar, Position, type NodeProps } from "@xyflow/react";
+import {
+  ChevronRight,
+  CornerDownRight,
+  CornerUpLeft,
+  ExternalLink,
+  Map as MapIcon,
+  MoreHorizontal,
+  Palette,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 import {
+  fontSizeForDepth,
+  NODE_COLOR_PALETTE,
   NODE_HEIGHT,
   NODE_STATUS_CONFIG,
   NODE_TYPE_CONFIG,
   NODE_WIDTH,
 } from "@/lib/constants";
+import { renderInlineMarkdown } from "@/lib/inlineMarkdown";
 import { countChildren } from "@/lib/tree";
+import { subtreeDrag } from "@/lib/dragState";
 import { useMindMapStore } from "@/store/mindMapStore";
 import type { MindMapNodeData } from "@/types/mindmap";
 
@@ -32,11 +47,45 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   const setEditingNode = useMindMapStore((s) => s.setEditingNode);
   const toggleCollapse = useMindMapStore((s) => s.toggleCollapse);
   const childCount = useMindMapStore((s) => countChildren(s.nodes, id));
+  const nodeStyle = useMindMapStore((s) => s.nodeStyle);
+  const openContextMenu = useMindMapStore((s) => s.openContextMenu);
+  const openLinkedDoc = useMindMapStore((s) => s.openLinkedDoc);
+  const isDropTarget = useMindMapStore((s) => s.dropTargetId === id);
+  const nodeTint = useMindMapStore((s) => s.nodeTint);
+  const levelFontSizes = useMindMapStore((s) => s.levelFontSizes);
+  const addChildNode = useMindMapStore((s) => s.addChildNode);
+  const addSiblingNode = useMindMapStore((s) => s.addSiblingNode);
+  const deleteNode = useMindMapStore((s) => s.deleteNode);
+  const updateNodeData = useMindMapStore((s) => s.updateNodeData);
+  // Quick bar shows only for a clean single selection outside special modes.
+  const quickBarVisible = useMindMapStore(
+    (s) =>
+      s.selectedNodeIds.length === 1 &&
+      s.selectedNodeIds[0] === id &&
+      !s.presentationMode &&
+      !s.connectMode
+  );
+  const [swatchesOpen, setSwatchesOpen] = useState(false);
+  // Label size depends on the node's depth (per-level sizing).
+  const labelSize = fontSizeForDepth(levelFontSizes, d._depth ?? 0);
 
   const isEditing = editingNodeId === id;
   const typeConf = NODE_TYPE_CONFIG[d.type] ?? NODE_TYPE_CONFIG.idea;
-  const color = d.color ?? typeConf.color;
+  const color = d.color ?? d._autoColor ?? typeConf.color;
   const isRoot = d.isRoot || d.type === "root";
+  // "plain" nodes show only the user's text — no type icon/label or color rail.
+  const isPlain = d.type === "plain" && !isRoot;
+
+  // Visual style (workspace-wide): card / soft / outline / line.
+  const style = nodeStyle === "soft" || nodeStyle === "outline" || nodeStyle === "line"
+    ? nodeStyle
+    : "card";
+  const isLine = style === "line";
+  const isOutline = style === "outline";
+  // The type header (icon + label) is hidden for plain and root nodes.
+  const hideTypeHeader = isPlain || isRoot;
+  // The left color rail only appears on the filled card/soft styles.
+  const showRail = (style === "card" || style === "soft") && !isPlain;
 
   const statusConf =
     d.status && d.status !== "none" ? NODE_STATUS_CONFIG[d.status] : null;
@@ -57,39 +106,233 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (isEditing) {
-      setDraft(d.label);
-      requestAnimationFrame(() => {
-        inputRef.current?.focus();
-        inputRef.current?.select();
-      });
-    }
-  }, [isEditing, d.label]);
+    if (!isEditing) return;
+    setDraft(d.label);
+    // Retry over a few frames: layout re-runs and selection updates right
+    // after a node is created can steal focus from the fresh textarea.
+    let tries = 0;
+    let raf = 0;
+    const tick = () => {
+      const el = inputRef.current;
+      if (el && document.activeElement !== el) {
+        el.focus();
+        el.select();
+      }
+      if (++tries < 8 && document.activeElement !== inputRef.current) {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing]);
 
   const commitLabel = () => {
-    const trimmed = draft.trim();
-    updateNodeLabel(id, trimmed.length ? trimmed : d.label);
+    // Allow clearing the label (empty nodes show a placeholder).
+    updateNodeLabel(id, draft.trim());
     setEditingNode(null);
   };
 
+  useEffect(() => {
+    if (!quickBarVisible) setSwatchesOpen(false);
+  }, [quickBarVisible]);
+
+  // Long-press → arm "drag subtree together" mode. A quick drag (movement
+  // before the timer) stays a single-node drag.
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressPos = useRef<{ x: number; y: number } | null>(null);
+
+  const clearPressTimer = () => {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (isEditing) return;
+    pressPos.current = { x: e.clientX, y: e.clientY };
+    clearPressTimer();
+    // Arm via a module ref (not the store) so it doesn't re-render mid-gesture.
+    pressTimer.current = setTimeout(() => {
+      subtreeDrag.armedId = id;
+      pressTimer.current = null;
+    }, 320);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    // Movement before the long-press fires → treat as a normal single drag.
+    if (pressTimer.current && pressPos.current) {
+      const dx = Math.abs(e.clientX - pressPos.current.x);
+      const dy = Math.abs(e.clientY - pressPos.current.y);
+      if (dx > 6 || dy > 6) clearPressTimer();
+    }
+  };
+
+  // Actual release: clear the timer and disarm.
+  const onPointerUpCancel = () => {
+    clearPressTimer();
+    if (subtreeDrag.armedId === id) subtreeDrag.armedId = null;
+  };
+
+  // Pointer leaving the element only cancels the pending timer — it must not
+  // disarm an in-progress drag (which would let the context menu slip through).
+  const onPointerLeave = () => clearPressTimer();
+
+  // Clear selection treatment: a solid brand ring with an offset + lift.
+  const SEL =
+    "ring-2 ring-brand ring-offset-2 ring-offset-surface-base shadow-float scale-[1.03]";
+  // Per-style chrome (background, border, rounding, shadow).
+  const chrome = cn(
+    "transition-all duration-150",
+    style === "card" &&
+      (selected
+        ? `rounded-2xl border border-brand bg-surface-raised ${SEL}`
+        : "rounded-2xl border border-line bg-surface-raised shadow-node hover:shadow-float hover:-translate-y-0.5"),
+    style === "soft" &&
+      (selected
+        ? `rounded-[26px] border border-brand bg-surface-raised ${SEL}`
+        : "rounded-[26px] border border-line bg-surface-raised shadow-node hover:shadow-float hover:-translate-y-0.5"),
+    isOutline &&
+      (selected
+        ? `rounded-2xl border-2 bg-surface-base/30 ${SEL}`
+        : "rounded-2xl border-2 bg-surface-base/30 hover:-translate-y-0.5"),
+    isLine &&
+      (selected
+        ? `rounded-md border-0 border-b-2 bg-transparent ${SEL}`
+        : "rounded-md border-0 border-b-2 bg-transparent hover:-translate-y-0.5")
+  );
+
   return (
     <div
-      style={{ width: NODE_WIDTH, minHeight: NODE_HEIGHT }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUpCancel}
+      onPointerCancel={onPointerUpCancel}
+      onPointerLeave={onPointerLeave}
+      style={{
+        width: NODE_WIDTH,
+        minHeight: isLine ? undefined : NODE_HEIGHT,
+        borderColor: isOutline || isLine ? color : undefined,
+      }}
       className={cn(
-        "group relative rounded-2xl border transition-all duration-150",
-        "bg-surface-raised",
-        selected
-          ? "border-transparent shadow-ring scale-[1.02]"
-          : "border-line shadow-node hover:shadow-float hover:-translate-y-0.5",
-        isMatch && !selected && "ring-2 ring-amber-400/80"
+        "group relative animate-scale-in",
+        // Root node centers its text vertically → make it a flex column so the
+        // content wrapper can stretch to the node's min-height.
+        isRoot && !isLine && "flex flex-col",
+        chrome,
+        // Presentation spotlight: fade every node except the current one.
+        d._dimmed && "opacity-35 transition-opacity duration-300",
+        isMatch && !selected && "ring-2 ring-amber-400/80",
+        // Highlight when this node is the drop target for a re-parent drag.
+        isDropTarget &&
+          "ring-2 ring-emerald-500 ring-offset-2 ring-offset-surface-base"
       )}
     >
-      {/* Hidden handles — edges still connect, visuals come from custom edge */}
-      <Handle type="target" position={Position.Left} />
-      <Handle type="source" position={Position.Right} />
+      {/* Hidden handles on all four faces. The edge picks the face that points
+          toward its child (left/right for trees, top/bottom for org/radial). */}
+      <Handle id="left-target" type="target" position={Position.Left} />
+      <Handle id="left-source" type="source" position={Position.Left} />
+      <Handle id="right-target" type="target" position={Position.Right} />
+      <Handle id="right-source" type="source" position={Position.Right} />
+      <Handle id="top-target" type="target" position={Position.Top} />
+      <Handle id="top-source" type="source" position={Position.Top} />
+      <Handle id="bottom-target" type="target" position={Position.Bottom} />
+      <Handle id="bottom-source" type="source" position={Position.Bottom} />
 
-      {/* Root gradient sheen */}
-      {isRoot && (
+      {/* Quick action bar: one-tap editing without the inspector or menu. */}
+      <NodeToolbar
+        isVisible={quickBarVisible && !isEditing}
+        position={Position.Top}
+        offset={10}
+      >
+        <div className="flex items-center gap-0.5 rounded-full border border-line bg-surface-overlay/95 p-1 shadow-float backdrop-blur-xl">
+          {swatchesOpen ? (
+            <>
+              {NODE_COLOR_PALETTE.slice(0, 7).map((c) => (
+                <button
+                  key={c}
+                  onClick={() => {
+                    updateNodeData(id, { color: c });
+                    setSwatchesOpen(false);
+                  }}
+                  aria-label={`색상 ${c}`}
+                  className="h-6 w-6 rounded-full border-2 border-surface-raised transition hover:scale-110"
+                  style={{ background: c }}
+                />
+              ))}
+              <button
+                onClick={() => setSwatchesOpen(false)}
+                aria-label="색상 닫기"
+                className="flex h-7 w-7 items-center justify-center rounded-full text-ink-faint hover:bg-surface-raised"
+              >
+                <ChevronRight size={14} className="rotate-180" />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => addChildNode(id)}
+                aria-label="자식 추가"
+                title="자식 추가 (Tab)"
+                className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-brand/15 hover:text-brand"
+              >
+                <Plus size={15} />
+              </button>
+              {!isRoot && (
+                <button
+                  onClick={() => addSiblingNode(id)}
+                  aria-label="형제 추가"
+                  title="형제 추가 (Enter)"
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-brand/15 hover:text-brand"
+                >
+                  <CornerDownRight size={14} />
+                </button>
+              )}
+              <button
+                onClick={() => setEditingNode(id)}
+                aria-label="내용 편집"
+                title="편집 (F2)"
+                className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-brand/15 hover:text-brand"
+              >
+                <Pencil size={13} />
+              </button>
+              <button
+                onClick={() => setSwatchesOpen(true)}
+                aria-label="색상 변경"
+                title="색상"
+                className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-brand/15 hover:text-brand"
+              >
+                <Palette size={14} />
+              </button>
+              <button
+                onClick={(e) => openContextMenu(id, e.clientX, e.clientY)}
+                aria-label="더 많은 옵션"
+                title="더 보기"
+                className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-brand/15 hover:text-brand"
+              >
+                <MoreHorizontal size={15} />
+              </button>
+              {!isRoot && (
+                <>
+                  <span className="mx-0.5 h-4 w-px bg-line" />
+                  <button
+                    onClick={() => deleteNode(id)}
+                    aria-label="노드 삭제"
+                    title="삭제 (Delete)"
+                    className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-red-500/15 hover:text-red-500"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      </NodeToolbar>
+
+      {/* Root gradient sheen (skipped on the borderless line style) */}
+      {isRoot && !isLine && (
         <div
           className="pointer-events-none absolute inset-0 rounded-2xl opacity-90"
           style={{
@@ -101,40 +344,68 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
         />
       )}
 
-      {/* Left color rail */}
-      <div
-        className="absolute left-0 top-3 bottom-3 w-1 rounded-full"
-        style={{ background: color }}
-      />
-
-      <div className="relative px-3.5 py-3 pl-4">
-        {/* Header: icon + type + status */}
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <span
-            className="flex h-5 w-5 items-center justify-center rounded-md"
-            style={{ background: hexToRgba(color, 0.16), color }}
-          >
-            <Icon name={typeConf.icon} size={13} />
-          </span>
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
-            {typeConf.label}
-          </span>
-          {statusConf && (
-            <span
-              className="ml-auto inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
-              style={{
-                background: hexToRgba(statusConf.color, 0.14),
-                color: statusConf.color,
-              }}
-            >
-              <span
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ background: statusConf.dot }}
-              />
-              {statusConf.label}
-            </span>
+      {/* Color tint fill (filled card/soft styles, non-root) */}
+      {nodeTint && showRail && !isRoot && (
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-0",
+            style === "soft" ? "rounded-[26px]" : "rounded-2xl"
           )}
-        </div>
+          style={{ background: hexToRgba(color, 0.12) }}
+        />
+      )}
+
+      {/* Left color rail (filled card/soft styles only) */}
+      {showRail && (
+        <div
+          className="absolute left-0 top-3 bottom-3 w-1 rounded-full"
+          style={{ background: color }}
+        />
+      )}
+
+      <div
+        className={cn(
+          "relative px-3.5",
+          isLine ? "py-2" : "py-3",
+          showRail ? "pl-4" : "pl-3.5",
+          // Root: fill the node height and center its label both axes.
+          isRoot && !isLine &&
+            "flex flex-1 flex-col items-center justify-center text-center"
+        )}
+      >
+        {/* Header: icon + type + status (root/plain hide the type label) */}
+        {(!hideTypeHeader || statusConf) && (
+          <div className="flex items-center gap-1.5 mb-1.5">
+            {!hideTypeHeader && (
+              <>
+                <span
+                  className="flex h-5 w-5 items-center justify-center rounded-md"
+                  style={{ background: hexToRgba(color, 0.16), color }}
+                >
+                  <Icon name={typeConf.icon} size={13} />
+                </span>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+                  {typeConf.label}
+                </span>
+              </>
+            )}
+            {statusConf && (
+              <span
+                className="ml-auto inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
+                style={{
+                  background: hexToRgba(statusConf.color, 0.14),
+                  color: statusConf.color,
+                }}
+              >
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ background: statusConf.dot }}
+                />
+                {statusConf.label}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Label / inline editor */}
         {isEditing ? (
@@ -142,11 +413,21 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
             ref={inputRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            onBlur={commitLabel}
+            onBlur={() => {
+              // A late blur fires when Tab has already moved editing to a new
+              // child — committing again would close that editor.
+              if (useMindMapStore.getState().editingNodeId === id) commitLabel();
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 commitLabel();
+              } else if (e.key === "Tab") {
+                // Keep the typing flow going: save this node and immediately
+                // start editing a fresh child.
+                e.preventDefault();
+                commitLabel();
+                addChildNode(id);
               } else if (e.key === "Escape") {
                 e.preventDefault();
                 setEditingNode(null);
@@ -154,16 +435,24 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
               e.stopPropagation();
             }}
             rows={2}
-            className="nodrag w-full resize-none rounded-lg bg-surface-base border border-brand/50 px-2 py-1 text-sm font-medium text-ink focus:outline-none focus:ring-2 focus:ring-brand/40"
+            placeholder="내용 입력…"
+            style={{ fontSize: labelSize }}
+            className={cn(
+              "nodrag w-full resize-none rounded-lg bg-surface-base border border-brand/50 px-2 py-1 font-medium text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-brand/40",
+              isRoot && "text-center"
+            )}
           />
         ) : (
           <div
+            style={{ fontSize: labelSize }}
             className={cn(
-              "text-sm font-semibold leading-snug text-ink break-words",
-              isRoot && "text-[15px]"
+              "font-semibold leading-snug break-words",
+              isRoot && "w-full text-center",
+              d.label ? "text-ink" : "text-ink-faint font-normal italic"
             )}
           >
-            {d.label || "제목 없음"}
+            {d.emoji && <span className="mr-1">{d.emoji}</span>}
+            {d.label ? renderInlineMarkdown(d.label) : "내용 입력…"}
           </div>
         )}
 
@@ -171,6 +460,34 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
           <p className="mt-1 text-[11px] leading-snug text-ink-soft line-clamp-2">
             {d.description}
           </p>
+        )}
+
+        {/* Cross-map navigation chips */}
+        {(d.linkedDocId || d.backDocId) && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {d.linkedDocId && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openLinkedDoc(d.linkedDocId!);
+                }}
+                className="nodrag inline-flex items-center gap-1 rounded-full bg-brand/12 px-2 py-1 text-[11px] font-medium text-brand transition hover:bg-brand/20"
+              >
+                <MapIcon size={12} /> 맵 열기
+              </button>
+            )}
+            {d.backDocId && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openLinkedDoc(d.backDocId!, d.backNodeId);
+                }}
+                className="nodrag inline-flex items-center gap-1 rounded-full bg-surface-overlay px-2 py-1 text-[11px] font-medium text-ink-soft border border-line transition hover:text-ink"
+              >
+                <CornerUpLeft size={12} /> 상위 맵
+              </button>
+            )}
+          </div>
         )}
 
         {/* Checklist progress (tasks) */}
@@ -208,8 +525,8 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
           </div>
         )}
 
-        {/* Footer: link + child count */}
-        {(d.link || childCount > 0 || d.collapsed) && (
+        {/* Footer: link + collapsed indicator */}
+        {(d.link || (d.collapsed && childCount > 0)) && (
           <div className="mt-2 flex items-center gap-2 text-[10px] text-ink-faint">
             {d.link && (
               <a
@@ -222,11 +539,6 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
                 <ExternalLink size={10} /> 링크
               </a>
             )}
-            {childCount > 0 && (
-              <span className="inline-flex items-center gap-0.5">
-                {childCount}개 하위
-              </span>
-            )}
             {d.collapsed && childCount > 0 && (
               <span className="rounded bg-surface-overlay px-1 py-0.5 text-ink-soft">
                 접힘
@@ -235,6 +547,26 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
           </div>
         )}
       </div>
+
+      {/* Quick-edit menu button (no need to open the inspector). Visible on
+          hover and whenever the node is selected (tap-friendly on mobile). */}
+      <button
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          openContextMenu(id, e.clientX, e.clientY);
+        }}
+        aria-label="노드 편집 메뉴"
+        className={cn(
+          "nodrag mf-node-affordance absolute -top-3 -right-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-line bg-surface-raised text-ink-soft shadow-sm transition",
+          "hover:text-ink hover:border-brand/50",
+          // Touch devices have no hover, so the corner ⋯ must stay tappable
+          // whenever the node is selected — even with the quick bar open.
+          selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+        )}
+      >
+        <MoreHorizontal size={15} />
+      </button>
 
       {/* Collapse / expand toggle */}
       {childCount > 0 && (
@@ -245,7 +577,7 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
           }}
           aria-label={d.collapsed ? "펼치기" : "접기"}
           className={cn(
-            "nodrag absolute -right-3 top-1/2 -translate-y-1/2 z-10",
+            "nodrag mf-node-affordance absolute -right-3 top-1/2 -translate-y-1/2 z-10",
             "flex h-6 w-6 items-center justify-center rounded-full border border-line bg-surface-raised text-ink-soft shadow-sm",
             "hover:text-ink hover:border-brand/50 transition"
           )}

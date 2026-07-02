@@ -1,6 +1,23 @@
+/* Selectable fonts are fetched by the browser at runtime (kept out of the
+   build so it never needs network access). */
+@import url("https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Jua&family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Sans+KR:wght@400;500;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Font family tokens (switchable via the font picker). */
+:root {
+  --font-inter: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-noto: "Noto Sans KR", var(--font-inter);
+  --font-myeongjo: "Nanum Myeongjo", "Apple SD Gothic Neo", serif;
+  --font-gaegu: "Gaegu", "Apple SD Gothic Neo", cursive;
+  --font-jua: "Jua", "Apple SD Gothic Neo", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Default app font (used by Tailwind's font-sans). */
+  --font-sans: var(--font-inter);
+}
 
 /* ── Design tokens ──────────────────────────────────────────────────────── */
 :root {
@@ -33,6 +50,58 @@
   --grid-dot: 51 63 88;
   --grid-glow-a: 30 30 70;
   --grid-glow-b: 12 28 50;
+}
+
+/* ── Accent presets (html[data-accent]) ─────────────────────────────────────
+   Light value = *-500, dark value = *-400; soft = *-100 / deep muted tone.
+   "indigo" is the :root default, so it needs no override here. */
+[data-accent="violet"] {
+  --brand: 139 92 246;
+  --brand-soft: 237 233 254;
+}
+.dark[data-accent="violet"] {
+  --brand: 167 139 250;
+  --brand-soft: 55 43 92;
+}
+[data-accent="blue"] {
+  --brand: 59 130 246;
+  --brand-soft: 219 234 254;
+}
+.dark[data-accent="blue"] {
+  --brand: 96 165 250;
+  --brand-soft: 28 46 82;
+}
+[data-accent="teal"] {
+  --brand: 20 184 166;
+  --brand-soft: 204 251 241;
+}
+.dark[data-accent="teal"] {
+  --brand: 45 212 191;
+  --brand-soft: 17 60 56;
+}
+[data-accent="emerald"] {
+  --brand: 16 185 129;
+  --brand-soft: 209 250 229;
+}
+.dark[data-accent="emerald"] {
+  --brand: 52 211 153;
+  --brand-soft: 18 61 48;
+}
+[data-accent="amber"] {
+  --brand: 245 158 11;
+  --brand-soft: 254 243 199;
+}
+.dark[data-accent="amber"] {
+  --brand: 251 191 36;
+  --brand-soft: 69 51 17;
+}
+[data-accent="rose"] {
+  --brand: 244 63 94;
+  --brand-soft: 255 228 230;
+}
+.dark[data-accent="rose"] {
+  --brand: 251 113 133;
+  --brand-soft: 76 29 43;
 }
 
 * {
@@ -107,6 +176,43 @@ body {
   border: none;
 }
 
+/* Connect mode: reveal handles so relations can be dragged between nodes. */
+.mf-connecting .react-flow__handle {
+  opacity: 1;
+  pointer-events: all;
+  width: 11px;
+  height: 11px;
+  min-width: 11px;
+  min-height: 11px;
+  border-radius: 9999px;
+  background: rgb(var(--brand));
+  border: 2px solid rgb(var(--surface-raised));
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.25);
+  transition: transform 0.12s ease;
+}
+.mf-connecting .react-flow__handle:hover {
+  transform: scale(1.35);
+}
+/* Node affordances (⋯ menu, collapse chevron) sit on the same edge as the
+   handles — hide them while connecting so they don't swallow the drag. */
+.mf-connecting .mf-node-affordance {
+  display: none;
+}
+.mf-connecting .react-flow__connection-path {
+  stroke: rgb(var(--brand));
+  stroke-width: 2;
+  stroke-dasharray: 6 6;
+}
+
+/* Free-form relation edges: dashed, softer than tree edges. */
+.mf-relation-edge {
+  stroke: rgb(var(--brand));
+  stroke-width: 1.8;
+  stroke-dasharray: 7 5;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
 .react-flow__controls {
   border-radius: 14px;
   overflow: hidden;
@@ -137,6 +243,17 @@ body {
 .react-flow__edge-path {
   stroke: rgb(var(--ink-faint) / 0.6);
   stroke-width: 2;
+}
+
+/* Flowing dashed edges (animated mode) */
+.mf-edge-flow {
+  stroke-dasharray: 6 6;
+  animation: mf-edge-dash 0.55s linear infinite;
+}
+@keyframes mf-edge-dash {
+  to {
+    stroke-dashoffset: -12;
+  }
 }
 .react-flow__edge.selected .react-flow__edge-path,
 .react-flow__edge:focus .react-flow__edge-path {
