@@ -4,9 +4,12 @@ import {
   Background,
   BackgroundVariant,
   Controls,
+  MarkerType,
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
+  SelectionMode,
+  type Connection,
   type Edge,
   type Node,
 } from "@xyflow/react";
@@ -16,6 +19,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { CanvasEmptyState } from "@/components/canvas/CanvasEmptyState";
 import { MindMapEdge } from "@/components/canvas/MindMapEdge";
 import { MindMapNode } from "@/components/canvas/MindMapNode";
+import { RelationEdge } from "@/components/canvas/RelationEdge";
 import { cn } from "@/lib/cn";
 import { NODE_HEIGHT, NODE_TYPE_CONFIG, NODE_WIDTH } from "@/lib/constants";
 import { subtreeDrag as armedDrag } from "@/lib/dragState";
@@ -29,7 +33,7 @@ import { useMindMapStore } from "@/store/mindMapStore";
 import type { MindMapNodeData } from "@/types/mindmap";
 
 const nodeTypes = { mindmap: MindMapNode };
-const edgeTypes = { mindmap: MindMapEdge };
+const edgeTypes = { mindmap: MindMapEdge, relation: RelationEdge };
 
 function CanvasInner() {
   const isMobile = useIsMobile();
@@ -39,6 +43,12 @@ function CanvasInner() {
   const presentationMode = useMindMapStore((s) => s.presentationMode);
   const edgeWidth = useMindMapStore((s) => s.edgeWidth);
   const edgeColorMode = useMindMapStore((s) => s.edgeColorMode);
+  const canvasBg = useMindMapStore((s) => s.canvasBg);
+  const relations = useMindMapStore((s) => s.relations);
+  const connectMode = useMindMapStore((s) => s.connectMode);
+  const selectedRelationId = useMindMapStore((s) => s.selectedRelationId);
+  const addRelation = useMindMapStore((s) => s.addRelation);
+  const selectRelation = useMindMapStore((s) => s.selectRelation);
 
   const onNodesChange = useMindMapStore((s) => s.onNodesChange);
   const onEdgesChange = useMindMapStore((s) => s.onEdgesChange);
@@ -87,12 +97,12 @@ function CanvasInner() {
       draggable: !presentationMode,
       data: { ...n.data, _depth: depths.get(n.id) ?? 0 },
     }));
-    const de: Edge[] = edges.map((e) => {
-      // Route each edge from the face pointing toward its child. Horizontal
-      // trees use left/right, vertical/org & radial use top/bottom — chosen by
-      // whichever axis dominates the parent→child offset.
-      const s = posMap.get(e.source);
-      const t = posMap.get(e.target);
+    // Route an edge from the face pointing toward its far end. Horizontal
+    // spans use left/right, vertical spans top/bottom — chosen by whichever
+    // axis dominates the offset.
+    const handlesFor = (sourceId: string, targetId: string) => {
+      const s = posMap.get(sourceId);
+      const t = posMap.get(targetId);
       let sourceHandle = "right-source";
       let targetHandle = "left-target";
       if (s && t) {
@@ -106,22 +116,41 @@ function CanvasInner() {
           targetHandle = dy < 0 ? "bottom-target" : "top-target";
         }
       }
+      return { sourceHandle, targetHandle };
+    };
+    const de: Edge[] = edges.map((e) => {
       const stroke =
         edgeColorMode === "node" ? colorOf.get(e.source) : undefined;
       return {
         ...e,
         type: "mindmap",
-        sourceHandle,
-        targetHandle,
+        ...handlesFor(e.source, e.target),
         style: { strokeWidth: edgeWidth, ...(stroke ? { stroke } : {}) },
         hidden: hidden.has(e.source) || hidden.has(e.target),
       };
     });
+    // Free-form relations render on top as dashed, arrowed edges.
+    for (const r of relations) {
+      if (!posMap.has(r.source) || !posMap.has(r.target)) continue;
+      de.push({
+        id: r.id,
+        source: r.source,
+        target: r.target,
+        type: "relation",
+        ...handlesFor(r.source, r.target),
+        markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
+        data: { label: r.label, relSelected: r.id === selectedRelationId },
+        hidden: hidden.has(r.source) || hidden.has(r.target),
+        zIndex: 5,
+      });
+    }
     return { displayNodes: dn, displayEdges: de };
   }, [
     nodes,
     edges,
+    relations,
     selectedNodeIds,
+    selectedRelationId,
     presentationMode,
     edgeWidth,
     edgeColorMode,
@@ -167,8 +196,27 @@ function CanvasInner() {
 
   const onPaneClick = useCallback(() => {
     selectNode(null);
+    selectRelation(null);
     closeContextMenu();
-  }, [selectNode, closeContextMenu]);
+  }, [selectNode, selectRelation, closeContextMenu]);
+
+  // Connect mode: dragging between two node handles creates a relation.
+  const onConnect = useCallback(
+    (conn: Connection) => {
+      if (conn.source && conn.target) addRelation(conn.source, conn.target);
+    },
+    [addRelation]
+  );
+
+  const onEdgeClick = useCallback(
+    (e: React.MouseEvent, edge: Edge) => {
+      if (edge.type === "relation") {
+        e.stopPropagation();
+        selectRelation(edge.id);
+      }
+    },
+    [selectRelation]
+  );
 
   // Subtree drag: if the long-press armed this node, capture its descendants so
   // they can follow the same delta during the drag.
@@ -248,7 +296,12 @@ function CanvasInner() {
   const isEmpty = nodes.length === 0;
 
   return (
-    <div className="relative h-full w-full mf-canvas-bg">
+    <div
+      className={cn(
+        "relative h-full w-full mf-canvas-bg",
+        connectMode && "mf-connecting"
+      )}
+    >
       <ReactFlow
         nodes={displayNodes}
         edges={displayEdges}
@@ -263,15 +316,19 @@ function CanvasInner() {
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onPaneClick={onPaneClick}
+        onConnect={onConnect}
+        onEdgeClick={onEdgeClick}
         onInit={registerFlow}
         onMoveEnd={(_, vp) => updateViewport(vp)}
         minZoom={0.15}
         maxZoom={2.5}
-        nodesDraggable={!presentationMode}
-        nodesConnectable={false}
+        nodesDraggable={!presentationMode && !connectMode}
+        nodesConnectable={connectMode && !presentationMode}
+        connectionRadius={40}
         elementsSelectable
         multiSelectionKeyCode={null}
-        selectionKeyCode={null}
+        selectionKeyCode="Shift"
+        selectionMode={SelectionMode.Partial}
         panOnScroll
         panOnScrollSpeed={0.6}
         zoomOnPinch
@@ -282,12 +339,20 @@ function CanvasInner() {
         fitViewOptions={{ padding: 0.25, maxZoom: 1.2 }}
         className="touch-none"
       >
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={22}
-          size={1.4}
-          className="!opacity-70"
-        />
+        {canvasBg !== "none" && (
+          <Background
+            variant={
+              canvasBg === "lines"
+                ? BackgroundVariant.Lines
+                : canvasBg === "cross"
+                  ? BackgroundVariant.Cross
+                  : BackgroundVariant.Dots
+            }
+            gap={canvasBg === "dots" ? 22 : 30}
+            size={canvasBg === "dots" ? 1.4 : canvasBg === "cross" ? 5 : 1}
+            className={canvasBg === "dots" ? "!opacity-70" : "!opacity-40"}
+          />
+        )}
         {!presentationMode && !isMobile && (
           <Controls
             showInteractive={false}
@@ -323,6 +388,24 @@ function CanvasInner() {
         >
           {miniMapOpen ? <ChevronDown size={18} /> : <MapIcon size={18} />}
         </button>
+      )}
+
+      {/* Connect mode hint */}
+      {connectMode && (
+        <div className="pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2">
+          <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-brand/40 bg-brand/10 px-4 py-2 text-xs font-medium text-ink shadow-soft backdrop-blur">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-brand" />
+            노드 가장자리 점에서 드래그해 관계선을 연결하세요
+            <button
+              onClick={() =>
+                useMindMapStore.getState().setConnectMode(false)
+              }
+              className="ml-1 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-white transition hover:opacity-90"
+            >
+              완료
+            </button>
+          </div>
+        </div>
       )}
 
       {isEmpty && <CanvasEmptyState />}

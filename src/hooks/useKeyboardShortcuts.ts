@@ -61,6 +61,8 @@ export function useKeyboardShortcuts(): void {
           store.closeContextMenu();
           return;
         }
+        if (store.connectMode) return store.setConnectMode(false);
+        if (store.selectedRelationId) return store.selectRelation(null);
         if (store.commandPaletteOpen) return store.closeCommandPalette();
         if (store.dialog) return store.setDialog(null);
         if (store.searchOpen) return store.setSearchOpen(false);
@@ -128,7 +130,9 @@ export function useKeyboardShortcuts(): void {
       }
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
-        if (store.selectedNodeIds.length > 1) {
+        if (store.selectedRelationId) {
+          store.removeRelation(store.selectedRelationId);
+        } else if (store.selectedNodeIds.length > 1) {
           store.bulkDelete(store.selectedNodeIds);
         } else if (selected) {
           store.deleteNode(selected);

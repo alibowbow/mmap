@@ -50,6 +50,30 @@ export const EDGE_COLOR_OPTIONS: { id: EdgeColorMode; label: string }[] = [
   { id: "node", label: "노드색" },
 ];
 
+// Canvas background pattern.
+export type CanvasBg = "dots" | "lines" | "cross" | "none";
+export const CANVAS_BG_OPTIONS: { id: CanvasBg; label: string; icon: string }[] =
+  [
+    { id: "dots", label: "점", icon: "Grip" },
+    { id: "lines", label: "격자", icon: "Grid3x3" },
+    { id: "cross", label: "십자", icon: "Plus" },
+    { id: "none", label: "없음", icon: "Square" },
+  ];
+export const DEFAULT_CANVAS_BG: CanvasBg = "dots";
+
+// Workspace accent (brand) color presets. The id is written to
+// <html data-accent="..."> and globals.css swaps the --brand tokens.
+export const ACCENT_OPTIONS: { id: string; label: string; swatch: string }[] = [
+  { id: "indigo", label: "인디고", swatch: "#6366f1" },
+  { id: "violet", label: "바이올렛", swatch: "#8b5cf6" },
+  { id: "blue", label: "블루", swatch: "#3b82f6" },
+  { id: "teal", label: "틸", swatch: "#14b8a6" },
+  { id: "emerald", label: "에메랄드", swatch: "#10b981" },
+  { id: "amber", label: "앰버", swatch: "#f59e0b" },
+  { id: "rose", label: "로즈", swatch: "#f43f5e" },
+];
+export const DEFAULT_ACCENT = "indigo";
+
 // Per-level (depth) font sizes for node labels. Index = depth, last entry is
 // used for that depth and deeper.
 export const LEVEL_FONT_LABELS = ["중심", "1단계", "2단계", "3단계+"];

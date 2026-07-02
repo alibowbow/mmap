@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 import {
+  ACCENT_OPTIONS,
+  CANVAS_BG_OPTIONS,
   EDGE_COLOR_OPTIONS,
   EDGE_STYLE_OPTIONS,
   EDGE_WIDTH_OPTIONS,
@@ -61,6 +63,10 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
   const setEdgeWidth = useMindMapStore((s) => s.setEdgeWidth);
   const edgeColorMode = useMindMapStore((s) => s.edgeColorMode);
   const setEdgeColorMode = useMindMapStore((s) => s.setEdgeColorMode);
+  const canvasBg = useMindMapStore((s) => s.canvasBg);
+  const setCanvasBg = useMindMapStore((s) => s.setCanvasBg);
+  const accent = useMindMapStore((s) => s.accent);
+  const setAccent = useMindMapStore((s) => s.setAccent);
 
   useEffect(() => {
     if (!open) return;
@@ -175,6 +181,50 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="my-2 h-px bg-line" />
+
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+              캔버스 배경
+            </p>
+            <div className="mb-3 flex gap-1.5">
+              {CANVAS_BG_OPTIONS.map((o) => (
+                <button
+                  key={o.id}
+                  onClick={() => setCanvasBg(o.id)}
+                  className={cn(
+                    seg,
+                    canvasBg === o.id
+                      ? "border-brand bg-brand/10 text-ink"
+                      : "border-line text-ink-soft hover:bg-surface-raised"
+                  )}
+                >
+                  <Icon name={o.icon} size={16} />
+                  {o.label}
+                </button>
+              ))}
+            </div>
+
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+              테마 색상
+            </p>
+            <div className="flex items-center justify-between px-0.5">
+              {ACCENT_OPTIONS.map((o) => (
+                <button
+                  key={o.id}
+                  onClick={() => setAccent(o.id)}
+                  title={o.label}
+                  aria-label={`테마 색상: ${o.label}`}
+                  className={cn(
+                    "h-6 w-6 rounded-full transition",
+                    accent === o.id
+                      ? "ring-2 ring-ink ring-offset-2 ring-offset-surface-overlay scale-110"
+                      : "hover:scale-110"
+                  )}
+                  style={{ backgroundColor: o.swatch }}
+                />
+              ))}
             </div>
           </motion.div>
         )}

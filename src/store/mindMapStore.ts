@@ -11,6 +11,8 @@ import { create } from "zustand";
 
 import { COMMANDS, type CommandId } from "@/lib/commands";
 import {
+  DEFAULT_ACCENT,
+  DEFAULT_CANVAS_BG,
   DEFAULT_FONT,
   DEFAULT_LEVEL_FONT_SIZES,
   DEFAULT_NODE_LABEL,
@@ -54,6 +56,7 @@ import type {
   MindMapDocument,
   MindMapNode,
   MindMapNodeData,
+  MindMapRelation,
   MindMapTheme,
   SaveStatus,
   TemplateType,
@@ -66,7 +69,11 @@ export type ContextMenuState = { nodeId: string; x: number; y: number } | null;
 
 const HISTORY_LIMIT = 60;
 
-type HistoryEntry = { nodes: MindMapNode[]; edges: Edge[] };
+type HistoryEntry = {
+  nodes: MindMapNode[];
+  edges: Edge[];
+  relations: MindMapRelation[];
+};
 
 export type MindMapState = {
   // ── Data ──
@@ -74,12 +81,15 @@ export type MindMapState = {
   activeDocumentId: string | null;
   nodes: MindMapNode[];
   edges: Edge[];
+  relations: MindMapRelation[];
 
   // ── Selection / editing ──
   selectedNodeId: string | null; // primary selection (inspector / single-node UI)
   selectedNodeIds: string[]; // full multi-selection set
   editingNodeId: string | null;
   dropTargetId: string | null; // node currently hovered as a re-parent target
+  selectedRelationId: string | null; // selected free-form relation edge
+  connectMode: boolean; // when on, node handles become connectable
 
   // ── Search ──
   searchQuery: string;
@@ -100,6 +110,8 @@ export type MindMapState = {
   edgeWidth: number;
   edgeColorMode: string;
   nodeTint: boolean;
+  canvasBg: string;
+  accent: string;
   dialog: DialogType;
   importTab: "json" | "outline";
   contextMenu: ContextMenuState;
@@ -155,12 +167,20 @@ export type MindMapState = {
   setNodeSide: (nodeId: string, side: BranchSide | undefined) => void;
   selectNode: (nodeId: string | null) => void;
   toggleNodeSelection: (nodeId: string) => void;
+  setSelection: (ids: string[]) => void;
   setEditingNode: (nodeId: string | null) => void;
   moveNodesBy: (ids: string[], dx: number, dy: number) => void;
   bulkUpdateData: (ids: string[], partial: Partial<MindMapNodeData>) => void;
   bulkDelete: (ids: string[]) => void;
   setDropTargetId: (id: string | null) => void;
   reparentNode: (nodeId: string, newParentId: string) => void;
+
+  // ── Relations (free-form cross links) ──
+  setConnectMode: (on: boolean) => void;
+  addRelation: (source: string, target: string) => void;
+  removeRelation: (id: string) => void;
+  updateRelationLabel: (id: string, label: string) => void;
+  selectRelation: (id: string | null) => void;
 
   // ── Canvas actions ──
   onNodesChange: (changes: NodeChange[]) => void;
@@ -205,6 +225,8 @@ export type MindMapState = {
   setEdgeWidth: (w: number) => void;
   setEdgeColorMode: (mode: string) => void;
   setNodeTint: (on: boolean) => void;
+  setCanvasBg: (bg: string) => void;
+  setAccent: (accent: string) => void;
   setLevelFontSize: (level: number, size: number) => void;
   resetLevelFontSizes: () => void;
   toggleSidebar: () => void;
@@ -233,6 +255,16 @@ function nowIso() {
 // Keep the primary id and the multi-selection set in sync for single selects.
 function selectionFor(id: string | null) {
   return { selectedNodeId: id, selectedNodeIds: id ? [id] : [] };
+}
+
+// Swap the workspace accent by flipping the data attribute globals.css keys on.
+function applyAccentAttr(accent: string) {
+  if (typeof document === "undefined") return;
+  if (accent && accent !== DEFAULT_ACCENT) {
+    document.documentElement.dataset.accent = accent;
+  } else {
+    delete document.documentElement.dataset.accent;
+  }
 }
 
 function applyThemeClass(theme: MindMapTheme) {
@@ -289,6 +321,8 @@ function cloneNode(n: MindMapNode): MindMapNode {
 
 export const useMindMapStore = create<MindMapState>((set, get) => {
   // Write the live nodes/edges back into the active document and mark dirty.
+  // Relations referencing deleted nodes are pruned here — every node mutation
+  // funnels through this, so it's the single cleanup choke point.
   function syncActiveDocument(
     nodes: MindMapNode[],
     edges: Edge[],
@@ -296,13 +330,24 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
   ) {
     const { activeDocumentId, documents } = get();
     if (!activeDocumentId) return;
+    const nodeIds = new Set(nodes.map((n) => n.id));
+    const relations = get().relations.filter(
+      (r) => nodeIds.has(r.source) && nodeIds.has(r.target)
+    );
     const updated = documents.map((d) =>
       d.id === activeDocumentId
-        ? { ...d, nodes, edges, updatedAt: touch ? nowIso() : d.updatedAt }
+        ? {
+            ...d,
+            nodes,
+            edges,
+            relations,
+            updatedAt: touch ? nowIso() : d.updatedAt,
+          }
         : d
     );
     set((s) => ({
       documents: updated,
+      relations,
       saveStatus: "idle",
       revision: s.revision + 1,
     }));
@@ -336,11 +381,14 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     activeDocumentId: null,
     nodes: [],
     edges: [],
+    relations: [],
 
     selectedNodeId: null,
     selectedNodeIds: [],
     editingNodeId: null,
     dropTargetId: null,
+    selectedRelationId: null,
+    connectMode: false,
 
     searchQuery: "",
     searchTypes: [],
@@ -359,6 +407,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     edgeWidth: 2,
     edgeColorMode: "default",
     nodeTint: false,
+    canvasBg: DEFAULT_CANVAS_BG,
+    accent: DEFAULT_ACCENT,
     dialog: null,
     importTab: "json",
     contextMenu: null,
@@ -406,6 +456,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         activeDocumentId: doc.id,
         nodes: doc.nodes,
         edges: doc.edges,
+        relations: [],
+        selectedRelationId: null,
         ...selectionFor(getRootNode(doc.nodes)?.id ?? null),
         editingNodeId: null,
         history: [],
@@ -428,6 +480,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         src.nodes.map(cloneNode),
         src.edges.map((e) => ({ ...e }))
       );
+      copy.relations = (src.relations ?? []).map((r) => ({ ...r }));
       set((s) => ({
         documents: [copy, ...s.documents],
         revision: s.revision + 1,
@@ -449,6 +502,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         activeDocumentId: wasActive ? nextDocs[0].id : s.activeDocumentId,
         nodes: wasActive ? nextDocs[0].nodes : s.nodes,
         edges: wasActive ? nextDocs[0].edges : s.edges,
+        relations: wasActive ? nextDocs[0].relations ?? [] : s.relations,
+        selectedRelationId: wasActive ? null : s.selectedRelationId,
         ...(wasActive
           ? selectionFor(getRootNode(nextDocs[0].nodes)?.id ?? null)
           : {}),
@@ -477,6 +532,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         activeDocumentId: documentId,
         nodes: doc.nodes,
         edges: doc.edges,
+        relations: doc.relations ?? [],
+        selectedRelationId: null,
+        connectMode: false,
         ...selectionFor(getRootNode(doc.nodes)?.id ?? null),
         editingNodeId: null,
         history: [],
@@ -500,11 +558,13 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
             : documents[0].id;
         const active = documents.find((d) => d.id === activeId)!;
         applyThemeClass(ws.theme);
+        applyAccentAttr(ws.accent ?? DEFAULT_ACCENT);
         set({
           documents,
           activeDocumentId: activeId,
           nodes: active.nodes,
           edges: active.edges,
+          relations: active.relations ?? [],
           ...selectionFor(getRootNode(active.nodes)?.id ?? null),
           theme: ws.theme,
           font: ws.font ?? DEFAULT_FONT,
@@ -515,6 +575,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           edgeWidth: ws.edgeWidth ?? 2,
           edgeColorMode: ws.edgeColorMode ?? "default",
           nodeTint: ws.nodeTint ?? false,
+          canvasBg: ws.canvasBg ?? DEFAULT_CANVAS_BG,
+          accent: ws.accent ?? DEFAULT_ACCENT,
           sidebarCollapsed: ws.sidebarCollapsed,
           inspectorOpen: ws.inspectorOpen,
           hydrated: true,
@@ -530,6 +592,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           activeDocumentId: sample.id,
           nodes: sample.nodes,
           edges: sample.edges,
+          relations: [],
           ...selectionFor(getRootNode(sample.nodes)?.id ?? null),
           hydrated: true,
         });
@@ -556,6 +619,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         edgeWidth,
         edgeColorMode,
         nodeTint,
+        canvasBg,
+        accent,
         sidebarCollapsed,
         inspectorOpen,
         hydrated,
@@ -575,6 +640,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         edgeWidth,
         edgeColorMode,
         nodeTint,
+        canvasBg,
+        accent,
         sidebarCollapsed,
         inspectorOpen,
       });
@@ -876,6 +943,23 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         };
       }),
 
+    // Replace the whole selection at once (marquee / box select). No-ops when
+    // the set is unchanged so React Flow's selection echo doesn't loop.
+    setSelection: (ids) =>
+      set((s) => {
+        if (
+          ids.length === s.selectedNodeIds.length &&
+          ids.every((id) => s.selectedNodeIds.includes(id))
+        ) {
+          return {};
+        }
+        return {
+          selectedNodeIds: ids,
+          selectedNodeId: ids.length ? ids[ids.length - 1] : null,
+          contextMenu: null,
+        };
+      }),
+
     setEditingNode: (nodeId) => set({ editingNodeId: nodeId }),
 
     // Apply the same data patch to many nodes at once.
@@ -944,6 +1028,62 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       get().addToast("부모를 변경했습니다", "success");
     },
 
+    // ── Relations (free-form cross links) ──
+    setConnectMode: (on) =>
+      set({ connectMode: on, selectedRelationId: null }),
+
+    addRelation: (source, target) => {
+      if (source === target) return;
+      const { relations, nodes } = get();
+      const ids = new Set(nodes.map((n) => n.id));
+      if (!ids.has(source) || !ids.has(target)) return;
+      // Ignore duplicates (either direction) and links mirroring a tree edge.
+      const dup = relations.some(
+        (r) =>
+          (r.source === source && r.target === target) ||
+          (r.source === target && r.target === source)
+      );
+      const map = getNodeMap(nodes);
+      const treeEdge =
+        map.get(target)?.data.parentId === source ||
+        map.get(source)?.data.parentId === target;
+      if (dup || treeEdge) {
+        get().addToast("이미 연결되어 있습니다", "info");
+        return;
+      }
+      get().pushHistory();
+      const rel: MindMapRelation = { id: createId("rel"), source, target };
+      set((s) => ({
+        relations: [...s.relations, rel],
+        selectedRelationId: rel.id,
+      }));
+      syncActiveDocument(get().nodes, get().edges);
+      get().addToast("관계선을 연결했습니다", "success");
+    },
+
+    removeRelation: (id) => {
+      if (!get().relations.some((r) => r.id === id)) return;
+      get().pushHistory();
+      set((s) => ({
+        relations: s.relations.filter((r) => r.id !== id),
+        selectedRelationId:
+          s.selectedRelationId === id ? null : s.selectedRelationId,
+      }));
+      syncActiveDocument(get().nodes, get().edges);
+    },
+
+    updateRelationLabel: (id, label) => {
+      get().pushHistory();
+      set((s) => ({
+        relations: s.relations.map((r) =>
+          r.id === id ? { ...r, label: label.trim() || undefined } : r
+        ),
+      }));
+      syncActiveDocument(get().nodes, get().edges);
+    },
+
+    selectRelation: (id) => set({ selectedRelationId: id }),
+
     // Shift a set of nodes by a delta (used to drag a subtree together).
     moveNodesBy: (ids, dx, dy) => {
       if (!ids.length || (dx === 0 && dy === 0)) return;
@@ -959,10 +1099,33 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
 
     // ── Canvas ──
     onNodesChange: (changes) => {
-      const next = applyNodeChanges(changes, get().nodes) as MindMapNode[];
+      // Selection changes (click / marquee) feed the store's selection state
+      // instead of node.selected — the store is the single source of truth,
+      // and letting both fight causes an infinite update loop.
+      const selectChanges = changes.filter((c) => c.type === "select");
+      if (selectChanges.length) {
+        const cur = new Set(get().selectedNodeIds);
+        for (const c of selectChanges) {
+          if (c.selected) cur.add(c.id);
+          else cur.delete(c.id);
+        }
+        const ids = [...cur];
+        const same =
+          ids.length === get().selectedNodeIds.length &&
+          ids.every((id) => get().selectedNodeIds.includes(id));
+        if (!same) {
+          set({
+            selectedNodeIds: ids,
+            selectedNodeId: ids.length ? ids[ids.length - 1] : null,
+          });
+        }
+      }
+      const rest = changes.filter((c) => c.type !== "select");
+      if (!rest.length) return;
+      const next = applyNodeChanges(rest, get().nodes) as MindMapNode[];
       set({ nodes: next });
       // Persist position/drag changes (debounced save handled upstream).
-      const meaningful = changes.some(
+      const meaningful = rest.some(
         (c) =>
           c.type === "position" ||
           c.type === "remove" ||
@@ -1110,26 +1273,29 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
 
     // ── History ──
     pushHistory: () => {
-      const { nodes, edges, history } = get();
+      const { nodes, edges, relations, history } = get();
       const snapshot: HistoryEntry = {
         nodes: nodes.map(cloneNode),
         edges: edges.map((e) => ({ ...e })),
+        relations: relations.map((r) => ({ ...r })),
       };
       const next = [...history, snapshot].slice(-HISTORY_LIMIT);
       set({ history: next, future: [] });
     },
 
     undo: () => {
-      const { history, nodes, edges } = get();
+      const { history, nodes, edges, relations } = get();
       if (history.length === 0) return;
       const prev = history[history.length - 1];
       const current: HistoryEntry = {
         nodes: nodes.map(cloneNode),
         edges: edges.map((e) => ({ ...e })),
+        relations: relations.map((r) => ({ ...r })),
       };
       set((s) => ({
         nodes: prev.nodes,
         edges: prev.edges,
+        relations: prev.relations ?? [],
         history: history.slice(0, -1),
         future: [current, ...s.future].slice(0, HISTORY_LIMIT),
       }));
@@ -1137,16 +1303,18 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     },
 
     redo: () => {
-      const { future, nodes, edges } = get();
+      const { future, nodes, edges, relations } = get();
       if (future.length === 0) return;
       const nextEntry = future[0];
       const current: HistoryEntry = {
         nodes: nodes.map(cloneNode),
         edges: edges.map((e) => ({ ...e })),
+        relations: relations.map((r) => ({ ...r })),
       };
       set((s) => ({
         nodes: nextEntry.nodes,
         edges: nextEntry.edges,
+        relations: nextEntry.relations ?? [],
         history: [...s.history, current].slice(-HISTORY_LIMIT),
         future: future.slice(1),
       }));
@@ -1175,11 +1343,14 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           : buildEdgesFromNodes(result.document.nodes)
       );
       doc.viewport = result.document.viewport;
+      doc.relations = result.document.relations ?? [];
       set((s) => ({
         documents: [doc, ...s.documents],
         activeDocumentId: doc.id,
         nodes: doc.nodes,
         edges: doc.edges,
+        relations: doc.relations ?? [],
+        selectedRelationId: null,
         ...selectionFor(getRootNode(doc.nodes)?.id ?? null),
         history: [],
         future: [],
@@ -1203,6 +1374,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         activeDocumentId: doc.id,
         nodes: doc.nodes,
         edges: doc.edges,
+        relations: [],
+        selectedRelationId: null,
         ...selectionFor(getRootNode(doc.nodes)?.id ?? null),
         history: [],
         future: [],
@@ -1279,6 +1452,12 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       set((s) => ({ edgeColorMode, revision: s.revision + 1 })),
     setNodeTint: (nodeTint) =>
       set((s) => ({ nodeTint, revision: s.revision + 1 })),
+    setCanvasBg: (canvasBg) =>
+      set((s) => ({ canvasBg, revision: s.revision + 1 })),
+    setAccent: (accent) => {
+      applyAccentAttr(accent);
+      set((s) => ({ accent, revision: s.revision + 1 }));
+    },
 
     setLevelFontSize: (level, size) =>
       set((s) => {

@@ -1,4 +1,6 @@
 import {
+  DEFAULT_ACCENT,
+  DEFAULT_CANVAS_BG,
   DEFAULT_LEVEL_FONT_SIZES,
   STORAGE_KEY,
   WORKSPACE_VERSION,
@@ -49,6 +51,8 @@ function migrateWorkspace(
     edgeWidth: parsed.edgeWidth ?? 2,
     edgeColorMode: parsed.edgeColorMode ?? "default",
     nodeTint: parsed.nodeTint ?? false,
+    canvasBg: parsed.canvasBg ?? DEFAULT_CANVAS_BG,
+    accent: parsed.accent ?? DEFAULT_ACCENT,
     sidebarCollapsed: parsed.sidebarCollapsed ?? false,
     inspectorOpen: parsed.inspectorOpen ?? true,
   };

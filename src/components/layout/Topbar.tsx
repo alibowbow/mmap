@@ -4,6 +4,7 @@ import {
   ALargeSmall,
   Command,
   Download,
+  Link2,
   Maximize,
   Monitor,
   Moon,
@@ -70,6 +71,8 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
   const toggleInspector = useMindMapStore((s) => s.toggleInspector);
   const inspectorOpen = useMindMapStore((s) => s.inspectorOpen);
   const renameDocument = useMindMapStore((s) => s.renameDocument);
+  const connectMode = useMindMapStore((s) => s.connectMode);
+  const setConnectMode = useMindMapStore((s) => s.setConnectMode);
   const undo = useMindMapStore((s) => s.undo);
   const redo = useMindMapStore((s) => s.redo);
   const historyLen = useMindMapStore((s) => s.history.length);
@@ -195,6 +198,17 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
             aria-label="화면 맞춤"
           >
             <Maximize size={16} />
+          </Button>
+        </Tooltip>
+
+        <Tooltip label={connectMode ? "연결 모드 종료" : "관계선 연결 모드"}>
+          <Button
+            variant={connectMode ? "primary" : "ghost"}
+            size="icon"
+            onClick={() => setConnectMode(!connectMode)}
+            aria-label="관계선 연결 모드"
+          >
+            <Link2 size={16} />
           </Button>
         </Tooltip>
 

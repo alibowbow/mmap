@@ -44,6 +44,7 @@ export const SHORTCUT_GROUPS: {
       { keys: ["Mod", "F"], label: "검색" },
       { keys: ["Mod", "S"], label: "저장" },
       { keys: ["↑", "↓", "←", "→"], label: "노드 간 이동" },
+      { keys: ["Shift", "드래그"], label: "박스 다중 선택" },
       { keys: ["Space"], label: "캔버스 이동 모드" },
       { keys: ["Esc"], label: "선택 해제 / 닫기" },
     ],

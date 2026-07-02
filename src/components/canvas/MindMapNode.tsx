@@ -19,6 +19,7 @@ import {
   NODE_TYPE_CONFIG,
   NODE_WIDTH,
 } from "@/lib/constants";
+import { renderInlineMarkdown } from "@/lib/inlineMarkdown";
 import { countChildren } from "@/lib/tree";
 import { subtreeDrag } from "@/lib/dragState";
 import { useMindMapStore } from "@/store/mindMapStore";
@@ -302,7 +303,7 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
               d.label ? "text-ink" : "text-ink-faint font-normal italic"
             )}
           >
-            {d.label || "내용 입력…"}
+            {d.label ? renderInlineMarkdown(d.label) : "내용 입력…"}
           </div>
         )}
 
@@ -408,7 +409,7 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
         }}
         aria-label="노드 편집 메뉴"
         className={cn(
-          "nodrag absolute -top-3 -right-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-line bg-surface-raised text-ink-soft shadow-sm transition",
+          "nodrag mf-node-affordance absolute -top-3 -right-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-line bg-surface-raised text-ink-soft shadow-sm transition",
           "hover:text-ink hover:border-brand/50",
           selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
         )}
@@ -425,7 +426,7 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
           }}
           aria-label={d.collapsed ? "펼치기" : "접기"}
           className={cn(
-            "nodrag absolute -right-3 top-1/2 -translate-y-1/2 z-10",
+            "nodrag mf-node-affordance absolute -right-3 top-1/2 -translate-y-1/2 z-10",
             "flex h-6 w-6 items-center justify-center rounded-full border border-line bg-surface-raised text-ink-soft shadow-sm",
             "hover:text-ink hover:border-brand/50 transition"
           )}

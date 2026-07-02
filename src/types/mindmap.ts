@@ -56,11 +56,20 @@ export type MindMapViewport = {
   zoom: number;
 };
 
+// A free-form cross link between any two nodes, independent of the tree.
+export type MindMapRelation = {
+  id: string;
+  source: string;
+  target: string;
+  label?: string;
+};
+
 export type MindMapDocument = {
   id: string;
   title: string;
   nodes: MindMapNode[];
   edges: Edge[];
+  relations?: MindMapRelation[];
   viewport?: MindMapViewport;
   createdAt: string;
   updatedAt: string;
@@ -83,6 +92,8 @@ export type MindMapWorkspace = {
   edgeWidth: number;
   edgeColorMode: string;
   nodeTint: boolean;
+  canvasBg: string;
+  accent: string;
   sidebarCollapsed: boolean;
   inspectorOpen: boolean;
 };

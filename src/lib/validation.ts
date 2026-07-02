@@ -1,4 +1,9 @@
-import type { Edge, MindMapDocument, MindMapNode } from "@/types/mindmap";
+import type {
+  Edge,
+  MindMapDocument,
+  MindMapNode,
+  MindMapRelation,
+} from "@/types/mindmap";
 
 export type ImportResult =
   | { ok: true; document: MindMapDocument }
@@ -37,6 +42,14 @@ export function validateImportedDocument(raw: unknown): ImportResult {
 
   const nodes = c.nodes as MindMapNode[];
   const edges = (Array.isArray(c.edges) ? c.edges : []) as Edge[];
+  const nodeIds = new Set(nodes.map((n) => n.id));
+  const relations = (Array.isArray(c.relations) ? c.relations : []).filter(
+    (r): r is MindMapRelation =>
+      isObject(r) &&
+      typeof (r as any).id === "string" &&
+      nodeIds.has((r as any).source) &&
+      nodeIds.has((r as any).target)
+  );
   const now = new Date().toISOString();
 
   const doc: MindMapDocument = {
@@ -44,6 +57,7 @@ export function validateImportedDocument(raw: unknown): ImportResult {
     title: typeof c.title === "string" ? c.title : "가져온 문서",
     nodes,
     edges,
+    relations,
     viewport: isObject(c.viewport)
       ? (c.viewport as MindMapDocument["viewport"])
       : undefined,

@@ -2,8 +2,10 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  Droplet,
   FileImage,
   FileJson,
+  Grid3x3,
   FilePlus2,
   FileText,
   HelpCircle,
@@ -22,6 +24,8 @@ import {
 } from "lucide-react";
 
 import {
+  ACCENT_OPTIONS,
+  CANVAS_BG_OPTIONS,
   EDGE_COLOR_OPTIONS,
   EDGE_STYLE_OPTIONS,
   EDGE_WIDTH_OPTIONS,
@@ -75,6 +79,10 @@ export function MobileMoreMenu() {
   const setEdgeAnimated = useMindMapStore((s) => s.setEdgeAnimated);
   const nodeTint = useMindMapStore((s) => s.nodeTint);
   const setNodeTint = useMindMapStore((s) => s.setNodeTint);
+  const canvasBg = useMindMapStore((s) => s.canvasBg);
+  const setCanvasBg = useMindMapStore((s) => s.setCanvasBg);
+  const accent = useMindMapStore((s) => s.accent);
+  const setAccent = useMindMapStore((s) => s.setAccent);
   const addToast = useMindMapStore((s) => s.addToast);
 
   const close = () => setOpen(false);
@@ -123,6 +131,20 @@ export function MobileMoreMenu() {
   const toggleTint = () => {
     setNodeTint(!nodeTint);
     addToast(nodeTint ? "색 채움 해제" : "색 채움 적용", "info");
+  };
+
+  const cycleCanvasBg = () => {
+    const idx = CANVAS_BG_OPTIONS.findIndex((o) => o.id === canvasBg);
+    const next = CANVAS_BG_OPTIONS[(idx + 1) % CANVAS_BG_OPTIONS.length];
+    setCanvasBg(next.id);
+    addToast(`캔버스 배경: ${next.label}`, "info");
+  };
+
+  const cycleAccent = () => {
+    const idx = ACCENT_OPTIONS.findIndex((o) => o.id === accent);
+    const next = ACCENT_OPTIONS[(idx + 1) % ACCENT_OPTIONS.length];
+    setAccent(next.id);
+    addToast(`테마 색상: ${next.label}`, "info");
   };
 
   return (
@@ -234,6 +256,16 @@ export function MobileMoreMenu() {
                 icon={<Palette size={18} />}
                 label="색 채움(틴트)"
                 onClick={toggleTint}
+              />
+              <Row
+                icon={<Grid3x3 size={18} />}
+                label="캔버스 배경"
+                onClick={cycleCanvasBg}
+              />
+              <Row
+                icon={<Droplet size={18} />}
+                label="테마 색상"
+                onClick={cycleAccent}
               />
               <Row
                 icon={<Type size={18} />}
