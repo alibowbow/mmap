@@ -5,6 +5,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Command,
+  Eye,
+  EyeOff,
   Menu,
   Search,
   Sparkles,
@@ -27,6 +29,7 @@ import { MobileMoreMenu } from "@/components/mobile/MobileMoreMenu";
 import { MobileNodeSheet } from "@/components/mobile/MobileNodeSheet";
 import { MobileSearchOverlay } from "@/components/mobile/MobileSearchOverlay";
 import { SearchPanel } from "@/components/panels/SearchPanel";
+import { BulkActionBar } from "@/components/toolbar/BulkActionBar";
 import { CommandPalette } from "@/components/toolbar/CommandPalette";
 import { FloatingToolbar } from "@/components/toolbar/FloatingToolbar";
 import { NodeContextMenu } from "@/components/toolbar/NodeContextMenu";
@@ -40,6 +43,8 @@ import {
 } from "@/hooks/useIsMobile";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { cn } from "@/lib/cn";
+import { fontFamilyFor } from "@/lib/constants";
+import { getVisibleDfsOrder } from "@/lib/tree";
 import {
   selectActiveDocument,
   selectSelectedNode,
@@ -56,7 +61,7 @@ function MobileTopbar() {
   const openCommandPalette = useMindMapStore((s) => s.openCommandPalette);
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-2 pt-[env(safe-area-inset-top)] mf-glass">
+    <header className="relative z-30 flex h-14 shrink-0 items-center gap-2 border-b border-line px-2 pt-[env(safe-area-inset-top)] mf-glass">
       <button
         onClick={() => setMobileDrawerOpen(true)}
         aria-label="문서 목록"
@@ -94,8 +99,13 @@ function PresentationControls() {
   const next = useMindMapStore((s) => s.presentationNext);
   const prev = useMindMapStore((s) => s.presentationPrev);
   const close = useMindMapStore((s) => s.closePresentationMode);
+  const index = useMindMapStore((s) => s.presentationIndex);
+  const reveal = useMindMapStore((s) => s.presentationReveal);
+  const setReveal = useMindMapStore((s) => s.setPresentationReveal);
+  const total = useMindMapStore((s) => getVisibleDfsOrder(s.nodes).length);
 
   const touchStart = useRef<number | null>(null);
+  const progress = total ? ((index + 1) / total) * 100 : 0;
 
   return (
     <div
@@ -111,20 +121,44 @@ function PresentationControls() {
       // Let canvas interactions still happen on the empty middle area.
       style={{ pointerEvents: "none" }}
     >
+      {/* Progress bar along the top edge */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-line/50">
+        <div
+          className="h-full bg-brand transition-all duration-300"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+
       {/* Current node caption */}
       {node && (
-        <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full mf-glass border border-line px-4 py-1.5 text-sm font-medium text-ink shadow-soft">
-          {node.data.label}
+        <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 flex max-w-[80vw] items-center gap-2 rounded-full mf-glass border border-line px-4 py-1.5 text-sm font-medium text-ink shadow-soft">
+          {node.data.emoji && <span>{node.data.emoji}</span>}
+          <span className="truncate">{node.data.label || "(비어 있음)"}</span>
+          <span className="shrink-0 text-xs tabular-nums text-ink-faint">
+            {Math.min(index + 1, total)} / {total}
+          </span>
         </div>
       )}
       <div className="pointer-events-auto absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-2xl mf-glass border border-line p-1.5 shadow-float pb-[env(safe-area-inset-bottom)]">
         <Button variant="ghost" size="icon-lg" onClick={prev} aria-label="이전">
           <ChevronLeft size={22} />
         </Button>
+        <span className="min-w-[64px] text-center text-sm tabular-nums text-ink-soft">
+          {Math.min(index + 1, total)} / {total}
+        </span>
         <Button variant="ghost" size="icon-lg" onClick={next} aria-label="다음">
           <ChevronRight size={22} />
         </Button>
         <div className="mx-1 h-6 w-px bg-line" />
+        <Button
+          variant={reveal ? "primary" : "ghost"}
+          size="icon-lg"
+          onClick={() => setReveal(!reveal)}
+          aria-label={reveal ? "단계 공개 끄기" : "단계 공개 켜기"}
+          title="단계 공개: 진행한 단계까지만 노드 표시"
+        >
+          {reveal ? <Eye size={20} /> : <EyeOff size={20} />}
+        </Button>
         <Button variant="ghost" size="icon-lg" onClick={close} aria-label="종료">
           <X size={22} />
         </Button>
@@ -254,6 +288,7 @@ export function AppShell() {
   const hydrated = useMindMapStore((s) => s.hydrated);
   const theme = useMindMapStore((s) => s.theme);
   const setTheme = useMindMapStore((s) => s.setTheme);
+  const font = useMindMapStore((s) => s.font);
 
   const sidebarCollapsed = useMindMapStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useMindMapStore((s) => s.toggleSidebar);
@@ -290,7 +325,10 @@ export function AppShell() {
   const showTablet = isTablet && !presentationMode;
 
   return (
-    <div className="flex h-[100dvh] w-full overflow-hidden bg-surface-base text-ink">
+    <div
+      className="flex h-[100dvh] w-full overflow-hidden bg-surface-base text-ink"
+      style={{ fontFamily: fontFamilyFor(font) }}
+    >
       {/* Desktop sidebar (inline) */}
       {showDesktopChrome && !sidebarCollapsed && <Sidebar />}
 
@@ -305,6 +343,9 @@ export function AppShell() {
 
         <div className="relative min-h-0 flex-1">
           <MindMapCanvas />
+
+          {/* Bulk edit bar appears when multiple nodes are selected */}
+          {!presentationMode && <BulkActionBar />}
 
           {/* Floating toolbar on desktop/tablet */}
           {!isMobile && !presentationMode && <FloatingToolbar />}

@@ -1,25 +1,32 @@
 "use client";
 
 import {
+  ALargeSmall,
   Command,
+  Download,
+  Link2,
   Maximize,
   Monitor,
   Moon,
   PanelRight,
   Play,
   Redo2,
+  Shapes,
   Sidebar as SidebarIcon,
   Sun,
+  Type,
   Undo2,
 } from "lucide-react";
 import { useState } from "react";
 
+import { DesignMenu } from "@/components/toolbar/DesignMenu";
+import { FontSizeMenu } from "@/components/toolbar/FontSizeMenu";
 import { Button } from "@/components/ui/Button";
 import { Dropdown } from "@/components/ui/Dropdown";
 import { Icon } from "@/components/ui/Icon";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { cn } from "@/lib/cn";
-import { LAYOUT_OPTIONS } from "@/lib/constants";
+import { FONT_OPTIONS, LAYOUT_OPTIONS } from "@/lib/constants";
 import {
   selectActiveDocument,
   useMindMapStore,
@@ -64,17 +71,23 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
   const toggleInspector = useMindMapStore((s) => s.toggleInspector);
   const inspectorOpen = useMindMapStore((s) => s.inspectorOpen);
   const renameDocument = useMindMapStore((s) => s.renameDocument);
+  const connectMode = useMindMapStore((s) => s.connectMode);
+  const setConnectMode = useMindMapStore((s) => s.setConnectMode);
   const undo = useMindMapStore((s) => s.undo);
   const redo = useMindMapStore((s) => s.redo);
   const historyLen = useMindMapStore((s) => s.history.length);
   const futureLen = useMindMapStore((s) => s.future.length);
   const theme = useMindMapStore((s) => s.theme);
   const toggleTheme = useMindMapStore((s) => s.toggleTheme);
+  const font = useMindMapStore((s) => s.font);
+  const setFont = useMindMapStore((s) => s.setFont);
   const autoLayout = useMindMapStore((s) => s.autoLayout);
   const activeLayoutMode = useMindMapStore((s) => s.activeLayoutMode);
   const fitToView = useMindMapStore((s) => s.fitToView);
   const openCommandPalette = useMindMapStore((s) => s.openCommandPalette);
   const openPresentationMode = useMindMapStore((s) => s.openPresentationMode);
+  const exportImage = useMindMapStore((s) => s.exportImage);
+  const setDialog = useMindMapStore((s) => s.setDialog);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -82,7 +95,7 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
   const ThemeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-3 mf-glass">
+    <header className="relative z-30 flex h-14 shrink-0 items-center gap-2 border-b border-line px-3 mf-glass">
       {sidebarCollapsed && (
         <Tooltip label="사이드바 열기">
           <Button variant="ghost" size="icon" onClick={toggleSidebar}>
@@ -188,6 +201,17 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
           </Button>
         </Tooltip>
 
+        <Tooltip label={connectMode ? "연결 모드 종료" : "관계선 연결 모드"}>
+          <Button
+            variant={connectMode ? "primary" : "ghost"}
+            size="icon"
+            onClick={() => setConnectMode(!connectMode)}
+            aria-label="관계선 연결 모드"
+          >
+            <Link2 size={16} />
+          </Button>
+        </Tooltip>
+
         {!compact && (
           <Tooltip label="커맨드 팔레트 (Ctrl+K)">
             <Button variant="ghost" size="sm" onClick={openCommandPalette}>
@@ -196,6 +220,77 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
             </Button>
           </Tooltip>
         )}
+
+        <DesignMenu
+          trigger={
+            <Button variant="ghost" size="icon" aria-label="디자인">
+              <Shapes size={17} />
+            </Button>
+          }
+        />
+
+        <Dropdown
+          align="right"
+          width={200}
+          trigger={
+            <Button variant="ghost" size="icon" aria-label="폰트 변경">
+              <Type size={17} />
+            </Button>
+          }
+          items={FONT_OPTIONS.map((opt) => ({
+            id: opt.id,
+            label: opt.label,
+            active: opt.id === font,
+            onSelect: () => setFont(opt.id),
+            icon: <span style={{ fontFamily: opt.family }}>가</span>,
+          }))}
+        />
+
+        <FontSizeMenu
+          trigger={
+            <Button variant="ghost" size="icon" aria-label="레벨별 글자 크기">
+              <ALargeSmall size={18} />
+            </Button>
+          }
+        />
+
+        <Dropdown
+          align="right"
+          width={200}
+          trigger={
+            <Tooltip label="내보내기">
+              <Button variant="ghost" size="icon" aria-label="내보내기">
+                <Download size={17} />
+              </Button>
+            </Tooltip>
+          }
+          items={[
+            {
+              id: "png",
+              label: "PNG 이미지 저장",
+              icon: <Icon name="Image" size={15} />,
+              onSelect: () => exportImage("png"),
+            },
+            {
+              id: "svg",
+              label: "SVG 이미지 저장",
+              icon: <Icon name="Image" size={15} />,
+              onSelect: () => exportImage("svg"),
+            },
+            {
+              id: "json",
+              label: "JSON 내보내기",
+              icon: <Icon name="FileJson" size={15} />,
+              onSelect: () => setDialog("export"),
+            },
+            {
+              id: "md",
+              label: "Markdown 내보내기",
+              icon: <Icon name="FileText" size={15} />,
+              onSelect: () => setDialog("export"),
+            },
+          ]}
+        />
 
         <div className="mx-1 h-5 w-px bg-line" />
 

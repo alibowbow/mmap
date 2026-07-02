@@ -1,4 +1,10 @@
-import { STORAGE_KEY, WORKSPACE_VERSION } from "@/lib/constants";
+import {
+  DEFAULT_ACCENT,
+  DEFAULT_CANVAS_BG,
+  DEFAULT_LEVEL_FONT_SIZES,
+  STORAGE_KEY,
+  WORKSPACE_VERSION,
+} from "@/lib/constants";
 import type { MindMapWorkspace } from "@/types/mindmap";
 
 export type LoadResult =
@@ -34,6 +40,19 @@ function migrateWorkspace(
     activeDocumentId:
       parsed.activeDocumentId ?? parsed.documents?.[0]?.id ?? null,
     theme: parsed.theme ?? "system",
+    font: parsed.font ?? "inter",
+    nodeStyle: parsed.nodeStyle ?? "card",
+    levelFontSizes:
+      Array.isArray(parsed.levelFontSizes) && parsed.levelFontSizes.length
+        ? parsed.levelFontSizes
+        : [...DEFAULT_LEVEL_FONT_SIZES],
+    edgeStyle: parsed.edgeStyle ?? "curved",
+    edgeAnimated: parsed.edgeAnimated ?? false,
+    edgeWidth: parsed.edgeWidth ?? 2,
+    edgeColorMode: parsed.edgeColorMode ?? "default",
+    nodeTint: parsed.nodeTint ?? false,
+    canvasBg: parsed.canvasBg ?? DEFAULT_CANVAS_BG,
+    accent: parsed.accent ?? DEFAULT_ACCENT,
     sidebarCollapsed: parsed.sidebarCollapsed ?? false,
     inspectorOpen: parsed.inspectorOpen ?? true,
   };

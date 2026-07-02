@@ -7,8 +7,91 @@ import type {
 export const STORAGE_KEY = "mindforge-workspace-v1";
 export const WORKSPACE_VERSION = 1;
 
-export const DEFAULT_NODE_LABEL = "새 아이디어";
+// New nodes start empty so the user can type immediately.
+export const DEFAULT_NODE_LABEL = "";
 export const DEFAULT_ROOT_LABEL = "중심 주제";
+
+// Visual node styles selectable per workspace.
+export type NodeStyle = "card" | "soft" | "outline" | "line";
+
+export type NodeStyleOption = {
+  id: NodeStyle;
+  label: string;
+  icon: string; // lucide icon name
+};
+
+export const NODE_STYLE_OPTIONS: NodeStyleOption[] = [
+  { id: "card", label: "카드", icon: "Square" },
+  { id: "soft", label: "둥근", icon: "Circle" },
+  { id: "outline", label: "윤곽선", icon: "SquareDashed" },
+  { id: "line", label: "라인 (가지선 위 텍스트)", icon: "Minus" },
+];
+
+export const DEFAULT_NODE_STYLE: NodeStyle = "card";
+
+// Edge shapes.
+export type EdgeStyle = "curved" | "step" | "straight";
+export type EdgeStyleOption = { id: EdgeStyle; label: string; icon: string };
+export const EDGE_STYLE_OPTIONS: EdgeStyleOption[] = [
+  { id: "curved", label: "곡선", icon: "Spline" },
+  { id: "step", label: "직각", icon: "Network" },
+  { id: "straight", label: "직선", icon: "Minus" },
+];
+export const DEFAULT_EDGE_STYLE: EdgeStyle = "curved";
+
+export const EDGE_WIDTH_OPTIONS = [
+  { id: "thin", label: "얇게", value: 1.5 },
+  { id: "normal", label: "보통", value: 2 },
+  { id: "thick", label: "굵게", value: 3 },
+];
+export type EdgeColorMode = "default" | "node";
+export const EDGE_COLOR_OPTIONS: { id: EdgeColorMode; label: string }[] = [
+  { id: "default", label: "기본" },
+  { id: "node", label: "노드색" },
+];
+
+// Canvas background pattern.
+export type CanvasBg = "dots" | "lines" | "cross" | "none";
+export const CANVAS_BG_OPTIONS: { id: CanvasBg; label: string; icon: string }[] =
+  [
+    { id: "dots", label: "점", icon: "Grip" },
+    { id: "lines", label: "격자", icon: "Grid3x3" },
+    { id: "cross", label: "십자", icon: "Plus" },
+    { id: "none", label: "없음", icon: "Square" },
+  ];
+export const DEFAULT_CANVAS_BG: CanvasBg = "dots";
+
+// Workspace accent (brand) color presets. The id is written to
+// <html data-accent="..."> and globals.css swaps the --brand tokens.
+export const ACCENT_OPTIONS: { id: string; label: string; swatch: string }[] = [
+  { id: "indigo", label: "인디고", swatch: "#6366f1" },
+  { id: "violet", label: "바이올렛", swatch: "#8b5cf6" },
+  { id: "blue", label: "블루", swatch: "#3b82f6" },
+  { id: "teal", label: "틸", swatch: "#14b8a6" },
+  { id: "emerald", label: "에메랄드", swatch: "#10b981" },
+  { id: "amber", label: "앰버", swatch: "#f59e0b" },
+  { id: "rose", label: "로즈", swatch: "#f43f5e" },
+];
+export const DEFAULT_ACCENT = "indigo";
+
+// Quick emoji presets for node decoration (context menu picker).
+export const EMOJI_PRESETS = [
+  "💡", "🎯", "⭐", "🔥", "✅", "❓", "⚠️", "📌",
+  "📚", "🚀", "💰", "🧠", "❤️", "🛠️", "📅", "🌱",
+];
+
+// Per-level (depth) font sizes for node labels. Index = depth, last entry is
+// used for that depth and deeper.
+export const LEVEL_FONT_LABELS = ["중심", "1단계", "2단계", "3단계+"];
+export const DEFAULT_LEVEL_FONT_SIZES = [18, 15, 14, 13];
+export const FONT_SIZE_MIN = 10;
+export const FONT_SIZE_MAX = 34;
+
+// Resolve a node's label size from its depth.
+export function fontSizeForDepth(sizes: number[], depth: number): number {
+  if (!sizes.length) return 14;
+  return sizes[Math.min(depth, sizes.length - 1)] ?? 14;
+}
 
 // Layout geometry tuned for readable, non-overlapping trees.
 export const NODE_WIDTH = 232;
@@ -26,6 +109,7 @@ export type NodeTypeConfig = {
 
 export const NODE_TYPE_CONFIG: Record<MindMapNodeType, NodeTypeConfig> = {
   root: { label: "중심", color: "#6366f1", accent: "indigo", icon: "Sparkles" },
+  plain: { label: "일반", color: "#64748b", accent: "slate", icon: "Type" },
   idea: { label: "아이디어", color: "#0ea5e9", accent: "sky", icon: "Lightbulb" },
   task: { label: "할 일", color: "#10b981", accent: "emerald", icon: "CheckSquare" },
   note: { label: "노트", color: "#64748b", accent: "slate", icon: "StickyNote" },
@@ -36,6 +120,7 @@ export const NODE_TYPE_CONFIG: Record<MindMapNodeType, NodeTypeConfig> = {
 
 export const NODE_TYPES: MindMapNodeType[] = [
   "root",
+  "plain",
   "idea",
   "task",
   "note",
@@ -86,6 +171,28 @@ export type LayoutOption = {
   description: string;
   icon: string;
 };
+
+// Selectable app fonts (id maps to a CSS variable defined in globals.css).
+export type FontOption = {
+  id: string;
+  label: string;
+  family: string; // value applied to font-family
+};
+
+export const FONT_OPTIONS: FontOption[] = [
+  { id: "inter", label: "기본 (Inter)", family: "var(--font-inter)" },
+  { id: "noto", label: "본고딕", family: "var(--font-noto)" },
+  { id: "myeongjo", label: "명조체", family: "var(--font-myeongjo)" },
+  { id: "jua", label: "둥근체 (Jua)", family: "var(--font-jua)" },
+  { id: "gaegu", label: "손글씨", family: "var(--font-gaegu)" },
+  { id: "mono", label: "고정폭", family: "var(--font-mono)" },
+];
+
+export const DEFAULT_FONT = "inter";
+
+export function fontFamilyFor(id: string): string {
+  return (FONT_OPTIONS.find((f) => f.id === id) ?? FONT_OPTIONS[0]).family;
+}
 
 export const LAYOUT_OPTIONS: LayoutOption[] = [
   {

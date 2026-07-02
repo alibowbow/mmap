@@ -76,7 +76,6 @@ export function MobileDocumentDrawer() {
                   align="right"
                   trigger={
                     <button
-                      onClick={(e) => e.stopPropagation()}
                       aria-label="문서 메뉴"
                       className="flex h-10 w-10 items-center justify-center rounded-xl text-ink-faint active:bg-surface-overlay"
                     >

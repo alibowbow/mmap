@@ -2,13 +2,20 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  ArrowLeft,
+  ArrowRight,
   ChevronsDownUp,
+  ClipboardCopy,
+  ClipboardPaste,
   Copy,
   CornerDownRight,
   LayoutGrid,
+  Map as MapIcon,
   Palette,
   Pencil,
   Plus,
+  Sparkles,
+  SquareArrowOutUpRight,
   Trash2,
 } from "lucide-react";
 import { useEffect } from "react";
@@ -16,12 +23,14 @@ import { useEffect } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 import {
+  EMOJI_PRESETS,
   NODE_COLOR_PALETTE,
   NODE_STATUSES,
   NODE_STATUS_CONFIG,
   NODE_TYPES,
   NODE_TYPE_CONFIG,
 } from "@/lib/constants";
+import { getRootNode } from "@/lib/tree";
 import { useMindMapStore } from "@/store/mindMapStore";
 
 function Item({
@@ -62,8 +71,15 @@ export function NodeContextMenu() {
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
   const toggleCollapse = useMindMapStore((s) => s.toggleCollapse);
   const duplicateSubtree = useMindMapStore((s) => s.duplicateSubtree);
+  const copySubtree = useMindMapStore((s) => s.copySubtree);
+  const pasteSubtree = useMindMapStore((s) => s.pasteSubtree);
+  const hasClipboard = useMindMapStore((s) => Boolean(s.clipboard?.length));
   const autoLayoutSubtree = useMindMapStore((s) => s.autoLayoutSubtree);
+  const promoteNodeToMap = useMindMapStore((s) => s.promoteNodeToMap);
+  const openLinkedDoc = useMindMapStore((s) => s.openLinkedDoc);
   const deleteNode = useMindMapStore((s) => s.deleteNode);
+  const setNodeSide = useMindMapStore((s) => s.setNodeSide);
+  const rootId = useMindMapStore((s) => getRootNode(s.nodes)?.id);
 
   useEffect(() => {
     if (!menu) return;
@@ -133,6 +149,36 @@ export function NodeContextMenu() {
             </div>
           </div>
 
+          {/* Emoji row */}
+          <div className="grid grid-cols-9 gap-0.5 px-2.5 py-1">
+            {EMOJI_PRESETS.map((em) => (
+              <button
+                key={em}
+                onClick={() =>
+                  updateNodeData(node.id, {
+                    emoji: node.data.emoji === em ? undefined : em,
+                  })
+                }
+                className={cn(
+                  "flex h-6 w-6 items-center justify-center rounded-md text-[14px] transition hover:bg-surface-raised",
+                  node.data.emoji === em && "bg-brand/15 ring-1 ring-brand/40"
+                )}
+                aria-label={`이모지 ${em}`}
+              >
+                {em}
+              </button>
+            ))}
+            {node.data.emoji && (
+              <button
+                onClick={() => updateNodeData(node.id, { emoji: undefined })}
+                className="flex h-6 w-6 items-center justify-center rounded-md text-[11px] text-ink-faint transition hover:bg-surface-raised"
+                aria-label="이모지 지우기"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
           {/* Type row */}
           <div className="flex items-center gap-1 px-2.5 py-1.5">
             {NODE_TYPES.filter((t) => t !== "root").map((t) => (
@@ -180,6 +226,43 @@ export function NodeContextMenu() {
             ))}
           </div>
 
+          {/* Branch direction (first-level branches only) */}
+          {!(node.data.isRoot || node.data.type === "root") &&
+            node.data.parentId === rootId && (
+              <>
+                <div className="my-1 h-px bg-line" />
+                <div className="flex items-center gap-1 px-2.5 py-1">
+                  <span className="text-ink-soft">
+                    <ArrowRight size={15} />
+                  </span>
+                  {(
+                    [
+                      { id: undefined, label: "자동", icon: <Sparkles size={13} /> },
+                      { id: "left", label: "왼쪽", icon: <ArrowLeft size={13} /> },
+                      { id: "right", label: "오른쪽", icon: <ArrowRight size={13} /> },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.label}
+                      onClick={() => {
+                        setNodeSide(node.id, opt.id);
+                        close();
+                      }}
+                      className={cn(
+                        "inline-flex flex-1 items-center justify-center gap-1 rounded-lg px-1.5 py-1 text-[11px] font-medium transition",
+                        (node.data.side ?? undefined) === opt.id
+                          ? "bg-brand/15 text-brand"
+                          : "text-ink-soft hover:bg-surface-raised"
+                      )}
+                    >
+                      {opt.icon}
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
           <div className="my-1 h-px bg-line" />
 
           <Item
@@ -199,6 +282,24 @@ export function NodeContextMenu() {
             }}
           />
           <Item
+            icon={<ClipboardCopy size={15} />}
+            label="복사 (⌘C)"
+            onClick={() => {
+              copySubtree(node.id);
+              close();
+            }}
+          />
+          {hasClipboard && (
+            <Item
+              icon={<ClipboardPaste size={15} />}
+              label="여기에 붙여넣기 (⌘V)"
+              onClick={() => {
+                pasteSubtree(node.id);
+                close();
+              }}
+            />
+          )}
+          <Item
             icon={<LayoutGrid size={15} />}
             label="하위 트리 정렬"
             onClick={() => {
@@ -206,6 +307,30 @@ export function NodeContextMenu() {
               close();
             }}
           />
+
+          <div className="my-1 h-px bg-line" />
+
+          {node.data.linkedDocId ? (
+            <Item
+              icon={<MapIcon size={15} />}
+              label="연결된 맵 열기"
+              onClick={() => {
+                openLinkedDoc(node.data.linkedDocId!);
+                close();
+              }}
+            />
+          ) : (
+            !(node.data.isRoot || node.data.type === "root") && (
+              <Item
+                icon={<SquareArrowOutUpRight size={15} />}
+                label="새 맵으로 분리"
+                onClick={() => {
+                  promoteNodeToMap(node.id);
+                  close();
+                }}
+              />
+            )
+          )}
           {!(node.data.isRoot || node.data.type === "root") && (
             <>
               <div className="my-1 h-px bg-line" />
