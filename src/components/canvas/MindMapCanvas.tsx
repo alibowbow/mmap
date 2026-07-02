@@ -21,12 +21,19 @@ import { MindMapEdge } from "@/components/canvas/MindMapEdge";
 import { MindMapNode } from "@/components/canvas/MindMapNode";
 import { RelationEdge } from "@/components/canvas/RelationEdge";
 import { cn } from "@/lib/cn";
-import { NODE_HEIGHT, NODE_TYPE_CONFIG, NODE_WIDTH } from "@/lib/constants";
+import {
+  BRANCH_AUTO_PALETTE,
+  NODE_HEIGHT,
+  NODE_TYPE_CONFIG,
+  NODE_WIDTH,
+} from "@/lib/constants";
 import { subtreeDrag as armedDrag } from "@/lib/dragState";
 import {
   computeDepths,
   getDescendantIds,
   getHiddenNodeIds,
+  getRootNode,
+  getSubtreeIds,
   getVisibleDfsOrder,
 } from "@/lib/tree";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -48,6 +55,9 @@ function CanvasInner() {
   const edgeColorMode = useMindMapStore((s) => s.edgeColorMode);
   const canvasBg = useMindMapStore((s) => s.canvasBg);
   const activeLayoutMode = useMindMapStore((s) => s.activeLayoutMode);
+  const rainbowBranches = useMindMapStore((s) => s.rainbowBranches);
+  const focusModeNodeId = useMindMapStore((s) => s.focusModeNodeId);
+  const exitFocusMode = useMindMapStore((s) => s.exitFocusMode);
   const relations = useMindMapStore((s) => s.relations);
   const connectMode = useMindMapStore((s) => s.connectMode);
   const selectedRelationId = useMindMapStore((s) => s.selectedRelationId);
@@ -83,14 +93,35 @@ function CanvasInner() {
   const { displayNodes, displayEdges } = useMemo(() => {
     const hidden = getHiddenNodeIds(nodes);
     const posMap = new Map(nodes.map((n) => [n.id, n.position]));
+    // Rainbow mode: each first-level branch gets a palette hue; descendants
+    // inherit it (walking up parentId). Explicit node colors still win.
+    const autoColorOf = new Map<string, string>();
+    if (rainbowBranches) {
+      const root = getRootNode(nodes);
+      if (root) {
+        const firstLevel = nodes.filter((n) => n.data.parentId === root.id);
+        firstLevel.forEach((branch, i) => {
+          const c = BRANCH_AUTO_PALETTE[i % BRANCH_AUTO_PALETTE.length];
+          for (const id of getSubtreeIds(nodes, branch.id)) {
+            autoColorOf.set(id, c);
+          }
+        });
+      }
+    }
     const colorOf = new Map(
       nodes.map((n) => [
         n.id,
         n.data.color ??
+          autoColorOf.get(n.id) ??
           NODE_TYPE_CONFIG[n.data.type]?.color ??
           "#94a3b8",
       ])
     );
+    // Focus mode: only the focused subtree stays visible.
+    const focusSet =
+      focusModeNodeId && posMap.has(focusModeNodeId)
+        ? new Set(getSubtreeIds(nodes, focusModeNodeId))
+        : null;
     const depths = computeDepths(nodes);
     const selectedSet = new Set(selectedNodeIds);
     // Presentation: step-reveal hides nodes beyond the current step, and the
@@ -104,20 +135,23 @@ function CanvasInner() {
         revealed = new Set(order.slice(0, presentationIndex + 1));
       }
     }
+    const nodeHidden = (id: string) =>
+      hidden.has(id) ||
+      (revealed ? !revealed.has(id) : false) ||
+      (focusSet ? !focusSet.has(id) : false);
     const dn: Node<MindMapNodeData>[] = nodes.map((n) => ({
       ...n,
       type: "mindmap",
       selected: selectedSet.has(n.id),
-      hidden: hidden.has(n.id) || (revealed ? !revealed.has(n.id) : false),
+      hidden: nodeHidden(n.id),
       draggable: !presentationMode,
       data: {
         ...n.data,
         _depth: depths.get(n.id) ?? 0,
         _dimmed: presentationMode && currentId !== null && n.id !== currentId,
+        _autoColor: autoColorOf.get(n.id),
       },
     }));
-    const nodeHidden = (id: string) =>
-      hidden.has(id) || (revealed ? !revealed.has(id) : false);
     const horizontalFaces = (dx: number) =>
       dx < 0
         ? { sourceHandle: "left-source", targetHandle: "right-target" }
@@ -195,6 +229,8 @@ function CanvasInner() {
     edgeWidth,
     edgeColorMode,
     activeLayoutMode,
+    rainbowBranches,
+    focusModeNodeId,
   ]);
 
   const onNodeClick = useCallback(
@@ -413,6 +449,7 @@ function CanvasInner() {
               const data = n.data as MindMapNodeData;
               return (
                 data?.color ??
+                data?._autoColor ??
                 NODE_TYPE_CONFIG[data?.type ?? "idea"]?.color ??
                 "#94a3b8"
               );
@@ -446,6 +483,22 @@ function CanvasInner() {
               className="ml-1 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-white transition hover:opacity-90"
             >
               완료
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Focus mode banner */}
+      {focusModeNodeId && (
+        <div className="pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2">
+          <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-brand/40 bg-brand/10 px-4 py-2 text-xs font-medium text-ink shadow-soft backdrop-blur">
+            <span className="h-2 w-2 rounded-full bg-brand" />
+            포커스 모드 — 이 가지만 표시 중
+            <button
+              onClick={exitFocusMode}
+              className="ml-1 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-white transition hover:opacity-90"
+            >
+              전체 보기
             </button>
           </div>
         </div>

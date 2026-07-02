@@ -8,6 +8,7 @@ import {
   ClipboardCopy,
   ClipboardPaste,
   Copy,
+  Crosshair,
   CornerDownRight,
   LayoutGrid,
   Map as MapIcon,
@@ -96,6 +97,7 @@ export function NodeContextMenu() {
   const pasteSubtree = useMindMapStore((s) => s.pasteSubtree);
   const hasClipboard = useMindMapStore((s) => Boolean(s.clipboard?.length));
   const autoLayoutSubtree = useMindMapStore((s) => s.autoLayoutSubtree);
+  const enterFocusMode = useMindMapStore((s) => s.enterFocusMode);
   const promoteNodeToMap = useMindMapStore((s) => s.promoteNodeToMap);
   const openLinkedDoc = useMindMapStore((s) => s.openLinkedDoc);
   const deleteNode = useMindMapStore((s) => s.deleteNode);
@@ -333,6 +335,14 @@ export function NodeContextMenu() {
               label="하위 정렬"
               onClick={() => {
                 autoLayoutSubtree(node.id);
+                close();
+              }}
+            />
+            <GridItem
+              icon={<Crosshair size={14} />}
+              label="가지 집중"
+              onClick={() => {
+                enterFocusMode(node.id);
                 close();
               }}
             />

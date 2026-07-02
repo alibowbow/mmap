@@ -74,6 +74,21 @@ export const ACCENT_OPTIONS: { id: string; label: string; swatch: string }[] = [
 ];
 export const DEFAULT_ACCENT = "indigo";
 
+// Distinct hues auto-assigned to first-level branches (rainbow mode).
+// Subtrees inherit their branch color unless a node sets one explicitly.
+export const BRANCH_AUTO_PALETTE = [
+  "#6366f1", // indigo
+  "#0ea5e9", // sky
+  "#10b981", // emerald
+  "#f59e0b", // amber
+  "#f43f5e", // rose
+  "#8b5cf6", // violet
+  "#14b8a6", // teal
+  "#f97316", // orange
+  "#ec4899", // pink
+  "#84cc16", // lime
+];
+
 // Quick emoji presets for node decoration (context menu picker).
 export const EMOJI_PRESETS = [
   "💡", "🎯", "⭐", "🔥", "✅", "❓", "⚠️", "📌",

@@ -63,6 +63,9 @@ export function useKeyboardShortcuts(): void {
         }
         if (store.connectMode) return store.setConnectMode(false);
         if (store.selectedRelationId) return store.selectRelation(null);
+        if (store.focusModeNodeId && !store.editingNodeId) {
+          return store.exitFocusMode();
+        }
         if (store.commandPaletteOpen) return store.closeCommandPalette();
         if (store.dialog) return store.setDialog(null);
         if (store.searchOpen) return store.setSearchOpen(false);

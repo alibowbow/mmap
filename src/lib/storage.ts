@@ -53,6 +53,7 @@ function migrateWorkspace(
     nodeTint: parsed.nodeTint ?? false,
     canvasBg: parsed.canvasBg ?? DEFAULT_CANVAS_BG,
     accent: parsed.accent ?? DEFAULT_ACCENT,
+    rainbowBranches: parsed.rainbowBranches ?? false,
     sidebarCollapsed: parsed.sidebarCollapsed ?? false,
     inspectorOpen: parsed.inspectorOpen ?? true,
   };

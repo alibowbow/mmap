@@ -67,14 +67,17 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
   const setCanvasBg = useMindMapStore((s) => s.setCanvasBg);
   const accent = useMindMapStore((s) => s.accent);
   const setAccent = useMindMapStore((s) => s.setAccent);
+  const rainbowBranches = useMindMapStore((s) => s.rainbowBranches);
+  const setRainbowBranches = useMindMapStore((s) => s.setRainbowBranches);
 
   useEffect(() => {
     if (!open) return;
-    const onClick = (e: MouseEvent) => {
+    // Capture-phase pointerdown — the canvas pane stops mousedown bubbling.
+    const onDown = (e: PointerEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
   }, [open]);
 
   const seg =
@@ -114,6 +117,11 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
             </div>
 
             <Toggle on={nodeTint} onChange={setNodeTint} label="색 채움(틴트)" />
+            <Toggle
+              on={rainbowBranches}
+              onChange={setRainbowBranches}
+              label="가지 자동 색상"
+            />
 
             <div className="my-2 h-px bg-line" />
 

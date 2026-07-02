@@ -18,6 +18,8 @@ import { MindMapCanvas } from "@/components/canvas/MindMapCanvas";
 import { ExportDialog } from "@/components/dialogs/ExportDialog";
 import { ImportJsonDialog } from "@/components/dialogs/ImportJsonDialog";
 import { ShortcutDialog } from "@/components/dialogs/ShortcutDialog";
+import { SnapshotDialog } from "@/components/dialogs/SnapshotDialog";
+import { StatsDialog } from "@/components/dialogs/StatsDialog";
 import { TemplateDialog } from "@/components/dialogs/TemplateDialog";
 import { InspectorPanel } from "@/components/layout/InspectorPanel";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -400,6 +402,8 @@ export function AppShell() {
       <ExportDialog />
       <ImportJsonDialog />
       <ShortcutDialog />
+      <SnapshotDialog />
+      <StatsDialog />
 
       {/* Mobile-only surfaces */}
       <MobileDocumentDrawer />

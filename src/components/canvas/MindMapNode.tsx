@@ -71,7 +71,7 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
 
   const isEditing = editingNodeId === id;
   const typeConf = NODE_TYPE_CONFIG[d.type] ?? NODE_TYPE_CONFIG.idea;
-  const color = d.color ?? typeConf.color;
+  const color = d.color ?? d._autoColor ?? typeConf.color;
   const isRoot = d.isRoot || d.type === "root";
   // "plain" nodes show only the user's text — no type icon/label or color rail.
   const isPlain = d.type === "plain" && !isRoot;
@@ -560,13 +560,9 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
         className={cn(
           "nodrag mf-node-affordance absolute -top-3 -right-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-line bg-surface-raised text-ink-soft shadow-sm transition",
           "hover:text-ink hover:border-brand/50",
-          // The quick bar already offers ⋯ when selected — show this corner
-          // affordance on hover only.
-          quickBarVisible
-            ? "opacity-0 pointer-events-none"
-            : selected
-              ? "opacity-100"
-              : "opacity-0 group-hover:opacity-100"
+          // Touch devices have no hover, so the corner ⋯ must stay tappable
+          // whenever the node is selected — even with the quick bar open.
+          selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
         )}
       >
         <MoreHorizontal size={15} />

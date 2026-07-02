@@ -56,6 +56,7 @@ import type {
   MindMapNode,
   MindMapNodeData,
   MindMapRelation,
+  MindMapSnapshot,
   MindMapTheme,
   SaveStatus,
   TemplateType,
@@ -63,7 +64,14 @@ import type {
 
 export type ToastType = "success" | "error" | "info";
 export type Toast = { id: string; message: string; type: ToastType };
-export type DialogType = "template" | "export" | "import" | "shortcuts" | null;
+export type DialogType =
+  | "template"
+  | "export"
+  | "import"
+  | "shortcuts"
+  | "snapshots"
+  | "stats"
+  | null;
 export type ContextMenuState = { nodeId: string; x: number; y: number } | null;
 
 const HISTORY_LIMIT = 60;
@@ -112,6 +120,7 @@ export type MindMapState = {
   nodeTint: boolean;
   canvasBg: string;
   accent: string;
+  rainbowBranches: boolean;
   dialog: DialogType;
   importTab: "json" | "outline";
   contextMenu: ContextMenuState;
@@ -187,6 +196,16 @@ export type MindMapState = {
   setDropTargetId: (id: string | null) => void;
   reparentNode: (nodeId: string, newParentId: string) => void;
 
+  // ── Focus mode (isolate one branch) ──
+  focusModeNodeId: string | null;
+  enterFocusMode: (nodeId: string) => void;
+  exitFocusMode: () => void;
+
+  // ── Snapshots (local version history) ──
+  saveSnapshot: () => void;
+  restoreSnapshot: (snapshotId: string) => void;
+  deleteSnapshot: (snapshotId: string) => void;
+
   // ── Relations (free-form cross links) ──
   setConnectMode: (on: boolean) => void;
   addRelation: (source: string, target: string) => void;
@@ -239,6 +258,7 @@ export type MindMapState = {
   setNodeTint: (on: boolean) => void;
   setCanvasBg: (bg: string) => void;
   setAccent: (accent: string) => void;
+  setRainbowBranches: (on: boolean) => void;
   setLevelFontSize: (level: number, size: number) => void;
   resetLevelFontSizes: () => void;
   toggleSidebar: () => void;
@@ -422,6 +442,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     nodeTint: false,
     canvasBg: DEFAULT_CANVAS_BG,
     accent: DEFAULT_ACCENT,
+    rainbowBranches: false,
     dialog: null,
     importTab: "json",
     contextMenu: null,
@@ -581,6 +602,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         relations: doc.relations ?? [],
         selectedRelationId: null,
         connectMode: false,
+        focusModeNodeId: null,
         activeLayoutMode: doc.layoutMode ?? "right-tree",
         ...selectionFor(getRootNode(doc.nodes)?.id ?? null),
         editingNodeId: null,
@@ -625,6 +647,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           nodeTint: ws.nodeTint ?? false,
           canvasBg: ws.canvasBg ?? DEFAULT_CANVAS_BG,
           accent: ws.accent ?? DEFAULT_ACCENT,
+          rainbowBranches: ws.rainbowBranches ?? false,
           sidebarCollapsed: ws.sidebarCollapsed,
           inspectorOpen: ws.inspectorOpen,
           hydrated: true,
@@ -669,6 +692,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         nodeTint,
         canvasBg,
         accent,
+        rainbowBranches,
         sidebarCollapsed,
         inspectorOpen,
         hydrated,
@@ -690,6 +714,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         nodeTint,
         canvasBg,
         accent,
+        rainbowBranches,
         sidebarCollapsed,
         inspectorOpen,
       });
@@ -1145,6 +1170,88 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       get().addToast("부모를 변경했습니다", "success");
     },
 
+    // ── Focus mode ──
+    focusModeNodeId: null,
+    enterFocusMode: (nodeId) => {
+      if (!getNodeMap(get().nodes).has(nodeId)) return;
+      set({ focusModeNodeId: nodeId, contextMenu: null });
+      requestAnimationFrame(() => get().fitToView());
+      get().addToast("포커스 모드 — Esc 로 종료", "info");
+    },
+    exitFocusMode: () => {
+      if (!get().focusModeNodeId) return;
+      set({ focusModeNodeId: null });
+      requestAnimationFrame(() => get().fitToView());
+    },
+
+    // ── Snapshots ──
+    saveSnapshot: () => {
+      const { activeDocumentId, nodes, edges, relations } = get();
+      if (!activeDocumentId) return;
+      const snap: MindMapSnapshot = {
+        id: createId("snap"),
+        label: new Date().toLocaleString("ko-KR", {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        createdAt: nowIso(),
+        nodes: nodes.map(cloneNode),
+        edges: edges.map((e) => ({ ...e })),
+        relations: relations.map((r) => ({ ...r })),
+      };
+      set((s) => ({
+        documents: s.documents.map((d) =>
+          d.id === activeDocumentId
+            ? // Keep the most recent 5 — snapshots live in localStorage.
+              { ...d, snapshots: [snap, ...(d.snapshots ?? [])].slice(0, 5) }
+            : d
+        ),
+        revision: s.revision + 1,
+      }));
+      get().addToast("스냅샷을 저장했습니다", "success");
+    },
+
+    restoreSnapshot: (snapshotId) => {
+      const { activeDocumentId, documents } = get();
+      const doc = documents.find((d) => d.id === activeDocumentId);
+      const snap = doc?.snapshots?.find((s) => s.id === snapshotId);
+      if (!snap) return;
+      // Runs through commit so the restore itself is undoable.
+      commit(() => ({
+        nodes: snap.nodes.map(cloneNode),
+        edges: snap.edges.map((e) => ({ ...e })),
+      }));
+      set({
+        relations: (snap.relations ?? []).map((r) => ({ ...r })),
+        ...selectionFor(getRootNode(snap.nodes)?.id ?? null),
+        focusModeNodeId: null,
+        dialog: null,
+      });
+      syncActiveDocument(get().nodes, get().edges);
+      get().fitToView();
+      get().addToast("스냅샷을 복원했습니다 (⌘Z로 되돌리기 가능)", "success");
+    },
+
+    deleteSnapshot: (snapshotId) => {
+      const { activeDocumentId } = get();
+      if (!activeDocumentId) return;
+      set((s) => ({
+        documents: s.documents.map((d) =>
+          d.id === activeDocumentId
+            ? {
+                ...d,
+                snapshots: (d.snapshots ?? []).filter(
+                  (sn) => sn.id !== snapshotId
+                ),
+              }
+            : d
+        ),
+        revision: s.revision + 1,
+      }));
+    },
+
     // ── Relations (free-form cross links) ──
     setConnectMode: (on) =>
       set({ connectMode: on, selectedRelationId: null }),
@@ -1578,6 +1685,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       set((s) => ({ nodeTint, revision: s.revision + 1 })),
     setCanvasBg: (canvasBg) =>
       set((s) => ({ canvasBg, revision: s.revision + 1 })),
+    setRainbowBranches: (rainbowBranches) =>
+      set((s) => ({ rainbowBranches, revision: s.revision + 1 })),
     setAccent: (accent) => {
       applyAccentAttr(accent);
       set((s) => ({ accent, revision: s.revision + 1 }));

@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  BarChart3,
   Droplet,
   FileImage,
   FileJson,
@@ -10,6 +11,8 @@ import {
   FileText,
   GraduationCap,
   HelpCircle,
+  History,
+  Rainbow,
   Image as ImageIcon,
   LayoutTemplate,
   Palette,
@@ -97,6 +100,8 @@ export function MobileMoreMenu() {
   const accent = useMindMapStore((s) => s.accent);
   const setAccent = useMindMapStore((s) => s.setAccent);
   const startTutorial = useMindMapStore((s) => s.startTutorial);
+  const rainbowBranches = useMindMapStore((s) => s.rainbowBranches);
+  const setRainbowBranches = useMindMapStore((s) => s.setRainbowBranches);
   const addToast = useMindMapStore((s) => s.addToast);
 
   const close = () => setOpen(false);
@@ -159,6 +164,14 @@ export function MobileMoreMenu() {
     const next = ACCENT_OPTIONS[(idx + 1) % ACCENT_OPTIONS.length];
     setAccent(next.id);
     addToast(`테마 색상: ${next.label}`, "info");
+  };
+
+  const toggleRainbow = () => {
+    setRainbowBranches(!rainbowBranches);
+    addToast(
+      rainbowBranches ? "가지 자동 색상 해제" : "가지 자동 색상 적용",
+      "info"
+    );
   };
 
   return (
@@ -303,6 +316,21 @@ export function MobileMoreMenu() {
                     close();
                     openPresentationMode();
                   }}
+                />
+                <Tile
+                  icon={<History size={18} />}
+                  label="스냅샷"
+                  onClick={() => setDialog("snapshots")}
+                />
+                <Tile
+                  icon={<BarChart3 size={18} />}
+                  label="통계"
+                  onClick={() => setDialog("stats")}
+                />
+                <Tile
+                  icon={<Rainbow size={18} />}
+                  label="가지 색상"
+                  onClick={toggleRainbow}
                 />
                 <Tile
                   icon={<GraduationCap size={18} />}

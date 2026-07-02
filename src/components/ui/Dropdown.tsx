@@ -35,13 +35,16 @@ export function Dropdown({
 
   useEffect(() => {
     if (!open) return;
-    const onClick = (e: MouseEvent) => {
+    // Capture-phase pointerdown: the React Flow pane (d3-zoom) stops mousedown
+    // propagation, so a bubble listener never fires for canvas clicks and the
+    // menu would stay open covering the map.
+    const onDown = (e: PointerEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false);
       }
     };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
   }, [open]);
 
   return (

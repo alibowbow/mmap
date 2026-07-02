@@ -2,8 +2,10 @@
 
 import {
   ALargeSmall,
+  BarChart3,
   Command,
   Download,
+  History,
   Link2,
   Maximize,
   Monitor,
@@ -209,6 +211,28 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
             aria-label="관계선 연결 모드"
           >
             <Link2 size={16} />
+          </Button>
+        </Tooltip>
+
+        <Tooltip label="스냅샷 (버전 기록)">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setDialog("snapshots")}
+            aria-label="스냅샷"
+          >
+            <History size={16} />
+          </Button>
+        </Tooltip>
+
+        <Tooltip label="문서 통계">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setDialog("stats")}
+            aria-label="문서 통계"
+          >
+            <BarChart3 size={16} />
           </Button>
         </Tooltip>
 

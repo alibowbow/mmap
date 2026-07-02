@@ -23,11 +23,12 @@ export function FontSizeMenu({ trigger }: { trigger: React.ReactNode }) {
 
   useEffect(() => {
     if (!open) return;
-    const onClick = (e: MouseEvent) => {
+    // Capture-phase pointerdown — the canvas pane stops mousedown bubbling.
+    const onDown = (e: PointerEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
   }, [open]);
 
   const stepBtn =
