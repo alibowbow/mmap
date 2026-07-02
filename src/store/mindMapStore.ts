@@ -152,6 +152,7 @@ export type MindMapState = {
   duplicateDocument: (documentId: string) => void;
   deleteDocument: (documentId: string) => void;
   renameDocument: (documentId: string, title: string) => void;
+  toggleDocumentPin: (documentId: string) => void;
   setActiveDocument: (documentId: string) => void;
   loadWorkspace: () => void;
   saveWorkspace: () => void;
@@ -528,6 +529,17 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       set((s) => ({
         documents: s.documents.map((d) =>
           d.id === documentId ? { ...d, title, updatedAt: nowIso() } : d
+        ),
+        revision: s.revision + 1,
+      }));
+    },
+
+    // Pin toggling doesn't touch updatedAt — pinning shouldn't reorder the
+    // "recent" sort or make an untouched document look freshly edited.
+    toggleDocumentPin: (documentId) => {
+      set((s) => ({
+        documents: s.documents.map((d) =>
+          d.id === documentId ? { ...d, pinned: !d.pinned } : d
         ),
         revision: s.revision + 1,
       }));

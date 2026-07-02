@@ -45,6 +45,8 @@ function OutlineRow({
   const kids = childrenMap.get(node.id) ?? [];
   const conf = NODE_TYPE_CONFIG[node.data.type] ?? NODE_TYPE_CONFIG.idea;
   const active = node.id === selectedNodeId;
+  const checklistDone = node.data.checklist?.filter((c) => c.checked).length ?? 0;
+  const checklistTotal = node.data.checklist?.length ?? 0;
 
   return (
     <>
@@ -108,6 +110,18 @@ function OutlineRow({
             {node.data.label || (
               <span className="italic text-ink-faint">(비어 있음)</span>
             )}
+          </span>
+        )}
+        {checklistTotal > 0 && (
+          <span
+            className={cn(
+              "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium tabular-nums",
+              checklistDone === checklistTotal
+                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                : "bg-surface-sunken text-ink-faint"
+            )}
+          >
+            {checklistDone}/{checklistTotal}
           </span>
         )}
       </div>

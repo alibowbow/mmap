@@ -1,17 +1,23 @@
 "use client";
 
 import {
+  ArrowDownAZ,
+  CalendarPlus,
   ChevronsLeft,
+  Clock,
   Copy,
   FilePlus2,
   LayoutTemplate,
   MoreHorizontal,
   PanelLeft,
   Pencil,
+  Pin,
+  PinOff,
   Search,
   Trash2,
+  X,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { OutlinePanel } from "@/components/panels/OutlinePanel";
 import { Button } from "@/components/ui/Button";
@@ -19,6 +25,14 @@ import { Dropdown } from "@/components/ui/Dropdown";
 import { cn } from "@/lib/cn";
 import { useMindMapStore } from "@/store/mindMapStore";
 import type { MindMapDocument } from "@/types/mindmap";
+
+type SortMode = "recent" | "name" | "created";
+
+const SORT_OPTIONS: { id: SortMode; label: string; icon: React.ReactNode }[] = [
+  { id: "recent", label: "최근 수정순", icon: <Clock size={15} /> },
+  { id: "name", label: "이름순", icon: <ArrowDownAZ size={15} /> },
+  { id: "created", label: "생성순", icon: <CalendarPlus size={15} /> },
+];
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -37,6 +51,7 @@ function DocumentCard({ doc }: { doc: MindMapDocument }) {
   const renameDocument = useMindMapStore((s) => s.renameDocument);
   const duplicateDocument = useMindMapStore((s) => s.duplicateDocument);
   const deleteDocument = useMindMapStore((s) => s.deleteDocument);
+  const toggleDocumentPin = useMindMapStore((s) => s.toggleDocumentPin);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(doc.title);
@@ -82,6 +97,22 @@ function DocumentCard({ doc }: { doc: MindMapDocument }) {
             {doc.title}
           </span>
         )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleDocumentPin(doc.id);
+          }}
+          aria-label={doc.pinned ? "고정 해제" : "상단에 고정"}
+          title={doc.pinned ? "고정 해제" : "상단에 고정"}
+          className={cn(
+            "h-7 w-7 flex items-center justify-center rounded-lg transition shrink-0",
+            doc.pinned
+              ? "text-brand opacity-100"
+              : "text-ink-faint opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-surface-raised"
+          )}
+        >
+          <Pin size={14} className={doc.pinned ? "fill-current" : undefined} />
+        </button>
         <Dropdown
           align="right"
           width={170}
@@ -94,6 +125,12 @@ function DocumentCard({ doc }: { doc: MindMapDocument }) {
             </button>
           }
           items={[
+            {
+              id: "pin",
+              label: doc.pinned ? "고정 해제" : "상단에 고정",
+              icon: doc.pinned ? <PinOff size={15} /> : <Pin size={15} />,
+              onSelect: () => toggleDocumentPin(doc.id),
+            },
             {
               id: "rename",
               label: "이름 변경",
@@ -135,9 +172,26 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
   const setSearchOpen = useMindMapStore((s) => s.setSearchOpen);
   const toggleSidebar = useMindMapStore((s) => s.toggleSidebar);
 
-  const sorted = [...documents].sort(
-    (a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt)
-  );
+  const [query, setQuery] = useState("");
+  const [sortMode, setSortMode] = useState<SortMode>("recent");
+
+  const sortFn = (a: MindMapDocument, b: MindMapDocument) => {
+    if (sortMode === "name") return a.title.localeCompare(b.title, "ko");
+    if (sortMode === "created")
+      return +new Date(b.createdAt) - +new Date(a.createdAt);
+    return +new Date(b.updatedAt) - +new Date(a.updatedAt);
+  };
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q
+      ? documents.filter((d) => d.title.toLowerCase().includes(q))
+      : documents;
+  }, [documents, query]);
+
+  const pinned = [...filtered].filter((d) => d.pinned).sort(sortFn);
+  const rest = [...filtered].filter((d) => !d.pinned).sort(sortFn);
+  const sortLabel = SORT_OPTIONS.find((o) => o.id === sortMode)?.label ?? "";
 
   return (
     <aside
@@ -192,16 +246,73 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
         </div>
       </div>
 
-      {/* Document list */}
-      <div className="px-3 pb-1">
-        <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
-          문서 ({documents.length})
-        </p>
+      {/* Document search + sort */}
+      <div className="px-3 pb-2 space-y-1.5">
+        <div className="relative">
+          <Search
+            size={13}
+            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint"
+          />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="문서 검색…"
+            className="w-full rounded-lg border border-line bg-surface-base py-1.5 pl-7 pr-7 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:ring-1 focus:ring-brand/40"
+          />
+          {query && (
+            <button
+              onClick={() => setQuery("")}
+              aria-label="검색어 지우기"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-ink-faint hover:text-ink"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+        <div className="flex items-center justify-between">
+          <p className="px-1 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+            문서 ({filtered.length})
+          </p>
+          <Dropdown
+            align="right"
+            width={160}
+            trigger={
+              <button className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-ink-faint hover:bg-surface-overlay hover:text-ink">
+                {sortLabel}
+              </button>
+            }
+            items={SORT_OPTIONS.map((o) => ({
+              id: o.id,
+              label: o.label,
+              icon: o.icon,
+              active: sortMode === o.id,
+              onSelect: () => setSortMode(o.id),
+            }))}
+          />
+        </div>
       </div>
+
+      {/* Document list */}
       <div className="flex-1 overflow-y-auto mf-scroll px-3 pb-3 space-y-1 min-h-0">
-        {sorted.map((doc) => (
+        {pinned.length > 0 && (
+          <>
+            <p className="px-1 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+              고정됨
+            </p>
+            {pinned.map((doc) => (
+              <DocumentCard key={doc.id} doc={doc} />
+            ))}
+            <div className="my-1.5 h-px bg-line/70" />
+          </>
+        )}
+        {rest.map((doc) => (
           <DocumentCard key={doc.id} doc={doc} />
         ))}
+        {filtered.length === 0 && (
+          <p className="px-2 py-4 text-center text-xs text-ink-faint">
+            검색 결과가 없습니다
+          </p>
+        )}
       </div>
 
       {/* Outline */}

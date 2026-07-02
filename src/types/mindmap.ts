@@ -73,6 +73,7 @@ export type MindMapDocument = {
   edges: Edge[];
   relations?: MindMapRelation[];
   viewport?: MindMapViewport;
+  pinned?: boolean;
   createdAt: string;
   updatedAt: string;
 };
