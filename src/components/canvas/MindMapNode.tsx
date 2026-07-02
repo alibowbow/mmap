@@ -1,12 +1,17 @@
 "use client";
 
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Handle, NodeToolbar, Position, type NodeProps } from "@xyflow/react";
 import {
   ChevronRight,
+  CornerDownRight,
   CornerUpLeft,
   ExternalLink,
   Map as MapIcon,
   MoreHorizontal,
+  Palette,
+  Pencil,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 
@@ -14,6 +19,7 @@ import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 import {
   fontSizeForDepth,
+  NODE_COLOR_PALETTE,
   NODE_HEIGHT,
   NODE_STATUS_CONFIG,
   NODE_TYPE_CONFIG,
@@ -47,6 +53,19 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   const isDropTarget = useMindMapStore((s) => s.dropTargetId === id);
   const nodeTint = useMindMapStore((s) => s.nodeTint);
   const levelFontSizes = useMindMapStore((s) => s.levelFontSizes);
+  const addChildNode = useMindMapStore((s) => s.addChildNode);
+  const addSiblingNode = useMindMapStore((s) => s.addSiblingNode);
+  const deleteNode = useMindMapStore((s) => s.deleteNode);
+  const updateNodeData = useMindMapStore((s) => s.updateNodeData);
+  // Quick bar shows only for a clean single selection outside special modes.
+  const quickBarVisible = useMindMapStore(
+    (s) =>
+      s.selectedNodeIds.length === 1 &&
+      s.selectedNodeIds[0] === id &&
+      !s.presentationMode &&
+      !s.connectMode
+  );
+  const [swatchesOpen, setSwatchesOpen] = useState(false);
   // Label size depends on the node's depth (per-level sizing).
   const labelSize = fontSizeForDepth(levelFontSizes, d._depth ?? 0);
 
@@ -87,20 +106,36 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (isEditing) {
-      setDraft(d.label);
-      requestAnimationFrame(() => {
-        inputRef.current?.focus();
-        inputRef.current?.select();
-      });
-    }
-  }, [isEditing, d.label]);
+    if (!isEditing) return;
+    setDraft(d.label);
+    // Retry over a few frames: layout re-runs and selection updates right
+    // after a node is created can steal focus from the fresh textarea.
+    let tries = 0;
+    let raf = 0;
+    const tick = () => {
+      const el = inputRef.current;
+      if (el && document.activeElement !== el) {
+        el.focus();
+        el.select();
+      }
+      if (++tries < 8 && document.activeElement !== inputRef.current) {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing]);
 
   const commitLabel = () => {
     // Allow clearing the label (empty nodes show a placeholder).
     updateNodeLabel(id, draft.trim());
     setEditingNode(null);
   };
+
+  useEffect(() => {
+    if (!quickBarVisible) setSwatchesOpen(false);
+  }, [quickBarVisible]);
 
   // Long-press → arm "drag subtree together" mode. A quick drag (movement
   // before the timer) stays a single-node drag.
@@ -205,6 +240,97 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
       <Handle id="bottom-target" type="target" position={Position.Bottom} />
       <Handle id="bottom-source" type="source" position={Position.Bottom} />
 
+      {/* Quick action bar: one-tap editing without the inspector or menu. */}
+      <NodeToolbar
+        isVisible={quickBarVisible && !isEditing}
+        position={Position.Top}
+        offset={10}
+      >
+        <div className="flex items-center gap-0.5 rounded-full border border-line bg-surface-overlay/95 p-1 shadow-float backdrop-blur-xl">
+          {swatchesOpen ? (
+            <>
+              {NODE_COLOR_PALETTE.slice(0, 7).map((c) => (
+                <button
+                  key={c}
+                  onClick={() => {
+                    updateNodeData(id, { color: c });
+                    setSwatchesOpen(false);
+                  }}
+                  aria-label={`색상 ${c}`}
+                  className="h-6 w-6 rounded-full border-2 border-surface-raised transition hover:scale-110"
+                  style={{ background: c }}
+                />
+              ))}
+              <button
+                onClick={() => setSwatchesOpen(false)}
+                aria-label="색상 닫기"
+                className="flex h-7 w-7 items-center justify-center rounded-full text-ink-faint hover:bg-surface-raised"
+              >
+                <ChevronRight size={14} className="rotate-180" />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => addChildNode(id)}
+                aria-label="자식 추가"
+                title="자식 추가 (Tab)"
+                className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-brand/15 hover:text-brand"
+              >
+                <Plus size={15} />
+              </button>
+              {!isRoot && (
+                <button
+                  onClick={() => addSiblingNode(id)}
+                  aria-label="형제 추가"
+                  title="형제 추가 (Enter)"
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-brand/15 hover:text-brand"
+                >
+                  <CornerDownRight size={14} />
+                </button>
+              )}
+              <button
+                onClick={() => setEditingNode(id)}
+                aria-label="내용 편집"
+                title="편집 (F2)"
+                className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-brand/15 hover:text-brand"
+              >
+                <Pencil size={13} />
+              </button>
+              <button
+                onClick={() => setSwatchesOpen(true)}
+                aria-label="색상 변경"
+                title="색상"
+                className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-brand/15 hover:text-brand"
+              >
+                <Palette size={14} />
+              </button>
+              <button
+                onClick={(e) => openContextMenu(id, e.clientX, e.clientY)}
+                aria-label="더 많은 옵션"
+                title="더 보기"
+                className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-brand/15 hover:text-brand"
+              >
+                <MoreHorizontal size={15} />
+              </button>
+              {!isRoot && (
+                <>
+                  <span className="mx-0.5 h-4 w-px bg-line" />
+                  <button
+                    onClick={() => deleteNode(id)}
+                    aria-label="노드 삭제"
+                    title="삭제 (Delete)"
+                    className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-red-500/15 hover:text-red-500"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      </NodeToolbar>
+
       {/* Root gradient sheen (skipped on the borderless line style) */}
       {isRoot && !isLine && (
         <div
@@ -287,11 +413,21 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
             ref={inputRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            onBlur={commitLabel}
+            onBlur={() => {
+              // A late blur fires when Tab has already moved editing to a new
+              // child — committing again would close that editor.
+              if (useMindMapStore.getState().editingNodeId === id) commitLabel();
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 commitLabel();
+              } else if (e.key === "Tab") {
+                // Keep the typing flow going: save this node and immediately
+                // start editing a fresh child.
+                e.preventDefault();
+                commitLabel();
+                addChildNode(id);
               } else if (e.key === "Escape") {
                 e.preventDefault();
                 setEditingNode(null);
@@ -424,7 +560,13 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
         className={cn(
           "nodrag mf-node-affordance absolute -top-3 -right-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-line bg-surface-raised text-ink-soft shadow-sm transition",
           "hover:text-ink hover:border-brand/50",
-          selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          // The quick bar already offers ⋯ when selected — show this corner
+          // affordance on hover only.
+          quickBarVisible
+            ? "opacity-0 pointer-events-none"
+            : selected
+              ? "opacity-100"
+              : "opacity-0 group-hover:opacity-100"
         )}
       >
         <MoreHorizontal size={15} />

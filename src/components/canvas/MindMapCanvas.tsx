@@ -365,6 +365,8 @@ function CanvasInner() {
         maxZoom={2.5}
         nodesDraggable={!presentationMode && !connectMode}
         nodesConnectable={connectMode && !presentationMode}
+        nodesFocusable={false}
+        edgesFocusable={false}
         connectionRadius={40}
         elementsSelectable
         multiSelectionKeyCode={null}

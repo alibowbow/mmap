@@ -58,6 +58,27 @@ function Item({
   );
 }
 
+// Compact half-width item — keeps the menu short.
+function GridItem({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-ink transition hover:bg-surface-raised"
+    >
+      <span className="shrink-0 text-ink-soft">{icon}</span>
+      <span className="truncate">{label}</span>
+    </button>
+  );
+}
+
 export function NodeContextMenu() {
   const menu = useMindMapStore((s) => s.contextMenu);
   const close = useMindMapStore((s) => s.closeContextMenu);
@@ -125,30 +146,44 @@ export function NodeContextMenu() {
           onClick={(e) => e.stopPropagation()}
           className="absolute w-56 overflow-y-auto mf-scroll rounded-2xl border border-line bg-surface-overlay/95 backdrop-blur-xl p-1.5 shadow-float"
         >
-          <Item
-            icon={<Plus size={15} />}
-            label="자식 추가"
-            onClick={() => {
-              addChildNode(node.id);
-              close();
-            }}
-          />
-          <Item
-            icon={<CornerDownRight size={15} />}
-            label="형제 추가"
-            onClick={() => {
-              addSiblingNode(node.id);
-              close();
-            }}
-          />
-          <Item
-            icon={<Pencil size={15} />}
-            label="제목 편집"
-            onClick={() => {
-              setEditingNode(node.id);
-              close();
-            }}
-          />
+          {/* Primary actions as a compact 3-up row */}
+          <div className="grid grid-cols-3 gap-1 px-1 pb-1">
+            {[
+              {
+                icon: <Plus size={15} />,
+                label: "자식",
+                onClick: () => {
+                  addChildNode(node.id);
+                  close();
+                },
+              },
+              {
+                icon: <CornerDownRight size={15} />,
+                label: "형제",
+                onClick: () => {
+                  addSiblingNode(node.id);
+                  close();
+                },
+              },
+              {
+                icon: <Pencil size={14} />,
+                label: "편집",
+                onClick: () => {
+                  setEditingNode(node.id);
+                  close();
+                },
+              },
+            ].map((a) => (
+              <button
+                key={a.label}
+                onClick={a.onClick}
+                className="flex flex-col items-center gap-0.5 rounded-lg py-1.5 text-[10.5px] text-ink-soft transition hover:bg-surface-raised hover:text-ink"
+              >
+                {a.icon}
+                {a.label}
+              </button>
+            ))}
+          </div>
 
           <div className="my-1 h-px bg-line" />
 
@@ -284,72 +319,71 @@ export function NodeContextMenu() {
 
           <div className="my-1 h-px bg-line" />
 
-          <Item
-            icon={<ChevronsDownUp size={15} />}
-            label={node.data.collapsed ? "펼치기" : "접기"}
-            onClick={() => {
-              toggleCollapse(node.id);
-              close();
-            }}
-          />
-          <Item
-            icon={<Copy size={15} />}
-            label="하위 트리 복제"
-            onClick={() => {
-              duplicateSubtree(node.id);
-              close();
-            }}
-          />
-          <Item
-            icon={<ClipboardCopy size={15} />}
-            label="복사 (⌘C)"
-            onClick={() => {
-              copySubtree(node.id);
-              close();
-            }}
-          />
-          {hasClipboard && (
-            <Item
-              icon={<ClipboardPaste size={15} />}
-              label="여기에 붙여넣기 (⌘V)"
+          <div className="grid grid-cols-2 gap-0.5 px-0.5">
+            <GridItem
+              icon={<ChevronsDownUp size={14} />}
+              label={node.data.collapsed ? "펼치기" : "접기"}
               onClick={() => {
-                pasteSubtree(node.id);
+                toggleCollapse(node.id);
                 close();
               }}
             />
-          )}
-          <Item
-            icon={<LayoutGrid size={15} />}
-            label="하위 트리 정렬"
-            onClick={() => {
-              autoLayoutSubtree(node.id);
-              close();
-            }}
-          />
-
-          <div className="my-1 h-px bg-line" />
-
-          {node.data.linkedDocId ? (
-            <Item
-              icon={<MapIcon size={15} />}
-              label="연결된 맵 열기"
+            <GridItem
+              icon={<LayoutGrid size={14} />}
+              label="하위 정렬"
               onClick={() => {
-                openLinkedDoc(node.data.linkedDocId!);
+                autoLayoutSubtree(node.id);
                 close();
               }}
             />
-          ) : (
-            !(node.data.isRoot || node.data.type === "root") && (
-              <Item
-                icon={<SquareArrowOutUpRight size={15} />}
-                label="새 맵으로 분리"
+            <GridItem
+              icon={<Copy size={14} />}
+              label="복제"
+              onClick={() => {
+                duplicateSubtree(node.id);
+                close();
+              }}
+            />
+            <GridItem
+              icon={<ClipboardCopy size={14} />}
+              label="복사 ⌘C"
+              onClick={() => {
+                copySubtree(node.id);
+                close();
+              }}
+            />
+            {hasClipboard && (
+              <GridItem
+                icon={<ClipboardPaste size={14} />}
+                label="붙여넣기 ⌘V"
                 onClick={() => {
-                  promoteNodeToMap(node.id);
+                  pasteSubtree(node.id);
                   close();
                 }}
               />
-            )
-          )}
+            )}
+            {node.data.linkedDocId ? (
+              <GridItem
+                icon={<MapIcon size={14} />}
+                label="연결 맵 열기"
+                onClick={() => {
+                  openLinkedDoc(node.data.linkedDocId!);
+                  close();
+                }}
+              />
+            ) : (
+              !(node.data.isRoot || node.data.type === "root") && (
+                <GridItem
+                  icon={<SquareArrowOutUpRight size={14} />}
+                  label="새 맵 분리"
+                  onClick={() => {
+                    promoteNodeToMap(node.id);
+                    close();
+                  }}
+                />
+              )
+            )}
+          </div>
           {!(node.data.isRoot || node.data.type === "root") && (
             <>
               <div className="my-1 h-px bg-line" />
