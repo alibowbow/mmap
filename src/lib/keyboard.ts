@@ -35,6 +35,8 @@ export const SHORTCUT_GROUPS: {
       { keys: ["Delete"], label: "선택 노드 삭제" },
       { keys: ["F2"], label: "선택 노드 제목 편집" },
       { keys: ["Mod", "D"], label: "하위 트리 복제" },
+      { keys: ["Mod", "C"], label: "하위 트리 복사" },
+      { keys: ["Mod", "V"], label: "선택 노드 아래 붙여넣기" },
     ],
   },
   {

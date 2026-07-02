@@ -105,6 +105,18 @@ export function useKeyboardShortcuts(): void {
           if (store.selectedNodeId) store.duplicateSubtree(store.selectedNodeId);
           return;
         }
+        // Copy/paste subtrees — only outside text fields so the browser's
+        // native clipboard keeps working while typing.
+        if (key === "c" && !editable && store.selectedNodeId) {
+          e.preventDefault();
+          store.copySubtree(store.selectedNodeId);
+          return;
+        }
+        if (key === "v" && !editable && store.selectedNodeId) {
+          e.preventDefault();
+          store.pasteSubtree(store.selectedNodeId);
+          return;
+        }
       }
 
       // The rest only apply when not typing in a field.

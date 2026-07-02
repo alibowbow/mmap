@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronRight, ListTree } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
@@ -22,6 +23,24 @@ function OutlineRow({
   const selectNode = useMindMapStore((s) => s.selectNode);
   const focusNode = useMindMapStore((s) => s.focusNode);
   const toggleCollapse = useMindMapStore((s) => s.toggleCollapse);
+  const updateNodeLabel = useMindMapStore((s) => s.updateNodeLabel);
+
+  // Double-click a row label to rename it in place (two-way outline editing).
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(node.data.label);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (editing) {
+      setDraft(node.data.label);
+      requestAnimationFrame(() => inputRef.current?.select());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing]);
+
+  const commit = () => {
+    updateNodeLabel(node.id, draft.trim());
+    setEditing(false);
+  };
 
   const kids = childrenMap.get(node.id) ?? [];
   const conf = NODE_TYPE_CONFIG[node.data.type] ?? NODE_TYPE_CONFIG.idea;
@@ -62,7 +81,35 @@ function OutlineRow({
         <span style={{ color: node.data.color ?? conf.color }}>
           <Icon name={conf.icon} size={13} />
         </span>
-        <span className="truncate">{node.data.label}</span>
+        {editing ? (
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commit();
+              if (e.key === "Escape") setEditing(false);
+              e.stopPropagation();
+            }}
+            className="min-w-0 flex-1 rounded border border-brand/50 bg-surface-base px-1.5 py-0.5 text-sm text-ink focus:outline-none focus:ring-1 focus:ring-brand/40"
+          />
+        ) : (
+          <span
+            className="truncate"
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              setEditing(true);
+            }}
+            title="더블클릭하여 이름 수정"
+          >
+            {node.data.emoji && <span className="mr-1">{node.data.emoji}</span>}
+            {node.data.label || (
+              <span className="italic text-ink-faint">(비어 있음)</span>
+            )}
+          </span>
+        )}
       </div>
       {!node.data.collapsed &&
         kids.map((k) => (

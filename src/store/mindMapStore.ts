@@ -90,6 +90,7 @@ export type MindMapState = {
   dropTargetId: string | null; // node currently hovered as a re-parent target
   selectedRelationId: string | null; // selected free-form relation edge
   connectMode: boolean; // when on, node handles become connectable
+  clipboard: MindMapNode[] | null; // copied subtree (first entry = sub-root)
 
   // ── Search ──
   searchQuery: string;
@@ -161,6 +162,8 @@ export type MindMapState = {
   deleteNode: (nodeId: string) => void;
   duplicateSubtree: (nodeId: string) => void;
   deleteSubtree: (nodeId: string) => void;
+  copySubtree: (nodeId: string) => void;
+  pasteSubtree: (targetId: string) => void;
   promoteNodeToMap: (nodeId: string) => void;
   openLinkedDoc: (docId: string, nodeId?: string) => void;
   toggleCollapse: (nodeId: string) => void;
@@ -389,6 +392,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     dropTargetId: null,
     selectedRelationId: null,
     connectMode: false,
+    clipboard: null,
 
     searchQuery: "",
     searchTypes: [],
@@ -813,6 +817,68 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const newRootId = idMap.get(nodeId)!;
       set({ ...selectionFor(newRootId) });
       get().addToast("하위 트리를 복제했습니다", "success");
+    },
+
+    // Snapshot a subtree into the in-app clipboard (survives node deletion,
+    // works across documents in the same session).
+    copySubtree: (nodeId) => {
+      const { nodes } = get();
+      const map = getNodeMap(nodes);
+      if (!map.get(nodeId)) return;
+      const ids = getSubtreeIds(nodes, nodeId);
+      const copied = ids.map((sid) => cloneNode(map.get(sid)!));
+      set({ clipboard: copied });
+      get().addToast(`${copied.length}개 노드를 복사했습니다`, "success");
+    },
+
+    // Paste the copied subtree as a child of the target node, with fresh ids.
+    pasteSubtree: (targetId) => {
+      const { clipboard, nodes } = get();
+      if (!clipboard?.length) {
+        get().addToast("복사된 노드가 없습니다", "info");
+        return;
+      }
+      const map = getNodeMap(nodes);
+      const target = map.get(targetId);
+      if (!target) return;
+      const srcRootId = clipboard[0].id;
+      const idMap = new Map<string, string>();
+      for (const n of clipboard) idMap.set(n.id, createId("n"));
+      const clones: MindMapNode[] = clipboard.map((n) => {
+        const isSubRoot = n.id === srcRootId;
+        const clone = cloneNode(n);
+        return {
+          ...clone,
+          id: idMap.get(n.id)!,
+          selected: false,
+          data: {
+            ...clone.data,
+            parentId: isSubRoot
+              ? targetId
+              : idMap.get(clone.data.parentId ?? "") ?? targetId,
+            isRoot: false,
+            type: clone.data.type === "root" ? "plain" : clone.data.type,
+            // Pasted portals shouldn't share the original's cross-map links.
+            linkedDocId: undefined,
+            backDocId: undefined,
+            backNodeId: undefined,
+          },
+        };
+      });
+      commit((nds) => {
+        const expanded = nds.map((n) =>
+          n.id === targetId
+            ? { ...n, data: { ...n.data, collapsed: false } }
+            : n
+        );
+        const withNew = [...expanded, ...clones];
+        const laid = runLayout(withNew, get().activeLayoutMode);
+        return { nodes: laid, edges: buildEdgesFromNodes(laid) };
+      });
+      const newRootId = idMap.get(srcRootId)!;
+      set({ ...selectionFor(newRootId) });
+      focusSoon(newRootId);
+      get().addToast("붙여넣었습니다", "success");
     },
 
     // Promote a node into its own map: move its subtree to a new document

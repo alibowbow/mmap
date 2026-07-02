@@ -303,6 +303,7 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
               d.label ? "text-ink" : "text-ink-faint font-normal italic"
             )}
           >
+            {d.emoji && <span className="mr-1">{d.emoji}</span>}
             {d.label ? renderInlineMarkdown(d.label) : "내용 입력…"}
           </div>
         )}

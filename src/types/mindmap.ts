@@ -33,6 +33,7 @@ export type MindMapNodeData = {
   status?: MindMapNodeStatus;
   color?: string;
   icon?: string;
+  emoji?: string;
   side?: BranchSide; // explicit branch direction (bidirectional layout)
   tags?: string[];
   link?: string;

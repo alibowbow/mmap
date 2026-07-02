@@ -74,6 +74,12 @@ export const ACCENT_OPTIONS: { id: string; label: string; swatch: string }[] = [
 ];
 export const DEFAULT_ACCENT = "indigo";
 
+// Quick emoji presets for node decoration (context menu picker).
+export const EMOJI_PRESETS = [
+  "💡", "🎯", "⭐", "🔥", "✅", "❓", "⚠️", "📌",
+  "📚", "🚀", "💰", "🧠", "❤️", "🛠️", "📅", "🌱",
+];
+
 // Per-level (depth) font sizes for node labels. Index = depth, last entry is
 // used for that depth and deeper.
 export const LEVEL_FONT_LABELS = ["중심", "1단계", "2단계", "3단계+"];
