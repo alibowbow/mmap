@@ -549,25 +549,18 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
           </div>
         )}
 
-        {/* Footer: link + collapsed indicator */}
-        {(d.link || (d.collapsed && childCount > 0)) && (
+        {/* Footer: link (the collapse state is shown by the chevron only) */}
+        {d.link && (
           <div className="mt-2 flex items-center gap-2 text-[10px] text-ink-faint">
-            {d.link && (
-              <a
-                href={d.link}
-                target="_blank"
-                rel="noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="nodrag inline-flex items-center gap-0.5 text-brand hover:underline"
-              >
-                <ExternalLink size={10} /> 링크
-              </a>
-            )}
-            {d.collapsed && childCount > 0 && (
-              <span className="rounded bg-surface-overlay px-1 py-0.5 text-ink-soft">
-                접힘
-              </span>
-            )}
+            <a
+              href={d.link}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="nodrag inline-flex items-center gap-0.5 text-brand hover:underline"
+            >
+              <ExternalLink size={10} /> 링크
+            </a>
           </div>
         )}
       </div>
