@@ -84,8 +84,10 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   const isOutline = style === "outline";
   // The type header (icon + label) is hidden for plain and root nodes.
   const hideTypeHeader = isPlain || isRoot;
-  // The left color rail only appears on the filled card/soft styles.
-  const showRail = (style === "card" || style === "soft") && !isPlain;
+  // The left color rail appears on filled card/soft styles — including plain
+  // nodes, so their color (and rainbow-branch color) is actually visible.
+  // Without this, changing a plain child's color had no visible effect.
+  const showRail = style === "card" || style === "soft";
 
   const statusConf =
     d.status && d.status !== "none" ? NODE_STATUS_CONFIG[d.status] : null;
