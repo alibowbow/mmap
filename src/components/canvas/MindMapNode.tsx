@@ -357,14 +357,23 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
         />
       )}
 
-      {/* Color tint fill (filled card/soft styles, non-root) */}
-      {nodeTint && showRail && !isRoot && (
+      {/* Color fill for card/soft nodes: the picked color visibly fills the
+          node interior (like the root), not just the thin rail. The tint
+          toggle boosts saturation further. */}
+      {showRail && !isRoot && (
         <div
           className={cn(
             "pointer-events-none absolute inset-0",
             style === "soft" ? "rounded-[26px]" : "rounded-2xl"
           )}
-          style={{ background: hexToRgba(color, 0.12) }}
+          style={{
+            background: nodeTint
+              ? hexToRgba(color, 0.22)
+              : `linear-gradient(135deg, ${hexToRgba(
+                  color,
+                  0.14
+                )}, ${hexToRgba(color, 0.035)})`,
+          }}
         />
       )}
 
