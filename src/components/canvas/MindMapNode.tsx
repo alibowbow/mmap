@@ -570,26 +570,6 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
         )}
       </div>
 
-      {/* Quick-edit menu button (no need to open the inspector). Visible on
-          hover and whenever the node is selected (tap-friendly on mobile). */}
-      <button
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
-          e.stopPropagation();
-          openContextMenu(id, e.clientX, e.clientY);
-        }}
-        aria-label="노드 편집 메뉴"
-        className={cn(
-          "nodrag mf-node-affordance absolute -top-3 -right-3 z-20 flex h-7 w-7 items-center justify-center rounded-full border border-line bg-surface-raised text-ink-soft shadow-sm transition",
-          "hover:text-ink hover:border-brand/50",
-          // Touch devices have no hover, so the corner ⋯ must stay tappable
-          // whenever the node is selected — even with the quick bar open.
-          selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-        )}
-      >
-        <MoreHorizontal size={15} />
-      </button>
-
       {/* Collapse / expand toggle */}
       {childCount > 0 && (
         <button
