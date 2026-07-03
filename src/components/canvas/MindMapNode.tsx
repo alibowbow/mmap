@@ -446,10 +446,12 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
                 commitLabel();
               } else if (e.key === "Tab") {
                 // Keep the typing flow going: save this node and immediately
-                // start editing a fresh child.
+                // start editing a fresh child. (addChildNode no longer
+                // auto-edits, so opt in explicitly here.)
                 e.preventDefault();
                 commitLabel();
-                addChildNode(id);
+                const newId = addChildNode(id);
+                if (newId) setEditingNode(newId);
               } else if (e.key === "Escape") {
                 e.preventDefault();
                 setEditingNode(null);
@@ -570,7 +572,10 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
         )}
       </div>
 
-      {/* Collapse / expand toggle */}
+      {/* Collapse / expand toggle — kept unobtrusive so it blends into the
+          map. Expanded nodes show only a faint chevron (brightens on hover);
+          collapsed nodes keep it clearly visible so hidden branches can be
+          re-opened. No border/background/shadow by default. */}
       {childCount > 0 && (
         <button
           onClick={(e) => {
@@ -579,13 +584,14 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
           }}
           aria-label={d.collapsed ? "펼치기" : "접기"}
           className={cn(
-            "nodrag mf-node-affordance absolute -right-3 top-1/2 -translate-y-1/2 z-10",
-            "flex h-6 w-6 items-center justify-center rounded-full border border-line bg-surface-raised text-ink-soft shadow-sm",
-            "hover:text-ink hover:border-brand/50 transition"
+            "nodrag mf-node-affordance absolute -right-2.5 top-1/2 -translate-y-1/2 z-10",
+            "flex h-5 w-5 items-center justify-center rounded-full transition",
+            "text-ink-faint hover:bg-surface-raised hover:text-brand hover:shadow-sm",
+            d.collapsed ? "opacity-90" : "opacity-25 group-hover:opacity-80"
           )}
         >
           <ChevronRight
-            size={14}
+            size={12}
             className={cn("transition-transform", !d.collapsed && "rotate-90")}
           />
         </button>

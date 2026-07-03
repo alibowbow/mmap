@@ -753,7 +753,10 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         const laid = runLayout(withNew, get().activeLayoutMode);
         return { nodes: laid, edges: buildEdgesFromNodes(laid) };
       });
-      set({ ...selectionFor(id), editingNodeId: id });
+      // Select the new node but don't jump into edit mode — the user asked
+      // that adding a child not immediately open the text cursor. (The
+      // continuous Tab-while-typing flow opts back in explicitly.)
+      set({ ...selectionFor(id), editingNodeId: null });
       focusSoon(id);
       return id;
     },
