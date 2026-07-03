@@ -111,8 +111,8 @@ export function fontSizeForDepth(sizes: number[], depth: number): number {
 // Layout geometry tuned for readable, non-overlapping trees.
 export const NODE_WIDTH = 232;
 export const NODE_HEIGHT = 76;
-export const LAYOUT_GAP_X = 96; // horizontal gap between depth levels
-export const LAYOUT_GAP_Y = 28; // vertical gap between sibling subtrees
+export const LAYOUT_GAP_X = 56; // horizontal gap between depth levels (compact)
+export const LAYOUT_GAP_Y = 22; // vertical gap between sibling subtrees
 
 // Node type metadata: color, accent and lucide icon name.
 export type NodeTypeConfig = {

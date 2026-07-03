@@ -789,6 +789,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       }));
     },
 
+    // Deleting a node removes its whole subtree (children included) and
+    // re-tidies the tree so no empty gaps or stray branches remain.
     deleteNode: (nodeId) => {
       const { nodes } = get();
       const node = getNodeMap(nodes).get(nodeId);
@@ -797,25 +799,20 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         get().addToast("루트 노드는 삭제할 수 없습니다", "error");
         return;
       }
+      const ids = new Set(getSubtreeIds(nodes, nodeId));
       const parentId = node.data.parentId;
-      commit((nds, eds) => {
-        // reparent children to the deleted node's parent
-        const nextNodes = nds
-          .filter((n) => n.id !== nodeId)
-          .map((n) =>
-            n.data.parentId === nodeId
-              ? { ...n, data: { ...n.data, parentId } }
-              : n
-          );
-        return { nodes: nextNodes, edges: buildEdgesFromNodes(nextNodes) };
+      commit((nds) => {
+        const remaining = nds.filter((n) => !ids.has(n.id));
+        const laid = runLayout(remaining, get().activeLayoutMode);
+        return { nodes: laid, edges: buildEdgesFromNodes(laid) };
       });
-      set((s) => ({
+      set({
         ...selectionFor(parentId),
         editingNodeId: null,
         mobileSheetOpen: false,
         contextMenu: null,
-        history: s.history,
-      }));
+      });
+      requestAnimationFrame(() => get().focusNode(parentId));
     },
 
     deleteSubtree: (nodeId) => {
