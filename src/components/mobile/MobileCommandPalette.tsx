@@ -42,7 +42,7 @@ export function MobileCommandPalette() {
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 32, stiffness: 320 }}
-            className="fixed inset-x-0 bottom-0 z-[121] flex max-h-[78vh] flex-col rounded-t-3xl border-t border-line bg-surface-raised pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-float"
+            className="fixed inset-x-0 bottom-0 z-[121] flex max-h-[70vh] flex-col rounded-t-3xl border-t border-line bg-surface-raised pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-float"
           >
             <div className="flex items-center justify-center pb-1 pt-2">
               <div className="h-1.5 w-10 rounded-full bg-ink-faint/40" />
