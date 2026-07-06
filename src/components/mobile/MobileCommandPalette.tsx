@@ -5,8 +5,21 @@ import { Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Icon } from "@/components/ui/Icon";
-import { filterCommands } from "@/lib/commands";
+import { filterCommands, type CommandId } from "@/lib/commands";
 import { useMindMapStore } from "@/store/mindMapStore";
+
+// On mobile the always-visible bottom bar already covers node actions
+// (자식/형제/정렬/검색) and the "더보기" sheet covers files + design + settings.
+// So the command palette keeps only a few high-value "jump" actions that would
+// otherwise be buried — avoiding the heavy overlap with those menus. (The
+// desktop ⌘K palette still lists every command; it has no bottom bar.)
+const MOBILE_COMMAND_IDS: CommandId[] = [
+  "new-map",
+  "open-templates",
+  "presentation",
+  "share-link",
+  "export-json",
+];
 
 // Command palette as a bottom sheet (like the "더보기" menu) so it only covers
 // the lower part of the screen and the canvas stays visible behind it.
@@ -17,7 +30,13 @@ export function MobileCommandPalette() {
 
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const results = useMemo(() => filterCommands(query), [query]);
+  // Curate to the essentials, preserving the order above and honoring search.
+  const results = useMemo(() => {
+    const matched = new Map(filterCommands(query).map((c) => [c.id, c]));
+    return MOBILE_COMMAND_IDS.map((id) => matched.get(id)).filter(
+      (c): c is NonNullable<typeof c> => Boolean(c)
+    );
+  }, [query]);
 
   // Reset the query each time the sheet opens. We intentionally don't autofocus
   // the input — that would pop the keyboard and cover the screen, defeating the
