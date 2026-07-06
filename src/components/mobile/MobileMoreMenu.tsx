@@ -20,6 +20,7 @@ import {
   Presentation,
   Ruler,
   Shapes,
+  Share2,
   Spline,
   SunMoon,
   Type,
@@ -226,6 +227,11 @@ export function MobileMoreMenu() {
                     close();
                     exportImage("svg");
                   }}
+                />
+                <Tile
+                  icon={<Share2 size={18} />}
+                  label="링크 공유"
+                  onClick={() => setDialog("share")}
                 />
                 <Tile
                   icon={<FileJson size={18} />}

@@ -48,6 +48,7 @@ import {
   getSubtreeIds,
   getVisibleDfsOrder,
 } from "@/lib/tree";
+import { decodeSharedDocument } from "@/lib/share";
 import { parseImportJson } from "@/lib/validation";
 import type {
   BranchSide,
@@ -72,6 +73,7 @@ export type DialogType =
   | "shortcuts"
   | "snapshots"
   | "stats"
+  | "share"
   | null;
 export type ContextMenuState = { nodeId: string; x: number; y: number } | null;
 
@@ -259,6 +261,7 @@ export type MindMapState = {
   // ── IO ──
   exportJson: () => string;
   importJson: (json: string) => boolean;
+  importSharedDocument: (code: string) => boolean;
   importOutline: (text: string) => boolean;
   exportMarkdown: () => string;
   exportOutlineText: () => string;
@@ -634,6 +637,11 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     },
 
     loadWorkspace: () => {
+      // Load once. A second call (React StrictMode's dev double-mount, or any
+      // future re-invocation) would re-read localStorage and clobber in-memory
+      // state — including a just-imported shared document that hasn't been
+      // persisted yet. The first load sets hydrated, so this stays a no-op.
+      if (get().hydrated) return;
       const result = loadWorkspaceFromStorage();
       if (result.ok) {
         const ws = result.workspace;
@@ -1548,6 +1556,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         case "export-markdown":
           s.setDialog("export");
           break;
+        case "share-link":
+          s.setDialog("share");
+          break;
         case "load-sample":
           s.createDocument("project-plan");
           break;
@@ -1644,6 +1655,44 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         revision: s.revision + 1,
       }));
       get().addToast("문서를 가져왔습니다", "success");
+      get().fitToView();
+      return true;
+    },
+
+    // Add a document decoded from a share link as a NEW copy in this workspace
+    // (never overwrites existing maps). The share code is untrusted input, so
+    // decodeSharedDocument validates + sanitizes before we touch state.
+    importSharedDocument: (code) => {
+      const result = decodeSharedDocument(code);
+      if (!result.ok) {
+        get().addToast(`공유 링크를 열 수 없습니다: ${result.error}`, "error");
+        return false;
+      }
+      const doc = makeDocument(
+        result.document.title,
+        result.document.nodes,
+        result.document.edges.length
+          ? result.document.edges
+          : buildEdgesFromNodes(result.document.nodes)
+      );
+      doc.relations = result.document.relations ?? [];
+      // Preserve the sharer's layout so edge-face routing matches immediately.
+      if (result.layoutMode) doc.layoutMode = result.layoutMode;
+      set((s) => ({
+        documents: [doc, ...s.documents],
+        activeDocumentId: doc.id,
+        nodes: doc.nodes,
+        edges: doc.edges,
+        relations: doc.relations ?? [],
+        selectedRelationId: null,
+        activeLayoutMode: doc.layoutMode ?? "right-tree",
+        ...selectionFor(getRootNode(doc.nodes)?.id ?? null),
+        history: [],
+        future: [],
+        dialog: null,
+        revision: s.revision + 1,
+      }));
+      get().addToast("공유된 맵을 사본으로 추가했습니다", "success");
       get().fitToView();
       return true;
     },

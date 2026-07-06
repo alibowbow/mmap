@@ -17,6 +17,7 @@ import { useEffect, useRef, useState } from "react";
 import { MindMapCanvas } from "@/components/canvas/MindMapCanvas";
 import { ExportDialog } from "@/components/dialogs/ExportDialog";
 import { ImportJsonDialog } from "@/components/dialogs/ImportJsonDialog";
+import { ShareDialog } from "@/components/dialogs/ShareDialog";
 import { ShortcutDialog } from "@/components/dialogs/ShortcutDialog";
 import { SnapshotDialog } from "@/components/dialogs/SnapshotDialog";
 import { StatsDialog } from "@/components/dialogs/StatsDialog";
@@ -47,6 +48,7 @@ import {
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { cn } from "@/lib/cn";
 import { fontFamilyFor } from "@/lib/constants";
+import { readShareCodeFromHash } from "@/lib/share";
 import { getVisibleDfsOrder } from "@/lib/tree";
 import {
   selectActiveDocument,
@@ -316,6 +318,23 @@ export function AppShell() {
     loadWorkspace();
   }, [loadWorkspace]);
 
+  // If the page was opened via a share link (#m=…), decode it into a NEW copy
+  // (after the workspace has loaded), then strip the fragment so a refresh
+  // doesn't re-import it. Runs once; the cleared hash makes any re-run a no-op.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const code = readShareCodeFromHash(window.location.hash);
+    if (!code) return;
+    try {
+      useMindMapStore.getState().importSharedDocument(code);
+    } finally {
+      // Always strip the fragment — even if import throws — so a refresh never
+      // re-imports and a poisoned link doesn't linger in the address bar.
+      const { pathname, search } = window.location;
+      window.history.replaceState(null, "", pathname + search);
+    }
+  }, []);
+
   // Debounced auto-save whenever the workspace changes.
   useDebouncedEffect(
     () => {
@@ -420,6 +439,7 @@ export function AppShell() {
       <TemplateDialog />
       <ExportDialog />
       <ImportJsonDialog />
+      <ShareDialog />
       <ShortcutDialog />
       <SnapshotDialog />
       <StatsDialog />

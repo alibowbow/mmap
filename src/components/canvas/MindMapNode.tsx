@@ -26,6 +26,7 @@ import {
   NODE_WIDTH,
 } from "@/lib/constants";
 import { renderInlineMarkdown } from "@/lib/inlineMarkdown";
+import { sanitizeHref } from "@/lib/share";
 import { countChildren } from "@/lib/tree";
 import { subtreeDrag } from "@/lib/dragState";
 import { useMindMapStore } from "@/store/mindMapStore";
@@ -92,6 +93,7 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
 
   const statusConf =
     d.status && d.status !== "none" ? NODE_STATUS_CONFIG[d.status] : null;
+  const safeLink = sanitizeHref(d.link);
 
   const checklistDone =
     d.checklist?.filter((c) => c.checked).length ?? 0;
@@ -564,11 +566,12 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
           </div>
         )}
 
-        {/* Footer: link (the collapse state is shown by the chevron only) */}
-        {d.link && (
+        {/* Footer: link. The href is clamped to safe schemes so a link opened
+            from an untrusted share/import can't smuggle a javascript: URL. */}
+        {safeLink && (
           <div className="mt-2 flex items-center gap-2 text-[10px] text-ink-faint">
             <a
-              href={d.link}
+              href={safeLink}
               target="_blank"
               rel="noreferrer"
               onClick={(e) => e.stopPropagation()}

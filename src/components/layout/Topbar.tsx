@@ -14,6 +14,7 @@ import {
   Play,
   Redo2,
   Shapes,
+  Share2,
   Sidebar as SidebarIcon,
   Sun,
   Type,
@@ -277,6 +278,17 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
             </Button>
           }
         />
+
+        <Tooltip label="링크로 공유">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setDialog("share")}
+            aria-label="링크로 공유"
+          >
+            <Share2 size={16} />
+          </Button>
+        </Tooltip>
 
         <Dropdown
           align="right"

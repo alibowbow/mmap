@@ -14,6 +14,7 @@ export type CommandId =
   | "import-json"
   | "import-outline"
   | "export-markdown"
+  | "share-link"
   | "load-sample"
   | "presentation";
 
@@ -113,6 +114,13 @@ export const COMMANDS: CommandDef[] = [
     description: "현재 문서를 Markdown으로 저장",
     icon: "FileText",
     keywords: ["export", "markdown", "md", "내보내기"],
+  },
+  {
+    id: "share-link",
+    title: "링크로 공유",
+    description: "현재 맵을 담은 공유 링크 만들기 (서버 없음)",
+    icon: "Share2",
+    keywords: ["share", "link", "url", "공유", "링크", "qr"],
   },
   {
     id: "load-sample",

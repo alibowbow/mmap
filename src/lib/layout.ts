@@ -292,11 +292,20 @@ const LAYOUT_FNS: Record<
   radial: layoutRadialTree,
 };
 
+// Resolve the layout fn by an own-property lookup only, falling back to the
+// default tree. Guards against a bad mode (e.g. an unvalidated value or a
+// prototype-chain name like "toString") ever producing `undefined(nodes)`.
+function layoutFn(mode: LayoutMode) {
+  return Object.prototype.hasOwnProperty.call(LAYOUT_FNS, mode)
+    ? LAYOUT_FNS[mode]
+    : layoutRightTree;
+}
+
 export function runLayout(
   nodes: MindMapNode[],
   mode: LayoutMode
 ): MindMapNode[] {
-  return LAYOUT_FNS[mode](nodes);
+  return layoutFn(mode)(nodes);
 }
 
 // Lay out only a subtree, anchored at the subtree root's current position.
@@ -308,7 +317,7 @@ export function runSubtreeLayout(
   const subtreeRoot = nodes.find((n) => n.id === rootId);
   if (!subtreeRoot) return nodes;
   const anchor = subtreeRoot.position;
-  const laidOut = LAYOUT_FNS[mode](nodes, rootId);
+  const laidOut = layoutFn(mode)(nodes, rootId);
   const laidMap = new Map(laidOut.map((n) => [n.id, n]));
   // Collect subtree ids
   const childrenMap = getChildrenMap(nodes);
