@@ -102,24 +102,26 @@ export function MobileDocumentDrawer() {
             ))}
           </div>
 
-          {/* Fixed bottom actions */}
-          <div className="shrink-0 border-t border-line p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] space-y-2">
-            <Button
-              variant="primary"
-              className="w-full justify-center h-12"
-              onClick={() => createDocument()}
-            >
-              <FilePlus2 size={18} /> 새 문서
-            </Button>
-            <Button
-              className="w-full justify-center h-12"
-              onClick={() => {
-                setOpen(false);
-                setDialog("template");
-              }}
-            >
-              <LayoutTemplate size={18} /> 템플릿에서 만들기
-            </Button>
+          {/* Fixed bottom actions — one compact row so they don't hog space */}
+          <div className="shrink-0 border-t border-line px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))]">
+            <div className="flex gap-2">
+              <Button
+                variant="primary"
+                className="flex-1 justify-center h-11"
+                onClick={() => createDocument()}
+              >
+                <FilePlus2 size={17} /> 새 문서
+              </Button>
+              <Button
+                className="flex-1 justify-center h-11"
+                onClick={() => {
+                  setOpen(false);
+                  setDialog("template");
+                }}
+              >
+                <LayoutTemplate size={17} /> 템플릿
+              </Button>
+            </div>
           </div>
         </motion.div>
       )}

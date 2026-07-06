@@ -8,8 +8,10 @@ import {
   Eye,
   EyeOff,
   Menu,
+  Redo2,
   Search,
   Sparkles,
+  Undo2,
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -64,9 +66,16 @@ function MobileTopbar() {
   const setMobileDrawerOpen = useMindMapStore((s) => s.setMobileDrawerOpen);
   const setSearchOpen = useMindMapStore((s) => s.setSearchOpen);
   const openCommandPalette = useMindMapStore((s) => s.openCommandPalette);
+  const undo = useMindMapStore((s) => s.undo);
+  const redo = useMindMapStore((s) => s.redo);
+  const canUndo = useMindMapStore((s) => s.history.length > 0);
+  const canRedo = useMindMapStore((s) => s.future.length > 0);
+
+  const iconBtn =
+    "flex h-10 w-9 items-center justify-center rounded-xl text-ink-soft active:bg-surface-overlay disabled:opacity-30 disabled:active:bg-transparent";
 
   return (
-    <header className="relative z-30 flex h-14 shrink-0 items-center gap-2 border-b border-line px-2 pt-[env(safe-area-inset-top)] mf-glass">
+    <header className="relative z-30 flex h-14 shrink-0 items-center gap-0.5 border-b border-line px-1.5 pt-[env(safe-area-inset-top)] mf-glass">
       <button
         onClick={() => setMobileDrawerOpen(true)}
         aria-label="문서 목록"
@@ -76,22 +85,34 @@ function MobileTopbar() {
       </button>
       <button
         onClick={() => setMobileDrawerOpen(true)}
-        className="flex-1 truncate text-center text-sm font-semibold text-ink"
+        className="flex-1 truncate px-1 text-center text-sm font-semibold text-ink"
       >
         {doc?.title ?? "MindForge"}
       </button>
       <button
+        onClick={undo}
+        disabled={!canUndo}
+        aria-label="실행 취소"
+        className={iconBtn}
+      >
+        <Undo2 size={18} />
+      </button>
+      <button
+        onClick={redo}
+        disabled={!canRedo}
+        aria-label="다시 실행"
+        className={iconBtn}
+      >
+        <Redo2 size={18} />
+      </button>
+      <button
         onClick={() => setSearchOpen(true)}
         aria-label="검색"
-        className="flex h-10 w-10 items-center justify-center rounded-xl text-ink-soft active:bg-surface-overlay"
+        className={iconBtn}
       >
         <Search size={19} />
       </button>
-      <button
-        onClick={openCommandPalette}
-        aria-label="명령"
-        className="flex h-10 w-10 items-center justify-center rounded-xl text-ink-soft active:bg-surface-overlay"
-      >
+      <button onClick={openCommandPalette} aria-label="명령" className={iconBtn}>
         <Command size={19} />
       </button>
     </header>
