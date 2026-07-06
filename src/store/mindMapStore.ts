@@ -34,6 +34,7 @@ import { parseOutlineToTree } from "@/lib/outlineImport";
 import { createId } from "@/lib/id";
 import { runLayout, runSubtreeLayout } from "@/lib/layout";
 import {
+  backupCorruptData,
   loadWorkspaceFromStorage,
   saveWorkspaceToStorage,
 } from "@/lib/storage";
@@ -76,6 +77,22 @@ export type ContextMenuState = { nodeId: string; x: number; y: number } | null;
 
 const HISTORY_LIMIT = 60;
 
+// Throttle repeated save-failure toasts (autosave fires often).
+let lastSaveErrorAt = 0;
+
+// Briefly flag a layout change so nodes tween to their new positions instead
+// of hard-cutting. Removed after the transition so live dragging stays 1:1.
+let layoutAnimTimer: ReturnType<typeof setTimeout> | null = null;
+function beginLayoutAnimation() {
+  if (typeof document === "undefined") return;
+  document.documentElement.classList.add("mf-animating-layout");
+  if (layoutAnimTimer) clearTimeout(layoutAnimTimer);
+  layoutAnimTimer = setTimeout(() => {
+    document.documentElement.classList.remove("mf-animating-layout");
+    layoutAnimTimer = null;
+  }, 360);
+}
+
 type HistoryEntry = {
   nodes: MindMapNode[];
   edges: Edge[];
@@ -94,6 +111,7 @@ export type MindMapState = {
   selectedNodeId: string | null; // primary selection (inspector / single-node UI)
   selectedNodeIds: string[]; // full multi-selection set
   editingNodeId: string | null;
+  editSeed: string | null; // initial text for type-to-edit (typed char seeds it)
   dropTargetId: string | null; // node currently hovered as a re-parent target
   selectedRelationId: string | null; // selected free-form relation edge
   connectMode: boolean; // when on, node handles become connectable
@@ -189,7 +207,7 @@ export type MindMapState = {
   selectNode: (nodeId: string | null) => void;
   toggleNodeSelection: (nodeId: string) => void;
   setSelection: (ids: string[]) => void;
-  setEditingNode: (nodeId: string | null) => void;
+  setEditingNode: (nodeId: string | null, seed?: string) => void;
   moveNodesBy: (ids: string[], dx: number, dy: number) => void;
   bulkUpdateData: (ids: string[], partial: Partial<MindMapNodeData>) => void;
   bulkDelete: (ids: string[]) => void;
@@ -418,6 +436,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     selectedNodeId: null,
     selectedNodeIds: [],
     editingNodeId: null,
+    editSeed: null,
     dropTargetId: null,
     selectedRelationId: null,
     connectMode: false,
@@ -668,11 +687,21 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           hydrated: true,
         });
         if ("corrupted" in result && result.corrupted) {
+          // Keep the unparseable blob so it isn't destroyed by the next save.
+          backupCorruptData(result.raw);
           get().addToast(
-            "저장된 데이터를 불러오지 못해 새 워크스페이스를 시작합니다",
+            "저장된 데이터가 손상되어 새로 시작합니다. 이전 데이터는 백업해 두었습니다.",
             "error"
           );
         }
+      }
+      // If some documents were dropped as unreadable, tell the user rather
+      // than silently losing them.
+      if (result.ok && result.droppedDocs > 0) {
+        get().addToast(
+          `문서 ${result.droppedDocs}개가 손상되어 제외되었습니다.`,
+          "error"
+        );
       }
       get().fitToView();
     },
@@ -699,7 +728,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       } = get();
       if (!hydrated) return;
       set({ saveStatus: "saving" });
-      const ok = saveWorkspaceToStorage({
+      const result = saveWorkspaceToStorage({
         version: 1,
         documents,
         activeDocumentId,
@@ -719,9 +748,23 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         inspectorOpen,
       });
       set({
-        saveStatus: ok ? "saved" : "error",
-        lastSavedAt: ok ? nowIso() : get().lastSavedAt,
+        saveStatus: result.ok ? "saved" : "error",
+        lastSavedAt: result.ok ? nowIso() : get().lastSavedAt,
       });
+      if (!result.ok) {
+        // A silent no-op here means a refresh loses the session. Surface it
+        // loudly and steer the user to a rescue export before that happens.
+        const now = Date.now();
+        if (now - lastSaveErrorAt > 20000) {
+          lastSaveErrorAt = now;
+          get().addToast(
+            result.quota
+              ? "저장 공간이 가득 찼습니다. 내보내기로 백업하고 오래된 스냅샷/문서를 정리하세요."
+              : "자동 저장에 실패했습니다. 내보내기로 백업하세요.",
+            "error"
+          );
+        }
+      }
     },
 
     // ── Nodes ──
@@ -757,6 +800,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       // that adding a child not immediately open the text cursor. (The
       // continuous Tab-while-typing flow opts back in explicitly.)
       set({ ...selectionFor(id), editingNodeId: null });
+      beginLayoutAnimation();
       focusSoon(id);
       return id;
     },
@@ -804,6 +848,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       }
       const ids = new Set(getSubtreeIds(nodes, nodeId));
       const parentId = node.data.parentId;
+      beginLayoutAnimation();
       commit((nds) => {
         const remaining = nds.filter((n) => !ids.has(n.id));
         const laid = runLayout(remaining, get().activeLayoutMode);
@@ -942,6 +987,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         );
         const withNew = [...expanded, ...clones];
         const laid = runLayout(withNew, get().activeLayoutMode);
+        beginLayoutAnimation();
         return { nodes: laid, edges: buildEdgesFromNodes(laid) };
       });
       const newRootId = idMap.get(srcRootId)!;
@@ -1033,6 +1079,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     },
 
     toggleCollapse: (nodeId) => {
+      beginLayoutAnimation();
       commit((nds, eds) => ({
         nodes: nds.map((n) =>
           n.id === nodeId
@@ -1046,6 +1093,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     // Set a first-level branch's direction and re-run the bidirectional layout
     // so the change is immediately visible.
     setNodeSide: (nodeId, side) => {
+      beginLayoutAnimation();
       commit((nds) => {
         const updated = nds.map((n) =>
           n.id === nodeId ? { ...n, data: { ...n.data, side } } : n
@@ -1102,7 +1150,11 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         };
       }),
 
-    setEditingNode: (nodeId) => set({ editingNodeId: nodeId }),
+    // seed = a typed character (type-to-edit) used as the editor's initial
+    // text. It never touches the stored label, so undo history stays clean:
+    // the pre-edit label is captured on commit.
+    setEditingNode: (nodeId, seed) =>
+      set({ editingNodeId: nodeId, editSeed: nodeId ? seed ?? null : null }),
 
     // Apply the same data patch to many nodes at once.
     bulkUpdateData: (ids, partial) => {
@@ -1163,6 +1215,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           return { ...n, data: { ...n.data, collapsed: false } };
         return n;
       });
+      beginLayoutAnimation();
       const laid = runSubtreeLayout(updated, newParentId, get().activeLayoutMode);
       set({ nodes: laid, edges: buildEdgesFromNodes(laid), dropTargetId: null });
       syncActiveDocument(laid, buildEdgesFromNodes(laid));
@@ -1386,6 +1439,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
 
     autoLayout: (mode) => {
       const layoutMode = mode ?? get().activeLayoutMode;
+      beginLayoutAnimation();
       commit((nds) => {
         const laid = runLayout(nds, layoutMode);
         return { nodes: laid, edges: buildEdgesFromNodes(laid) };
@@ -1403,6 +1457,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
 
     autoLayoutSubtree: (nodeId, mode) => {
       const layoutMode = mode ?? get().activeLayoutMode;
+      beginLayoutAnimation();
       commit((nds) => {
         const laid = runSubtreeLayout(nds, nodeId, layoutMode);
         return { nodes: laid, edges: buildEdgesFromNodes(laid) };

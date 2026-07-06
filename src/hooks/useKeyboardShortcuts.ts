@@ -174,6 +174,23 @@ export function useKeyboardShortcuts(): void {
         if (next) store.selectNode(next);
         return;
       }
+
+      // Type-to-edit: pressing a printable character on a selected node jumps
+      // straight into the editor seeded with that character. Modifier combos
+      // (shortcuts) and non-printing keys are excluded. The seed lives only in
+      // the editor draft, so the pre-edit label is still captured on commit.
+      if (
+        selected &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        e.key.length === 1 &&
+        e.key !== " "
+      ) {
+        e.preventDefault();
+        store.setEditingNode(selected, e.key);
+        return;
+      }
     };
 
     window.addEventListener("keydown", handler);

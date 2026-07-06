@@ -166,6 +166,18 @@ body {
   font-family: inherit;
 }
 
+/* Layout morph: while the store flags a structural change, nodes tween to
+   their new positions instead of hard-cutting. The class is removed right
+   after so live dragging stays 1:1 (see beginLayoutAnimation in the store). */
+.mf-animating-layout .react-flow__node {
+  transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mf-animating-layout .react-flow__node {
+    transition: none;
+  }
+}
+
 .react-flow__handle {
   opacity: 0;
   pointer-events: none;

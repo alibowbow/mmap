@@ -7,10 +7,24 @@ import {
 } from "@/lib/constants";
 import type { MindMapWorkspace } from "@/types/mindmap";
 
+const BACKUP_KEY = `${STORAGE_KEY}-corrupt-backup`;
+
 export type LoadResult =
-  | { ok: true; workspace: MindMapWorkspace }
+  | { ok: true; workspace: MindMapWorkspace; droppedDocs: number }
   | { ok: false; empty: true }
   | { ok: false; corrupted: true; raw: string };
+
+// A document is usable only if it has an id and node/edge arrays. One broken
+// doc must never brick the whole workspace, so we drop just the bad ones.
+function isUsableDoc(d: unknown): boolean {
+  if (!d || typeof d !== "object") return false;
+  const doc = d as Record<string, unknown>;
+  return (
+    typeof doc.id === "string" &&
+    Array.isArray(doc.nodes) &&
+    Array.isArray(doc.edges)
+  );
+}
 
 // Read + migrate the workspace from localStorage.
 export function loadWorkspaceFromStorage(): LoadResult {
@@ -22,10 +36,24 @@ export function loadWorkspaceFromStorage(): LoadResult {
     if (!parsed || !Array.isArray(parsed.documents)) {
       return { ok: false, corrupted: true, raw };
     }
-    const workspace = migrateWorkspace(parsed);
-    return { ok: true, workspace };
+    // Keep the good documents, drop the malformed ones (degrade gracefully).
+    const all = parsed.documents as unknown[];
+    const good = all.filter(isUsableDoc) as MindMapWorkspace["documents"];
+    const droppedDocs = all.length - good.length;
+    const workspace = migrateWorkspace({ ...parsed, documents: good });
+    return { ok: true, workspace, droppedDocs };
   } catch {
     return { ok: false, corrupted: true, raw };
+  }
+}
+
+// Preserve an unparseable blob so a bad write never destroys recoverable data.
+export function backupCorruptData(raw: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(BACKUP_KEY, raw);
+  } catch {
+    /* backup is best-effort */
   }
 }
 
@@ -59,16 +87,25 @@ function migrateWorkspace(
   };
 }
 
-export function saveWorkspaceToStorage(workspace: MindMapWorkspace): boolean {
-  if (typeof window === "undefined") return false;
+export type SaveResult = { ok: true } | { ok: false; quota: boolean };
+
+export function saveWorkspaceToStorage(
+  workspace: MindMapWorkspace
+): SaveResult {
+  if (typeof window === "undefined") return { ok: false, quota: false };
   try {
     window.localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({ ...workspace, version: WORKSPACE_VERSION })
     );
-    return true;
-  } catch {
-    return false;
+    return { ok: true };
+  } catch (e) {
+    const quota =
+      e instanceof DOMException &&
+      (e.name === "QuotaExceededError" ||
+        e.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+        e.code === 22);
+    return { ok: false, quota };
   }
 }
 

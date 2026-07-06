@@ -45,6 +45,7 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   const searchQuery = useMindMapStore((s) => s.searchQuery);
   const updateNodeLabel = useMindMapStore((s) => s.updateNodeLabel);
   const setEditingNode = useMindMapStore((s) => s.setEditingNode);
+  const pushHistory = useMindMapStore((s) => s.pushHistory);
   const toggleCollapse = useMindMapStore((s) => s.toggleCollapse);
   const childCount = useMindMapStore((s) => countChildren(s.nodes, id));
   const nodeStyle = useMindMapStore((s) => s.nodeStyle);
@@ -109,7 +110,10 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
 
   useEffect(() => {
     if (!isEditing) return;
-    setDraft(d.label);
+    // A typed character (type-to-edit) seeds the draft and lands the cursor at
+    // the end; otherwise start from the current label with everything selected.
+    const seed = useMindMapStore.getState().editSeed;
+    setDraft(seed ?? d.label);
     // Retry over a few frames: layout re-runs and selection updates right
     // after a node is created can steal focus from the fresh textarea.
     let tries = 0;
@@ -118,7 +122,12 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
       const el = inputRef.current;
       if (el && document.activeElement !== el) {
         el.focus();
-        el.select();
+        if (seed != null) {
+          const end = el.value.length;
+          el.setSelectionRange(end, end);
+        } else {
+          el.select();
+        }
       }
       if (++tries < 8 && document.activeElement !== inputRef.current) {
         raf = requestAnimationFrame(tick);
@@ -130,8 +139,14 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   }, [isEditing]);
 
   const commitLabel = () => {
-    // Allow clearing the label (empty nodes show a placeholder).
-    updateNodeLabel(id, draft.trim());
+    // Allow clearing the label (empty nodes show a placeholder). Snapshot
+    // history once, only when the text actually changed, so a rename is a
+    // single undoable step (and an open-then-cancel adds no history noise).
+    const next = draft.trim();
+    if (next !== d.label) {
+      pushHistory();
+      updateNodeLabel(id, next);
+    }
     setEditingNode(null);
   };
 

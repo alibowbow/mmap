@@ -325,6 +325,25 @@ export function AppShell() {
     700
   );
 
+  // Flush the pending autosave immediately when the tab is backgrounded or
+  // closed. The debounce has a 700ms trailing delay, so on mobile a quick
+  // edit-then-switch-away could otherwise lose the last change.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const flush = () => {
+      if (useMindMapStore.getState().hydrated) saveWorkspace();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [saveWorkspace]);
+
   // React to OS theme changes when in "system" mode.
   useEffect(() => {
     if (theme !== "system" || typeof window === "undefined") return;
