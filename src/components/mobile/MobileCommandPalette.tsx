@@ -55,21 +55,21 @@ export function MobileCommandPalette() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto mf-scroll p-2 pb-[env(safe-area-inset-bottom)]">
+          <div className="flex-1 overflow-y-auto mf-scroll p-1.5 pb-[env(safe-area-inset-bottom)]">
             {results.map((cmd) => (
               <button
                 key={cmd.id}
                 onClick={() => execute(cmd.id)}
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-3.5 text-left transition active:bg-surface-overlay"
+                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left transition active:bg-surface-overlay"
               >
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-overlay text-ink-soft">
-                  <Icon name={cmd.icon} size={18} />
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-overlay text-ink-soft">
+                  <Icon name={cmd.icon} size={15} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium text-ink">
+                  <span className="block text-[13px] font-medium leading-tight text-ink">
                     {cmd.title}
                   </span>
-                  <span className="block truncate text-xs text-ink-faint">
+                  <span className="block truncate text-[11px] leading-tight text-ink-faint">
                     {cmd.description}
                   </span>
                 </span>
