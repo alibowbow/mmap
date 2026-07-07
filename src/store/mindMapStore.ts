@@ -1553,9 +1553,6 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           s.setImportTab("outline");
           s.setDialog("import");
           break;
-        case "export-markdown":
-          s.setDialog("export");
-          break;
         case "share-link":
           s.setDialog("share");
           break;

@@ -98,7 +98,7 @@ export function ShareDialog() {
             className="font-semibold underline underline-offset-2"
             onClick={() => setDialog("export")}
           >
-            JSON 내보내기
+            내보내기
           </button>
           를 권장합니다.
         </div>

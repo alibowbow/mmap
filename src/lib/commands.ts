@@ -13,7 +13,6 @@ export type CommandId =
   | "export-png"
   | "import-json"
   | "import-outline"
-  | "export-markdown"
   | "share-link"
   | "load-sample"
   | "presentation";
@@ -89,10 +88,10 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     id: "export-json",
-    title: "JSON 내보내기",
-    description: "현재 문서를 JSON으로 저장",
+    title: "내보내기",
+    description: "현재 맵을 파일로 내보내기 (JSON·Markdown 등)",
     icon: "FileJson",
-    keywords: ["export", "json", "내보내기"],
+    keywords: ["export", "json", "markdown", "md", "내보내기", "저장"],
   },
   {
     id: "import-json",
@@ -107,13 +106,6 @@ export const COMMANDS: CommandDef[] = [
     description: "마크다운·아웃라인을 붙여넣어 맵 생성",
     icon: "FileText",
     keywords: ["import", "markdown", "outline", "텍스트", "아웃라인", "붙여넣기"],
-  },
-  {
-    id: "export-markdown",
-    title: "Markdown 내보내기",
-    description: "현재 문서를 Markdown으로 저장",
-    icon: "FileText",
-    keywords: ["export", "markdown", "md", "내보내기"],
   },
   {
     id: "share-link",

@@ -314,15 +314,9 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
               onSelect: () => exportImage("svg"),
             },
             {
-              id: "json",
-              label: "JSON 내보내기",
+              id: "export",
+              label: "내보내기",
               icon: <Icon name="FileJson" size={15} />,
-              onSelect: () => setDialog("export"),
-            },
-            {
-              id: "md",
-              label: "Markdown 내보내기",
-              icon: <Icon name="FileText" size={15} />,
               onSelect: () => setDialog("export"),
             },
           ]}
