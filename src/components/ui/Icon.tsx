@@ -2,15 +2,19 @@
 
 import {
   AlertTriangle,
+  Brush,
   CheckSquare,
   Circle,
   CornerDownRight,
   Download,
   Image,
   Minus,
+  Pill,
   Shapes,
+  Share2,
   Spline,
   SquareDashed,
+  Zap,
   FileJson,
   FilePlus2,
   FileText,
@@ -86,6 +90,10 @@ const REGISTRY: Record<string, LucideIcon> = {
   Upload,
   FileText,
   Presentation,
+  Brush,
+  Pill,
+  Share2,
+  Zap,
 };
 
 export function Icon({

@@ -13,6 +13,7 @@ import { COMMANDS, type CommandId } from "@/lib/commands";
 import {
   DEFAULT_ACCENT,
   DEFAULT_CANVAS_BG,
+  DEFAULT_EDGE_LINE,
   DEFAULT_FONT,
   DEFAULT_LEVEL_FONT_SIZES,
   DEFAULT_NODE_LABEL,
@@ -22,6 +23,7 @@ import {
   NODE_HEIGHT,
   NODE_TYPE_CONFIG,
   NODE_WIDTH,
+  THEME_PRESETS,
 } from "@/lib/constants";
 import {
   exportDocumentJson,
@@ -137,6 +139,7 @@ export type MindMapState = {
   edgeAnimated: boolean;
   edgeWidth: number;
   edgeColorMode: string;
+  edgeLine: string;
   nodeTint: boolean;
   canvasBg: string;
   accent: string;
@@ -276,6 +279,8 @@ export type MindMapState = {
   setEdgeAnimated: (on: boolean) => void;
   setEdgeWidth: (w: number) => void;
   setEdgeColorMode: (mode: string) => void;
+  setEdgeLine: (line: string) => void;
+  applyThemePreset: (presetId: string) => void;
   setNodeTint: (on: boolean) => void;
   setCanvasBg: (bg: string) => void;
   setAccent: (accent: string) => void;
@@ -461,6 +466,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     edgeAnimated: false,
     edgeWidth: 2,
     edgeColorMode: "default",
+    edgeLine: DEFAULT_EDGE_LINE,
     nodeTint: false,
     canvasBg: DEFAULT_CANVAS_BG,
     accent: DEFAULT_ACCENT,
@@ -671,6 +677,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           edgeAnimated: ws.edgeAnimated ?? false,
           edgeWidth: ws.edgeWidth ?? 2,
           edgeColorMode: ws.edgeColorMode ?? "default",
+          edgeLine: ws.edgeLine ?? DEFAULT_EDGE_LINE,
           nodeTint: ws.nodeTint ?? false,
           canvasBg: ws.canvasBg ?? DEFAULT_CANVAS_BG,
           accent: ws.accent ?? DEFAULT_ACCENT,
@@ -726,6 +733,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         edgeAnimated,
         edgeWidth,
         edgeColorMode,
+        edgeLine,
         nodeTint,
         canvasBg,
         accent,
@@ -748,6 +756,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         edgeAnimated,
         edgeWidth,
         edgeColorMode,
+        edgeLine,
         nodeTint,
         canvasBg,
         accent,
@@ -1782,6 +1791,38 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       set((s) => ({ edgeWidth, revision: s.revision + 1 })),
     setEdgeColorMode: (edgeColorMode) =>
       set((s) => ({ edgeColorMode, revision: s.revision + 1 })),
+    setEdgeLine: (edgeLine) =>
+      set((s) => ({ edgeLine, revision: s.revision + 1 })),
+
+    // One-tap curated look: applies the preset's whole combination at once.
+    // Never touches the user's light/dark theme preference.
+    applyThemePreset: (presetId) => {
+      const preset = THEME_PRESETS.find((p) => p.id === presetId);
+      if (!preset) return;
+      const st = preset.settings;
+      set((s) => ({
+        nodeStyle: st.nodeStyle,
+        edgeStyle: st.edgeStyle,
+        edgeWidth: st.edgeWidth,
+        edgeColorMode: st.edgeColorMode,
+        edgeLine: st.edgeLine,
+        edgeAnimated: st.edgeAnimated,
+        rainbowBranches: st.rainbowBranches,
+        nodeTint: st.nodeTint,
+        canvasBg: st.canvasBg,
+        revision: s.revision + 1,
+      }));
+      const isDark =
+        typeof document !== "undefined" &&
+        document.documentElement.classList.contains("dark");
+      get().addToast(
+        presetId === "neon" && !isDark
+          ? "프리셋: 네온 — 다크 테마에서 가장 멋져요"
+          : `프리셋: ${preset.label}`,
+        "success"
+      );
+    },
+
     setNodeTint: (nodeTint) =>
       set((s) => ({ nodeTint, revision: s.revision + 1 })),
     setCanvasBg: (canvasBg) =>

@@ -9,9 +9,11 @@ import {
   ACCENT_OPTIONS,
   CANVAS_BG_OPTIONS,
   EDGE_COLOR_OPTIONS,
+  EDGE_LINE_OPTIONS,
   EDGE_STYLE_OPTIONS,
   EDGE_WIDTH_OPTIONS,
   NODE_STYLE_OPTIONS,
+  THEME_PRESETS,
 } from "@/lib/constants";
 import { useMindMapStore } from "@/store/mindMapStore";
 
@@ -63,6 +65,9 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
   const setEdgeWidth = useMindMapStore((s) => s.setEdgeWidth);
   const edgeColorMode = useMindMapStore((s) => s.edgeColorMode);
   const setEdgeColorMode = useMindMapStore((s) => s.setEdgeColorMode);
+  const edgeLine = useMindMapStore((s) => s.edgeLine);
+  const setEdgeLine = useMindMapStore((s) => s.setEdgeLine);
+  const applyThemePreset = useMindMapStore((s) => s.applyThemePreset);
   const canvasBg = useMindMapStore((s) => s.canvasBg);
   const setCanvasBg = useMindMapStore((s) => s.setCanvasBg);
   const accent = useMindMapStore((s) => s.accent);
@@ -96,9 +101,33 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
             className="absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl border border-line bg-surface-overlay/95 p-3 shadow-float backdrop-blur-xl"
           >
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+              테마 프리셋
+            </p>
+            <div className="mb-3 grid grid-cols-3 gap-1.5">
+              {THEME_PRESETS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => applyThemePreset(p.id)}
+                  title={p.description}
+                  className="flex items-center gap-1.5 rounded-xl border border-line px-2 py-1.5 text-[11px] font-medium text-ink-soft transition hover:bg-surface-raised hover:text-ink"
+                >
+                  <span
+                    className="h-3.5 w-3.5 shrink-0 rounded-full"
+                    style={{
+                      background: `linear-gradient(135deg, ${p.swatch[0]}, ${p.swatch[1]})`,
+                    }}
+                  />
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="my-2 h-px bg-line" />
+
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
               노드 스타일
             </p>
-            <div className="mb-3 flex gap-1.5">
+            <div className="mb-3 grid grid-cols-4 gap-1.5">
               {NODE_STYLE_OPTIONS.map((o) => (
                 <button
                   key={o.id}
@@ -181,6 +210,26 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
                     className={cn(
                       "flex-1 rounded-lg border px-1 py-1.5 text-[11px] font-medium transition",
                       edgeColorMode === o.id
+                        ? "border-brand bg-brand/10 text-ink"
+                        : "border-line text-ink-soft hover:bg-surface-raised"
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-2 flex items-center gap-2">
+              <span className="w-12 shrink-0 text-xs text-ink-soft">선</span>
+              <div className="flex flex-1 gap-1.5">
+                {EDGE_LINE_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    onClick={() => setEdgeLine(o.id)}
+                    className={cn(
+                      "flex-1 rounded-lg border px-1 py-1.5 text-[11px] font-medium transition",
+                      edgeLine === o.id
                         ? "border-brand bg-brand/10 text-ink"
                         : "border-line text-ink-soft hover:bg-surface-raised"
                     )}

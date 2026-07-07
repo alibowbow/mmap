@@ -262,9 +262,12 @@ body {
   stroke-dasharray: 6 6;
   animation: mf-edge-dash 0.55s linear infinite;
 }
+/* Shift exactly one pattern period per loop — the edge component sets
+   --mf-dash-cycle to its dasharray period so 파선/점선 never snap backward
+   at the loop boundary. Default 12 matches the 6+6 pattern above. */
 @keyframes mf-edge-dash {
   to {
-    stroke-dashoffset: -12;
+    stroke-dashoffset: calc(-1 * var(--mf-dash-cycle, 12px));
   }
 }
 .react-flow__edge.selected .react-flow__edge-path,

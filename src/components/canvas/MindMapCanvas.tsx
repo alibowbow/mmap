@@ -191,8 +191,12 @@ function CanvasInner() {
       return horizontalFaces(dx);
     };
     const de: Edge[] = edges.map((e) => {
+      // Color tree edges by the TARGET (child): the child's color IS the
+      // branch color, so root fan-out edges each take their branch hue
+      // instead of all inheriting the root's color. For non-root edges the
+      // source and target colors match under rainbow inheritance anyway.
       const stroke =
-        edgeColorMode === "node" ? colorOf.get(e.source) : undefined;
+        edgeColorMode === "node" ? colorOf.get(e.target) : undefined;
       return {
         ...e,
         type: "mindmap",

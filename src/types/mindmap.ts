@@ -107,6 +107,7 @@ export type MindMapWorkspace = {
   edgeAnimated: boolean;
   edgeWidth: number;
   edgeColorMode: string;
+  edgeLine: string;
   nodeTint: boolean;
   canvasBg: string;
   accent: string;

@@ -12,6 +12,7 @@ import {
   GraduationCap,
   HelpCircle,
   History,
+  Minus,
   Rainbow,
   Image as ImageIcon,
   LayoutTemplate,
@@ -32,10 +33,12 @@ import {
   ACCENT_OPTIONS,
   CANVAS_BG_OPTIONS,
   EDGE_COLOR_OPTIONS,
+  EDGE_LINE_OPTIONS,
   EDGE_STYLE_OPTIONS,
   EDGE_WIDTH_OPTIONS,
   FONT_OPTIONS,
   NODE_STYLE_OPTIONS,
+  THEME_PRESETS,
 } from "@/lib/constants";
 import { useMindMapStore } from "@/store/mindMapStore";
 
@@ -103,6 +106,9 @@ export function MobileMoreMenu() {
   const startTutorial = useMindMapStore((s) => s.startTutorial);
   const rainbowBranches = useMindMapStore((s) => s.rainbowBranches);
   const setRainbowBranches = useMindMapStore((s) => s.setRainbowBranches);
+  const edgeLine = useMindMapStore((s) => s.edgeLine);
+  const setEdgeLine = useMindMapStore((s) => s.setEdgeLine);
+  const applyThemePreset = useMindMapStore((s) => s.applyThemePreset);
   const addToast = useMindMapStore((s) => s.addToast);
 
   const close = () => setOpen(false);
@@ -141,6 +147,13 @@ export function MobileMoreMenu() {
     const next = EDGE_COLOR_OPTIONS[(idx + 1) % EDGE_COLOR_OPTIONS.length];
     setEdgeColorMode(next.id);
     addToast(`엣지 색: ${next.label}`, "info");
+  };
+
+  const cycleEdgeLine = () => {
+    const idx = EDGE_LINE_OPTIONS.findIndex((o) => o.id === edgeLine);
+    const next = EDGE_LINE_OPTIONS[(idx + 1) % EDGE_LINE_OPTIONS.length];
+    setEdgeLine(next.id);
+    addToast(`선 형태: ${next.label}`, "info");
   };
 
   const toggleEdgeAnimated = () => {
@@ -256,6 +269,25 @@ export function MobileMoreMenu() {
                 />
               </div>
 
+              <Section title="테마 프리셋" />
+              <div className="grid grid-cols-3 gap-1 px-1">
+                {THEME_PRESETS.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => applyThemePreset(p.id)}
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-line px-2 py-2 text-[11px] font-medium text-ink-soft active:bg-surface-overlay"
+                  >
+                    <span
+                      className="h-3 w-3 shrink-0 rounded-full"
+                      style={{
+                        background: `linear-gradient(135deg, ${p.swatch[0]}, ${p.swatch[1]})`,
+                      }}
+                    />
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+
               <Section title="디자인" />
               <div className="grid grid-cols-4 gap-0.5">
                 <Tile
@@ -277,6 +309,11 @@ export function MobileMoreMenu() {
                   icon={<Paintbrush size={18} />}
                   label="엣지 색"
                   onClick={cycleEdgeColor}
+                />
+                <Tile
+                  icon={<Minus size={18} />}
+                  label="선 형태"
+                  onClick={cycleEdgeLine}
                 />
                 <Tile
                   icon={<Zap size={18} />}

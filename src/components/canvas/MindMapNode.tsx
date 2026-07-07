@@ -78,18 +78,35 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   // "plain" nodes show only the user's text — no type icon/label or color rail.
   const isPlain = d.type === "plain" && !isRoot;
 
-  // Visual style (workspace-wide): card / soft / outline / line.
-  const style = nodeStyle === "soft" || nodeStyle === "outline" || nodeStyle === "line"
-    ? nodeStyle
-    : "card";
+  // Visual style (workspace-wide). Unknown ids (e.g. from an older or newer
+  // stored workspace) fall back to card.
+  const KNOWN_STYLES = ["card", "soft", "outline", "line", "pill", "sticky", "neon"];
+  const style = KNOWN_STYLES.includes(nodeStyle) ? nodeStyle : "card";
   const isLine = style === "line";
   const isOutline = style === "outline";
-  // The type header (icon + label) is hidden for plain and root nodes.
-  const hideTypeHeader = isPlain || isRoot;
+  const isPill = style === "pill";
+  const isSticky = style === "sticky";
+  const isNeon = style === "neon";
+  // The type header (icon + label) is hidden for plain and root nodes, and on
+  // capsule/post-it styles where a type chip fights the shape's silhouette.
+  const hideTypeHeader = isPlain || isRoot || isPill || isSticky;
   // The left color rail appears on filled card/soft styles — including plain
   // nodes, so their color (and rainbow-branch color) is actually visible.
   // Without this, changing a plain child's color had no visible effect.
   const showRail = style === "card" || style === "soft";
+  // Filled color overlay (gradient/tint/glow) applies to these styles.
+  const showFill = showRail || isPill || isSticky || isNeon;
+
+  // Post-its get a small per-node tilt. Quantized to 5 buckets so adjacent
+  // siblings visibly differ instead of reading as a rendering error. Uses the
+  // independent CSS `rotate` property so Tailwind's transform utilities
+  // (hover translate, selected scale) keep composing.
+  const stickyTilt = (() => {
+    if (!isSticky || isRoot) return 0;
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+    return [-1.4, -0.7, 0, 0.7, 1.4][Math.abs(h) % 5];
+  })();
 
   const statusConf =
     d.status && d.status !== "none" ? NODE_STATUS_CONFIG[d.status] : null;
@@ -219,7 +236,25 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
     isLine &&
       (selected
         ? `rounded-md border-0 border-b-2 bg-transparent ${SEL}`
-        : "rounded-md border-0 border-b-2 bg-transparent hover:-translate-y-0.5")
+        : "rounded-md border-0 border-b-2 bg-transparent hover:-translate-y-0.5"),
+    // Capsule: fixed 38px radius (not rounded-full) so the geometry stays
+    // stable when the node grows taller than its min-height.
+    isPill &&
+      (selected
+        ? `rounded-[38px] border border-brand bg-surface-raised ${SEL}`
+        : "rounded-[38px] border border-line bg-surface-raised shadow-node hover:shadow-float hover:-translate-y-0.5"),
+    // Post-it: no border, paper shadow. No hover-lift — a levitating pinned
+    // note fights the metaphor; the shadow deepens instead.
+    isSticky &&
+      (selected
+        ? `rounded-md border-0 bg-surface-raised ${SEL}`
+        : "rounded-md border-0 bg-surface-raised shadow-node hover:shadow-float"),
+    // Neon: colored 2px border; the glow is painted on the fill overlay so it
+    // never clobbers the ring-based selection/search/drop states.
+    isNeon &&
+      (selected
+        ? `rounded-2xl border-2 bg-surface-raised ${SEL}`
+        : "rounded-2xl border-2 bg-surface-raised hover:-translate-y-0.5")
   );
 
   return (
@@ -232,7 +267,9 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
       style={{
         width: NODE_WIDTH,
         minHeight: isLine ? undefined : NODE_HEIGHT,
-        borderColor: isOutline || isLine ? color : undefined,
+        borderColor: isOutline || isLine || isNeon ? color : undefined,
+        // Independent CSS property — composes with Tailwind transforms.
+        rotate: stickyTilt ? `${stickyTilt}deg` : undefined,
       }}
       className={cn(
         "group relative animate-scale-in",
@@ -364,32 +401,55 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
       {/* Root gradient sheen (skipped on the borderless line style) */}
       {isRoot && !isLine && (
         <div
-          className="pointer-events-none absolute inset-0 rounded-2xl opacity-90"
+          className={cn(
+            "pointer-events-none absolute inset-0 opacity-90",
+            isPill ? "rounded-[38px]" : "rounded-2xl"
+          )}
           style={{
             background: `linear-gradient(135deg, ${hexToRgba(
               color,
               0.16
             )}, ${hexToRgba(color, 0.02)})`,
+            // Neon root glows too — painted here so the node's own
+            // box-shadow (rings, lift) stays intact.
+            ...(isNeon
+              ? { boxShadow: `0 0 10px 1px ${hexToRgba(color, 0.35)}` }
+              : {}),
           }}
         />
       )}
 
-      {/* Color fill for card/soft nodes: the picked color visibly fills the
-          node interior (like the root), not just the thin rail. The tint
-          toggle boosts saturation further. */}
-      {showRail && !isRoot && (
+      {/* Color fill: the picked color visibly fills the node interior.
+          card/soft: gradient (or stronger tint when the toggle is on);
+          sticky: intrinsic paper fill (ignores the tint toggle);
+          neon: faint interior + outer glow — on this overlay, not the node's
+          box-shadow, so ring-based selection states never get clobbered. */}
+      {showFill && !isRoot && (
         <div
           className={cn(
             "pointer-events-none absolute inset-0",
-            style === "soft" ? "rounded-[26px]" : "rounded-2xl"
+            style === "soft"
+              ? "rounded-[26px]"
+              : isPill
+              ? "rounded-[38px]"
+              : isSticky
+              ? "rounded-md"
+              : "rounded-2xl"
           )}
           style={{
-            background: nodeTint
+            background: isSticky
+              ? hexToRgba(color, 0.3)
+              : isNeon
+              ? hexToRgba(color, 0.07)
+              : nodeTint
               ? hexToRgba(color, 0.22)
               : `linear-gradient(135deg, ${hexToRgba(
                   color,
                   0.14
                 )}, ${hexToRgba(color, 0.035)})`,
+            ...(isNeon
+              ? { boxShadow: `0 0 10px 1px ${hexToRgba(color, 0.35)}` }
+              : {}),
           }}
         />
       )}
@@ -406,7 +466,8 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
         className={cn(
           "relative px-3.5",
           isLine ? "py-2" : "py-3",
-          showRail ? "pl-4" : "pl-3.5",
+          // Capsule needs extra side padding so content clears the 38px curve.
+          showRail ? "pl-4" : isPill ? "pl-6 pr-6" : "pl-3.5",
           // Root: fill the node height and center its label both axes.
           isRoot && !isLine &&
             "flex flex-1 flex-col items-center justify-center text-center"
@@ -595,7 +656,9 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
           }}
           aria-label={d.collapsed ? "펼치기" : "접기"}
           className={cn(
-            "nodrag mf-node-affordance absolute -right-2.5 top-1/2 -translate-y-1/2 z-10",
+            "nodrag mf-node-affordance absolute top-1/2 -translate-y-1/2 z-10",
+            // The capsule curve pulls the visual edge inward at mid-height.
+            isPill ? "-right-1" : "-right-2.5",
             "flex h-5 w-5 items-center justify-center rounded-full transition",
             "text-ink-faint hover:bg-surface-raised hover:text-brand hover:shadow-sm",
             d.collapsed ? "opacity-90" : "opacity-25 group-hover:opacity-80"

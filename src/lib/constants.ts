@@ -12,7 +12,14 @@ export const DEFAULT_NODE_LABEL = "";
 export const DEFAULT_ROOT_LABEL = "중심 주제";
 
 // Visual node styles selectable per workspace.
-export type NodeStyle = "card" | "soft" | "outline" | "line";
+export type NodeStyle =
+  | "card"
+  | "soft"
+  | "outline"
+  | "line"
+  | "pill"
+  | "sticky"
+  | "neon";
 
 export type NodeStyleOption = {
   id: NodeStyle;
@@ -23,21 +30,35 @@ export type NodeStyleOption = {
 export const NODE_STYLE_OPTIONS: NodeStyleOption[] = [
   { id: "card", label: "카드", icon: "Square" },
   { id: "soft", label: "둥근", icon: "Circle" },
+  { id: "pill", label: "캡슐", icon: "Pill" },
+  { id: "sticky", label: "포스트잇", icon: "StickyNote" },
+  { id: "neon", label: "네온", icon: "Zap" },
   { id: "outline", label: "윤곽선", icon: "SquareDashed" },
   { id: "line", label: "라인 (가지선 위 텍스트)", icon: "Minus" },
 ];
 
 export const DEFAULT_NODE_STYLE: NodeStyle = "card";
 
-// Edge shapes.
-export type EdgeStyle = "curved" | "step" | "straight";
+// Edge shapes. "taper" draws an organic ribbon: thick at the parent thinning
+// toward the child — the classic hand-drawn mind-map look.
+export type EdgeStyle = "curved" | "step" | "straight" | "taper";
 export type EdgeStyleOption = { id: EdgeStyle; label: string; icon: string };
 export const EDGE_STYLE_OPTIONS: EdgeStyleOption[] = [
   { id: "curved", label: "곡선", icon: "Spline" },
+  { id: "taper", label: "붓", icon: "Brush" },
   { id: "step", label: "직각", icon: "Network" },
   { id: "straight", label: "직선", icon: "Minus" },
 ];
 export const DEFAULT_EDGE_STYLE: EdgeStyle = "curved";
+
+// Line rendering for stroke-based edges (ignored by the filled taper style).
+export type EdgeLine = "solid" | "dashed" | "dotted";
+export const EDGE_LINE_OPTIONS: { id: EdgeLine; label: string }[] = [
+  { id: "solid", label: "실선" },
+  { id: "dashed", label: "파선" },
+  { id: "dotted", label: "점선" },
+];
+export const DEFAULT_EDGE_LINE: EdgeLine = "solid";
 
 export const EDGE_WIDTH_OPTIONS = [
   { id: "thin", label: "얇게", value: 1.5 },
@@ -178,6 +199,134 @@ export const NODE_COLOR_PALETTE = [
   "#ec4899",
   "#8b5cf6",
   "#64748b",
+];
+
+// ── Theme presets ────────────────────────────────────────────────────────────
+// One-tap curated looks: each preset sets EVERY visual field explicitly so a
+// preset's appearance never depends on what was applied before it. The user's
+// light/dark theme preference is deliberately never touched.
+export type ThemePreset = {
+  id: string;
+  label: string;
+  description: string;
+  swatch: [string, string]; // tiny preview gradient in the picker
+  settings: {
+    nodeStyle: NodeStyle;
+    edgeStyle: EdgeStyle;
+    edgeWidth: number;
+    edgeColorMode: EdgeColorMode;
+    edgeLine: EdgeLine;
+    edgeAnimated: boolean;
+    rainbowBranches: boolean;
+    nodeTint: boolean;
+    canvasBg: CanvasBg;
+  };
+};
+
+export const THEME_PRESETS: ThemePreset[] = [
+  {
+    id: "classic",
+    label: "클래식",
+    description: "손그림 마인드맵 — 라인 노드 + 붓 가지",
+    swatch: ["#f59e0b", "#10b981"],
+    settings: {
+      nodeStyle: "line",
+      edgeStyle: "taper",
+      edgeWidth: 3,
+      edgeColorMode: "node",
+      edgeLine: "solid",
+      edgeAnimated: false,
+      rainbowBranches: true,
+      nodeTint: false,
+      canvasBg: "none",
+    },
+  },
+  {
+    id: "minimal",
+    label: "미니멀",
+    description: "여백 + 얇은 곡선 — 모노크롬",
+    swatch: ["#94a3b8", "#e2e8f0"],
+    settings: {
+      nodeStyle: "card",
+      edgeStyle: "curved",
+      edgeWidth: 1.5,
+      edgeColorMode: "default",
+      edgeLine: "solid",
+      edgeAnimated: false,
+      rainbowBranches: false,
+      nodeTint: false,
+      canvasBg: "none",
+    },
+  },
+  {
+    id: "vivid",
+    label: "비비드",
+    description: "굵은 컬러 가지 + 색 채움",
+    swatch: ["#6366f1", "#ec4899"],
+    settings: {
+      nodeStyle: "soft",
+      edgeStyle: "curved",
+      edgeWidth: 3,
+      edgeColorMode: "node",
+      edgeLine: "solid",
+      edgeAnimated: false,
+      rainbowBranches: true,
+      nodeTint: true,
+      canvasBg: "dots",
+    },
+  },
+  {
+    id: "sticky",
+    label: "포스트잇",
+    description: "메모지 노드 + 직각 가지",
+    swatch: ["#fbbf24", "#a3e635"],
+    settings: {
+      nodeStyle: "sticky",
+      edgeStyle: "step",
+      edgeWidth: 2,
+      edgeColorMode: "default",
+      edgeLine: "solid",
+      edgeAnimated: false,
+      rainbowBranches: true,
+      // sticky's paper fill is intrinsic to the style — tint stays off.
+      nodeTint: false,
+      canvasBg: "cross",
+    },
+  },
+  {
+    id: "neon",
+    label: "네온",
+    description: "발광 노드 + 흐르는 가지 (다크 추천)",
+    swatch: ["#22d3ee", "#a855f7"],
+    settings: {
+      nodeStyle: "neon",
+      edgeStyle: "curved",
+      edgeWidth: 2,
+      edgeColorMode: "node",
+      edgeLine: "solid",
+      edgeAnimated: true,
+      rainbowBranches: true,
+      nodeTint: false,
+      canvasBg: "none",
+    },
+  },
+  {
+    id: "pro",
+    label: "프로",
+    description: "윤곽선 + 직각 — 다이어그램 느낌",
+    swatch: ["#475569", "#0ea5e9"],
+    settings: {
+      nodeStyle: "outline",
+      edgeStyle: "step",
+      edgeWidth: 2,
+      edgeColorMode: "default",
+      edgeLine: "solid",
+      edgeAnimated: false,
+      rainbowBranches: false,
+      nodeTint: false,
+      canvasBg: "lines",
+    },
+  },
 ];
 
 export type LayoutOption = {
