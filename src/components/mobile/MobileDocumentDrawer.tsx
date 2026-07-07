@@ -33,13 +33,22 @@ export function MobileDocumentDrawer() {
   return (
     <AnimatePresence>
       {open && (
-        <motion.div
-          initial={{ x: "-100%" }}
-          animate={{ x: 0 }}
-          exit={{ x: "-100%" }}
-          transition={{ type: "spring", damping: 34, stiffness: 320 }}
-          className="fixed inset-0 z-[120] flex flex-col bg-surface-base"
-        >
+        <>
+          {/* Dim backdrop — the canvas stays visible; tap to close. */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[119] bg-slate-950/40 backdrop-blur-sm"
+            onClick={() => setOpen(false)}
+          />
+          <motion.div
+            initial={{ x: "-100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "-100%" }}
+            transition={{ type: "spring", damping: 34, stiffness: 320 }}
+            className="fixed inset-y-0 left-0 z-[120] flex w-[82%] max-w-sm flex-col rounded-r-3xl border-r border-line bg-surface-base shadow-float"
+          >
           <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-4 pt-[env(safe-area-inset-top)]">
             <h2 className="text-base font-semibold text-ink">문서</h2>
             <button
@@ -123,7 +132,8 @@ export function MobileDocumentDrawer() {
               </Button>
             </div>
           </div>
-        </motion.div>
+          </motion.div>
+        </>
       )}
     </AnimatePresence>
   );
