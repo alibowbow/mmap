@@ -98,7 +98,7 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -4 }}
             transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl border border-line bg-surface-overlay/95 p-3 shadow-float backdrop-blur-xl"
+            className="absolute right-0 top-full z-50 mt-2 max-h-[min(72vh,620px)] w-64 overflow-y-auto mf-scroll rounded-2xl border border-line bg-surface-overlay/95 p-3 shadow-float backdrop-blur-xl"
           >
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
               테마 프리셋

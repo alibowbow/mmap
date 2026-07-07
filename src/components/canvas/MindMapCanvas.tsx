@@ -294,9 +294,15 @@ function CanvasInner() {
       if (edge.type === "relation") {
         e.stopPropagation();
         selectRelation(edge.id);
+        return;
       }
+      // Tree edge (가지): select the CHILD node — the branch head. Branch
+      // color/label/thickness all live on the child, so this puts the quick
+      // bar (palette, edit, delete) one tap away from any branch line.
+      e.stopPropagation();
+      selectNode(edge.target);
     },
-    [selectRelation]
+    [selectRelation, selectNode]
   );
 
   // Subtree drag: if the long-press armed this node, capture its descendants so
