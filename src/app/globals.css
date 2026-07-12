@@ -137,6 +137,19 @@ body {
     );
 }
 
+/* ── Brand ──────────────────────────────────────────────────────────────────
+   The MindForge signature gradient. Fixed (not accent-driven): the brand keeps
+   its identity even when the workspace accent changes. */
+.mf-brand-bg {
+  background-image: linear-gradient(135deg, #6366f1, #8b5cf6);
+}
+.mf-brand-text {
+  background-image: linear-gradient(120deg, #6366f1, #8b5cf6 60%, #a78bfa);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 /* Glassmorphism helper */
 .mf-glass {
   background: rgb(var(--surface-overlay) / 0.72);

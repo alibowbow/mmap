@@ -10,7 +10,6 @@ import {
   Menu,
   Redo2,
   Search,
-  Sparkles,
   Undo2,
   X,
 } from "lucide-react";
@@ -39,6 +38,7 @@ import { CommandPalette } from "@/components/toolbar/CommandPalette";
 import { FloatingToolbar } from "@/components/toolbar/FloatingToolbar";
 import { NodeContextMenu } from "@/components/toolbar/NodeContextMenu";
 import { TutorialCoach } from "@/components/tutorial/TutorialCoach";
+import { BrandMark } from "@/components/ui/BrandMark";
 import { Button } from "@/components/ui/Button";
 import { ToastViewport } from "@/components/ui/Toast";
 import { useDebouncedEffect } from "@/hooks/useDebouncedEffect";
@@ -155,6 +155,14 @@ function PresentationControls() {
         />
       </div>
 
+      {/* Subtle brand chip — presentations are a share-facing surface. */}
+      <div className="pointer-events-none absolute bottom-7 left-4 flex items-center gap-1.5 opacity-60">
+        <BrandMark size={14} className="rounded" />
+        <span className="text-[11px] font-semibold tracking-tight text-ink-faint">
+          MindForge
+        </span>
+      </div>
+
       {/* Current node caption */}
       {node && (
         <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 flex max-w-[80vw] items-center gap-2 rounded-full mf-glass border border-line px-4 py-1.5 text-sm font-medium text-ink shadow-soft">
@@ -229,12 +237,14 @@ function OnboardingHint({ mobile }: { mobile: boolean }) {
           )}
         >
           <div className="mb-1.5 flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand/15 text-brand">
-              <Sparkles size={16} />
-            </span>
-            <span className="text-sm font-semibold text-ink">
-              MindForge에 오신 걸 환영해요
-            </span>
+            <BrandMark size={26} className="shrink-0 rounded-lg" />
+            <div className="flex flex-col leading-tight">
+              <span className="text-sm font-semibold text-ink">
+                <span className="mf-brand-text font-bold">MindForge</span>에 오신
+                걸 환영해요
+              </span>
+              <span className="text-[10px] text-ink-faint">생각을 벼리다</span>
+            </div>
           </div>
           <p className="text-xs leading-relaxed text-ink-soft">
             {mobile
@@ -401,6 +411,25 @@ export function AppShell() {
       className="flex h-[100dvh] w-full overflow-hidden bg-surface-base text-ink"
       style={{ fontFamily: fontFamilyFor(font) }}
     >
+      {/* Brand splash while the workspace hydrates from storage. */}
+      <AnimatePresence>
+        {!hydrated && (
+          <motion.div
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35 }}
+            className="fixed inset-0 z-[200] flex flex-col items-center justify-center gap-2.5 bg-surface-base"
+          >
+            <BrandMark size={46} className="rounded-xl shadow-float" />
+            <span className="mf-brand-text text-lg font-bold tracking-tight">
+              MindForge
+            </span>
+            <span className="text-[11px] tracking-wide text-ink-faint">
+              생각을 벼리다
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Desktop sidebar (inline) */}
       {showDesktopChrome && !sidebarCollapsed && <Sidebar />}
 

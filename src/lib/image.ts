@@ -77,11 +77,29 @@ export async function renderCanvasImage(
   // a real viewBox/size/position that covers the content (keeps it aligned with
   // the absolutely-positioned nodes), then restore afterwards.
   const restoreEdges = expandEdgesSvg(viewportEl, bounds);
+  // A quiet brand credit in the exported image's bottom-right corner. Sized
+  // against the zoom so it stays ~11px in the OUTPUT regardless of map scale.
+  const watermark = document.createElement("div");
+  watermark.textContent = "Made with MindForge";
+  Object.assign(watermark.style, {
+    position: "absolute",
+    left: `${bounds.x + bounds.width}px`,
+    top: `${bounds.y + bounds.height + 18 / vp.zoom}px`,
+    transform: "translateX(-100%)",
+    fontSize: `${11 / vp.zoom}px`,
+    fontWeight: "600",
+    letterSpacing: "0.02em",
+    color: "rgba(120, 130, 150, 0.55)",
+    whiteSpace: "nowrap",
+    pointerEvents: "none",
+  } as Partial<CSSStyleDeclaration>);
+  viewportEl.appendChild(watermark);
   try {
     return await (format === "png"
       ? toPng(viewportEl, options)
       : toSvg(viewportEl, options));
   } finally {
+    watermark.remove();
     restoreEdges();
   }
 }

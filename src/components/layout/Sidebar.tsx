@@ -9,7 +9,6 @@ import {
   FilePlus2,
   LayoutTemplate,
   MoreHorizontal,
-  PanelLeft,
   Pencil,
   Pin,
   PinOff,
@@ -17,6 +16,8 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+
+import { BrandMark } from "@/components/ui/BrandMark";
 import { useMemo, useState } from "react";
 
 import { OutlinePanel } from "@/components/panels/OutlinePanel";
@@ -202,13 +203,16 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
     >
       {/* Brand header */}
       <div className="flex items-center justify-between px-4 h-14 border-b border-line/60">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 text-white shadow-sm">
-            <PanelLeft size={15} />
+        <div className="flex items-center gap-2.5">
+          <BrandMark size={26} className="shrink-0 rounded-lg shadow-sm" />
+          <div className="flex flex-col justify-center leading-none">
+            <span className="mf-brand-text text-[15px] font-bold tracking-tight">
+              MindForge
+            </span>
+            <span className="mt-0.5 text-[9px] font-medium tracking-wide text-ink-faint">
+              생각을 벼리다
+            </span>
           </div>
-          <span className="font-semibold text-ink tracking-tight">
-            MindForge
-          </span>
         </div>
         {!inDrawer && (
           <button

@@ -4,9 +4,19 @@ import "@xyflow/react/dist/style.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MindForge — 고급 마인드맵",
+  title: "MindForge — 생각을 벼리다",
   description:
-    "아이디어, 리서치, 기획, 공부, 투자 아이디어를 정리하는 고급 마인드맵 생산성 도구.",
+    "아이디어를 잇고, 다듬고, 벼려내는 마인드맵. 서버 없이 링크 하나로 공유되는 나만의 생각 대장간, MindForge.",
+  applicationName: "MindForge",
+  appleWebApp: { title: "MindForge", capable: true, statusBarStyle: "default" },
+  openGraph: {
+    title: "MindForge — 생각을 벼리다",
+    description:
+      "아이디어를 잇고, 다듬고, 벼려내는 마인드맵. 링크 하나로 공유하세요.",
+    siteName: "MindForge",
+    type: "website",
+    locale: "ko_KR",
+  },
 };
 
 export const viewport: Viewport = {
