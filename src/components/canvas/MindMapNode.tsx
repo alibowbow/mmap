@@ -81,7 +81,8 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   // Visual style (workspace-wide). Unknown ids (e.g. from an older or newer
   // stored workspace) fall back to card.
   const KNOWN_STYLES = ["card", "soft", "outline", "line", "pill", "sticky", "neon"];
-  const style = KNOWN_STYLES.includes(nodeStyle) ? nodeStyle : "card";
+  const requestedStyle = d.style ?? nodeStyle;
+  const style = KNOWN_STYLES.includes(requestedStyle) ? requestedStyle : "card";
   const isLine = style === "line";
   const isOutline = style === "outline";
   const isPill = style === "pill";
