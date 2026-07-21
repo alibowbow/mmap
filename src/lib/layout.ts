@@ -16,8 +16,12 @@ type Size = { width: number; height: number };
 // below, so these values are true gaps rather than guesses at card size.
 const SIBLING_GAP = Math.max(LAYOUT_GAP_Y, 28);
 const LEVEL_GAP = Math.max(LAYOUT_GAP_X, 48);
-const RADIAL_CLEARANCE = 28;
-const RADIAL_MAX_PASSES = 18;
+const RADIAL_CLEARANCE = 12;
+const RADIAL_LEVEL_GAP = 16;
+const RADIAL_MAX_ASPECT = 2.2;
+const RADIAL_MIN_ASPECT = 1.15;
+const RADIAL_PIXEL_EPSILON = 0.25;
+const RADIAL_SCALE_EPSILON = 1e-6;
 
 function finiteDimension(value: number | undefined, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0
@@ -53,8 +57,11 @@ function stackHidden(
   positions: PosMap
 ) {
   const stack = [...(childrenMap.get(nodeId) ?? [])];
+  const seen = new Set<string>([nodeId]);
   while (stack.length) {
     const cur = stack.pop()!;
+    if (seen.has(cur.id)) continue;
+    seen.add(cur.id);
     positions[cur.id] = { ...pos };
     const kids = childrenMap.get(cur.id);
     if (kids) stack.push(...kids);
@@ -347,71 +354,41 @@ export function layoutVerticalTree(
 }
 
 // ── Radial tidy tree ───────────────────────────────────────────────────────
-function boxesOverlap(
-  a: MindMapNode,
-  b: MindMapNode,
-  positions: PosMap,
-  gap: number
-) {
-  const ap = positions[a.id];
-  const bp = positions[b.id];
-  if (!ap || !bp) return false;
-  const as = sizeOf(a);
-  const bs = sizeOf(b);
-  return (
-    ap.x < bp.x + bs.width + gap &&
-    ap.x + as.width + gap > bp.x &&
-    ap.y < bp.y + bs.height + gap &&
-    ap.y + as.height + gap > bp.y
-  );
+type RadialMeta = { depth: number; angle: number };
+type Interval = { start: number; end: number };
+
+// Return the scale interval where one axis overlaps a fixed inner card. The
+// current ring's center coordinate is `coefficient * scale`.
+function overlapInterval(
+  coefficient: number,
+  fixedCenter: number,
+  clearance: number
+): Interval | null {
+  if (Math.abs(coefficient) < 1e-9) {
+    return Math.abs(fixedCenter) < clearance
+      ? { start: Number.NEGATIVE_INFINITY, end: Number.POSITIVE_INFINITY }
+      : null;
+  }
+  const first = (fixedCenter - clearance) / coefficient;
+  const second = (fixedCenter + clearance) / coefficient;
+  return {
+    start: Math.min(first, second),
+    end: Math.max(first, second),
+  };
 }
 
-function hasOverlap(
-  visible: MindMapNode[],
-  positions: PosMap,
-  gap = RADIAL_CLEARANCE
-) {
-  // Spatial buckets keep this close to O(n) for large maps. A pair can share
-  // multiple cells, so candidate indexes are de-duplicated per node.
-  let cellSize = 64;
-  for (const node of visible) {
-    const size = sizeOf(node);
-    cellSize = Math.max(cellSize, size.width + gap, size.height + gap);
+// Pick the nearest scale not covered by any collision interval. This resolves
+// every inner-ring collision in one deterministic pass instead of repeatedly
+// inflating the whole map by a percentage.
+function firstAvailableScale(minScale: number, intervals: Interval[]): number {
+  intervals.sort((a, b) => a.start - b.start || a.end - b.end);
+  let scale = minScale;
+  for (const interval of intervals) {
+    if (interval.end <= scale) continue;
+    if (interval.start >= scale) break;
+    scale = interval.end + RADIAL_SCALE_EPSILON;
   }
-  const cells = new Map<string, number[]>();
-  for (let index = 0; index < visible.length; index += 1) {
-    const node = visible[index];
-    const pos = positions[node.id];
-    if (!pos) continue;
-    const size = sizeOf(node);
-    const minCellX = Math.floor((pos.x - gap) / cellSize);
-    const maxCellX = Math.floor((pos.x + size.width + gap) / cellSize);
-    const minCellY = Math.floor((pos.y - gap) / cellSize);
-    const maxCellY = Math.floor((pos.y + size.height + gap) / cellSize);
-    const candidates = new Set<number>();
-
-    for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
-      for (let cellY = minCellY; cellY <= maxCellY; cellY += 1) {
-        const key = `${cellX}:${cellY}`;
-        for (const otherIndex of cells.get(key) ?? []) {
-          candidates.add(otherIndex);
-        }
-      }
-    }
-    for (const otherIndex of candidates) {
-      if (boxesOverlap(node, visible[otherIndex], positions, gap)) return true;
-    }
-
-    for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
-      for (let cellY = minCellY; cellY <= maxCellY; cellY += 1) {
-        const key = `${cellX}:${cellY}`;
-        const bucket = cells.get(key);
-        if (bucket) bucket.push(index);
-        else cells.set(key, [index]);
-      }
-    }
-  }
-  return false;
+  return scale;
 }
 
 export function layoutRadialTree(
@@ -446,109 +423,173 @@ export function layoutRadialTree(
     }
   }
 
-  // Each ring starts beyond the actual dimensions of the adjacent rings.
-  // Extra horizontal/vertical clearance preserves the familiar ellipse while
-  // accounting for cards being much wider than they are tall.
-  const ringX = [0];
-  const ringY = [0];
-  for (let depth = 1; depth < widths.length; depth += 1) {
-    ringX[depth] =
-      ringX[depth - 1] +
-      ((widths[depth - 1] ?? NODE_WIDTH) +
-        (widths[depth] ?? NODE_WIDTH)) /
-        2 +
-      LEVEL_GAP +
-      94;
-    ringY[depth] =
-      ringY[depth - 1] +
-      ((heights[depth - 1] ?? NODE_HEIGHT) +
-        (heights[depth] ?? NODE_HEIGHT)) /
-        2 +
-      SIBLING_GAP +
-      102;
-  }
-
-  // A crowded ring needs enough perimeter for every card on that ring. Start
-  // with that analytical lower bound so even a very broad map converges in a
-  // handful of collision passes rather than expanding 14% dozens of times.
-  const ringScale = ringX.map((radiusX, depth) => {
-    if (depth === 0 || radiusX <= 0) return 1;
-    const radiusY = ringY[depth] ?? radiusX;
-    const perimeter =
-      Math.PI *
-      (3 * (radiusX + radiusY) -
-        Math.sqrt((3 * radiusX + radiusY) * (radiusX + 3 * radiusY)));
-    const needed = (visibleByDepth.get(depth) ?? []).reduce((sum, node) => {
-      const size = sizeOf(node);
-      return sum + Math.hypot(size.width, size.height) + RADIAL_CLEARANCE;
-    }, 0);
-    return Math.max(1, needed / Math.max(perimeter, 1));
-  });
-
   const leafCache = new Map<string, number>();
+  const leafInProgress = new Set<string>();
   const leafCount = (nodeId: string): number => {
     const cached = leafCache.get(nodeId);
     if (cached !== undefined) return cached;
+    if (leafInProgress.has(nodeId)) return 1;
     const node = nodeMap.get(nodeId);
     if (!node) return 1;
+    leafInProgress.add(nodeId);
     const kids = visibleChildren(childrenMap, node);
     const count = kids.length
       ? kids.reduce((sum, child) => sum + leafCount(child.id), 0)
       : 1;
+    leafInProgress.delete(nodeId);
     leafCache.set(nodeId, count);
     return count;
   };
 
-  let positions: PosMap = {};
-  const placeAtScale = (scale: number) => {
-    const next: PosMap = {};
-    const place = (
-      nodeId: string,
-      depth: number,
-      startAngle: number,
-      endAngle: number
-    ) => {
-      const node = nodeMap.get(nodeId);
-      if (!node) return;
-      const own = sizeOf(node);
-      const mid = (startAngle + endAngle) / 2;
-      const depthScale = ringScale[depth] ?? 1;
-      const centerX =
-        Math.cos(mid) * (ringX[depth] ?? 0) * depthScale * scale;
-      const centerY =
-        Math.sin(mid) * (ringY[depth] ?? 0) * depthScale * scale;
-      const pos = {
-        x: centerX - own.width / 2,
-        y: centerY - own.height / 2,
-      };
-      next[nodeId] = pos;
-
-      const kids = visibleChildren(childrenMap, node);
-      if (!kids.length) {
-        if (node.data.collapsed) {
-          stackHidden(childrenMap, nodeId, pos, next);
-        }
-        return;
-      }
-      const total = kids.reduce((sum, child) => sum + leafCount(child.id), 0);
-      let cursor = startAngle;
-      for (const child of kids) {
-        const span = ((endAngle - startAngle) * leafCount(child.id)) / total;
-        place(child.id, depth + 1, cursor, cursor + span);
-        cursor += span;
-      }
-    };
-    place(root.id, 0, 0, Math.PI * 2);
-    return next;
+  // Keep the existing leaf-weighted branch order, but separate angle
+  // assignment from radius sizing so each depth can be fitted independently.
+  const radialMeta = new Map<string, RadialMeta>();
+  const angleAssigned = new Set<string>();
+  const assignAngles = (
+    nodeId: string,
+    depth: number,
+    startAngle: number,
+    endAngle: number
+  ) => {
+    const node = nodeMap.get(nodeId);
+    if (!node || angleAssigned.has(nodeId)) return;
+    angleAssigned.add(nodeId);
+    radialMeta.set(nodeId, {
+      depth,
+      angle: (startAngle + endAngle) / 2,
+    });
+    const kids = visibleChildren(childrenMap, node);
+    if (!kids.length) return;
+    const total = kids.reduce((sum, child) => sum + leafCount(child.id), 0);
+    let cursor = startAngle;
+    for (const child of kids) {
+      const span = ((endAngle - startAngle) * leafCount(child.id)) / total;
+      assignAngles(child.id, depth + 1, cursor, cursor + span);
+      cursor += span;
+    }
   };
+  assignAngles(root.id, 0, 0, Math.PI * 2);
 
-  let scale = 1;
-  for (let pass = 0; pass < RADIAL_MAX_PASSES; pass += 1) {
-    positions = placeAtScale(scale);
-    if (!hasOverlap(visible, positions)) break;
-    // Expand the entire set of rings rather than nudging individual cards;
-    // branch order and radial symmetry stay intact while collisions disappear.
-    scale *= 1.14;
+  const ringX = [0];
+  const ringY = [0];
+  const centers = new Map<string, Point>([[root.id, { x: 0, y: 0 }]]);
+
+  // Solve rings from the inside out. Nodes on the same ring have centers that
+  // scale linearly from the origin, so the exact AABB clearance for each pair
+  // is `min(requiredX / deltaX, requiredY / deltaY)`. Only the larger of those
+  // pair requirements is needed for the complete ring.
+  for (let depth = 1; depth < widths.length; depth += 1) {
+    let baseX =
+      ringX[depth - 1] +
+      ((widths[depth - 1] ?? NODE_WIDTH) +
+        (widths[depth] ?? NODE_WIDTH)) /
+        2 +
+      RADIAL_LEVEL_GAP;
+    let baseY =
+      ringY[depth - 1] +
+      ((heights[depth - 1] ?? NODE_HEIGHT) +
+        (heights[depth] ?? NODE_HEIGHT)) /
+        2 +
+      RADIAL_LEVEL_GAP;
+
+    // Extremely flat ellipses make branches hard to read. These bounds keep
+    // the compact result recognisably radial without reintroducing wide gaps.
+    if (baseX / baseY > RADIAL_MAX_ASPECT) baseY = baseX / RADIAL_MAX_ASPECT;
+    if (baseX / baseY < RADIAL_MIN_ASPECT) baseX = baseY * RADIAL_MIN_ASPECT;
+
+    const group = visibleByDepth.get(depth) ?? [];
+    let minScale = 1;
+    for (let first = 0; first < group.length; first += 1) {
+      const firstMeta = radialMeta.get(group[first].id);
+      if (!firstMeta) continue;
+      const firstSize = sizeOf(group[first]);
+      for (let second = first + 1; second < group.length; second += 1) {
+        const secondMeta = radialMeta.get(group[second].id);
+        if (!secondMeta) continue;
+        const secondSize = sizeOf(group[second]);
+        const deltaX =
+          baseX *
+          Math.abs(Math.cos(firstMeta.angle) - Math.cos(secondMeta.angle));
+        const deltaY =
+          baseY *
+          Math.abs(Math.sin(firstMeta.angle) - Math.sin(secondMeta.angle));
+        const requiredX =
+          (firstSize.width + secondSize.width) / 2 +
+          RADIAL_CLEARANCE +
+          RADIAL_PIXEL_EPSILON;
+        const requiredY =
+          (firstSize.height + secondSize.height) / 2 +
+          RADIAL_CLEARANCE +
+          RADIAL_PIXEL_EPSILON;
+        const scaleX = deltaX > 1e-9 ? requiredX / deltaX : Infinity;
+        const scaleY = deltaY > 1e-9 ? requiredY / deltaY : Infinity;
+        minScale = Math.max(minScale, Math.min(scaleX, scaleY));
+      }
+    }
+
+    // A ring can still cross a card on an earlier ring. Each such collision is
+    // an interval of forbidden scales; skip their merged union to land at the
+    // nearest collision-free radius instead of moving every ring outward.
+    const intervals: Interval[] = [];
+    for (const node of group) {
+      const meta = radialMeta.get(node.id);
+      if (!meta) continue;
+      const own = sizeOf(node);
+      const coefficientX = baseX * Math.cos(meta.angle);
+      const coefficientY = baseY * Math.sin(meta.angle);
+      for (let innerDepth = 0; innerDepth < depth; innerDepth += 1) {
+        for (const inner of visibleByDepth.get(innerDepth) ?? []) {
+          const innerCenter = centers.get(inner.id);
+          if (!innerCenter) continue;
+          const innerSize = sizeOf(inner);
+          const intervalX = overlapInterval(
+            coefficientX,
+            innerCenter.x,
+            (own.width + innerSize.width) / 2 +
+              RADIAL_CLEARANCE +
+              RADIAL_PIXEL_EPSILON
+          );
+          if (!intervalX) continue;
+          const intervalY = overlapInterval(
+            coefficientY,
+            innerCenter.y,
+            (own.height + innerSize.height) / 2 +
+              RADIAL_CLEARANCE +
+              RADIAL_PIXEL_EPSILON
+          );
+          if (!intervalY) continue;
+          const start = Math.max(intervalX.start, intervalY.start, 0);
+          const end = Math.min(intervalX.end, intervalY.end);
+          if (start < end && end >= minScale) intervals.push({ start, end });
+        }
+      }
+    }
+
+    const scale = firstAvailableScale(minScale, intervals);
+    ringX[depth] = baseX * scale;
+    ringY[depth] = baseY * scale;
+    for (const node of group) {
+      const meta = radialMeta.get(node.id);
+      if (!meta) continue;
+      centers.set(node.id, {
+        x: Math.cos(meta.angle) * ringX[depth],
+        y: Math.sin(meta.angle) * ringY[depth],
+      });
+    }
+  }
+
+  const positions: PosMap = {};
+  for (const node of visible) {
+    const meta = radialMeta.get(node.id);
+    if (!meta) continue;
+    const own = sizeOf(node);
+    const center = centers.get(node.id) ?? { x: 0, y: 0 };
+    const pos = {
+      x: center.x - own.width / 2,
+      y: center.y - own.height / 2,
+    };
+    positions[node.id] = pos;
+    if (node.data.collapsed) stackHidden(childrenMap, node.id, pos, positions);
   }
 
   return applyPositions(nodes, positions, root.id);
