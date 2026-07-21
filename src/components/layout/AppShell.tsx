@@ -7,6 +7,7 @@ import {
   Command,
   Eye,
   EyeOff,
+  LayoutGrid,
   Menu,
   Redo2,
   Search,
@@ -68,6 +69,7 @@ function MobileTopbar() {
   const openCommandPalette = useMindMapStore((s) => s.openCommandPalette);
   const undo = useMindMapStore((s) => s.undo);
   const redo = useMindMapStore((s) => s.redo);
+  const autoLayout = useMindMapStore((s) => s.autoLayout);
   const canUndo = useMindMapStore((s) => s.history.length > 0);
   const canRedo = useMindMapStore((s) => s.future.length > 0);
 
@@ -104,6 +106,14 @@ function MobileTopbar() {
         className={iconBtn}
       >
         <Redo2 size={18} />
+      </button>
+      <button
+        onClick={() => autoLayout()}
+        aria-label="겹침 없이 자동 배열"
+        title="자동 배열"
+        className={iconBtn}
+      >
+        <LayoutGrid size={18} />
       </button>
       <button
         onClick={() => setSearchOpen(true)}

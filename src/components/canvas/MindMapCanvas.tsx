@@ -80,6 +80,17 @@ function CanvasInner() {
   const reparentNode = useMindMapStore((s) => s.reparentNode);
 
   const [miniMapOpen, setMiniMapOpen] = useState(false);
+  // React Flow can emit click/context-menu events immediately after a drag.
+  // Keep the dragged node's menu blocked until the gesture is over and the
+  // user deliberately clicks/taps it again.
+  const [menuBlockedNodeId, setMenuBlockedNodeId] = useState<string | null>(
+    null
+  );
+  const dragMenuGuard = useRef<{ nodeId: string; until: number } | null>(null);
+  const dragMenuIsSuppressed = useCallback((nodeId: string) => {
+    const guard = dragMenuGuard.current;
+    return !!guard && guard.nodeId === nodeId && Date.now() < guard.until;
+  }, []);
   // Tracks an in-progress subtree drag (descendants follow the dragged node).
   const subtreeDrag = useRef<{
     id: string;
@@ -150,6 +161,7 @@ function CanvasInner() {
         _depth: depths.get(n.id) ?? 0,
         _dimmed: presentationMode && currentId !== null && n.id !== currentId,
         _autoColor: autoColorOf.get(n.id),
+        _suppressMenu: menuBlockedNodeId === n.id,
       },
     }));
     const horizontalFaces = (dx: number) =>
@@ -235,35 +247,62 @@ function CanvasInner() {
     activeLayoutMode,
     rainbowBranches,
     focusModeNodeId,
+    menuBlockedNodeId,
   ]);
 
   const onNodeClick = useCallback(
     (e: React.MouseEvent, node: Node) => {
+      if (dragMenuIsSuppressed(node.id)) {
+        e.stopPropagation();
+        closeContextMenu();
+        return;
+      }
+      // This is a new, intentional click after the drag guard expired.
+      if (menuBlockedNodeId === node.id) setMenuBlockedNodeId(null);
       // Shift / Cmd / Ctrl + click toggles multi-selection.
       if (e.shiftKey || e.metaKey || e.ctrlKey) toggleNodeSelection(node.id);
       else selectNode(node.id);
       closeContextMenu();
     },
-    [selectNode, toggleNodeSelection, closeContextMenu]
+    [
+      selectNode,
+      toggleNodeSelection,
+      closeContextMenu,
+      dragMenuIsSuppressed,
+      menuBlockedNodeId,
+    ]
   );
 
   const onNodeDoubleClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
+      if (dragMenuIsSuppressed(node.id)) return;
+      if (menuBlockedNodeId === node.id) setMenuBlockedNodeId(null);
       if (isMobile) {
         setEditingNode(node.id);
       } else {
         setEditingNode(node.id);
       }
     },
-    [setEditingNode, isMobile]
+    [
+      setEditingNode,
+      isMobile,
+      dragMenuIsSuppressed,
+      menuBlockedNodeId,
+    ]
   );
 
   const onNodeContextMenu = useCallback(
     (e: React.MouseEvent, node: Node) => {
       e.preventDefault();
-      // A long-press that armed (or started) a subtree drag must not also open
-      // the context menu / mobile sheet.
-      if (armedDrag.armedId || subtreeDrag.current) return;
+      // A long-press that armed, started, or just finished a drag must not also
+      // open the context menu / mobile detail sheet.
+      if (
+        armedDrag.armedId ||
+        subtreeDrag.current ||
+        dragMenuIsSuppressed(node.id)
+      )
+        return;
+      if (menuBlockedNodeId === node.id) setMenuBlockedNodeId(null);
       if (isMobile) {
         // On mobile a long-press opens the detail sheet instead of a menu.
         selectNode(node.id);
@@ -272,10 +311,18 @@ function CanvasInner() {
       }
       openContextMenu(node.id, e.clientX, e.clientY);
     },
-    [openContextMenu, isMobile, selectNode, setMobileSheetOpen]
+    [
+      openContextMenu,
+      isMobile,
+      selectNode,
+      setMobileSheetOpen,
+      dragMenuIsSuppressed,
+      menuBlockedNodeId,
+    ]
   );
 
   const onPaneClick = useCallback(() => {
+    setMenuBlockedNodeId(null);
     selectNode(null);
     selectRelation(null);
     closeContextMenu();
@@ -300,6 +347,7 @@ function CanvasInner() {
       // color/label/thickness all live on the child, so this puts the quick
       // bar (palette, edit, delete) one tap away from any branch line.
       e.stopPropagation();
+      setMenuBlockedNodeId(null);
       selectNode(edge.target);
     },
     [selectRelation, selectNode]
@@ -310,6 +358,16 @@ function CanvasInner() {
   const onNodeDragStart = useCallback(
     (_: MouseEvent | TouchEvent, node: Node) => {
       const state = useMindMapStore.getState();
+      // Hide any already-open menu and suppress the quick bar for this node.
+      // `Infinity` keeps synthetic contextmenu/click events blocked until the
+      // drag-stop handler replaces it with a short post-gesture guard.
+      dragMenuGuard.current = {
+        nodeId: node.id,
+        until: Number.POSITIVE_INFINITY,
+      };
+      setMenuBlockedNodeId(node.id);
+      closeContextMenu();
+      setMobileSheetOpen(false);
       // Snapshot once so the whole drag (move / subtree / re-parent) is one undo.
       pushHistory();
       const descIds = getDescendantIds(state.nodes, node.id);
@@ -324,7 +382,7 @@ function CanvasInner() {
         subtreeDrag.current = null;
       }
     },
-    [pushHistory]
+    [pushHistory, closeContextMenu, setMobileSheetOpen]
   );
 
   const onNodeDrag = useCallback(
@@ -368,6 +426,10 @@ function CanvasInner() {
 
   const onNodeDragStop = useCallback(
     (_: MouseEvent | TouchEvent, node: Node) => {
+      // Some browsers dispatch contextmenu/click after pointerup. Keep those
+      // synthetic events out, while allowing a later deliberate tap.
+      dragMenuGuard.current = { nodeId: node.id, until: Date.now() + 450 };
+      setMenuBlockedNodeId(node.id);
       const targetId = useMindMapStore.getState().dropTargetId;
       if (targetId && !subtreeDrag.current) {
         reparentNode(node.id, targetId);

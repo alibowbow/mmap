@@ -40,7 +40,7 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function MindMapNodeComponent({ id, data, selected }: NodeProps) {
+function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
   const d = data as MindMapNodeData;
   const editingNodeId = useMindMapStore((s) => s.editingNodeId);
   const searchQuery = useMindMapStore((s) => s.searchQuery);
@@ -60,13 +60,15 @@ function MindMapNodeComponent({ id, data, selected }: NodeProps) {
   const deleteNode = useMindMapStore((s) => s.deleteNode);
   const updateNodeData = useMindMapStore((s) => s.updateNodeData);
   // Quick bar shows only for a clean single selection outside special modes.
-  const quickBarVisible = useMindMapStore(
+  const quickBarEligible = useMindMapStore(
     (s) =>
       s.selectedNodeIds.length === 1 &&
       s.selectedNodeIds[0] === id &&
       !s.presentationMode &&
       !s.connectMode
   );
+  const quickBarVisible =
+    quickBarEligible && !dragging && !d._suppressMenu;
   const [swatchesOpen, setSwatchesOpen] = useState(false);
   // Label size depends on the node's depth (per-level sizing).
   const labelSize = fontSizeForDepth(levelFontSizes, d._depth ?? 0);

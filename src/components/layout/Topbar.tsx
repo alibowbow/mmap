@@ -3,9 +3,11 @@
 import {
   ALargeSmall,
   BarChart3,
+  ChevronDown,
   Command,
   Download,
   History,
+  LayoutGrid,
   Link2,
   Maximize,
   Monitor,
@@ -169,20 +171,43 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
 
         <div className="mx-1 h-5 w-px bg-line" />
 
+        {/* One click always reflows the current map. Layout choice remains a
+            separate compact menu so the primary action never just opens a
+            dropdown when the user needs overlapping nodes fixed now. */}
+        <Tooltip label="노드 겹침을 풀어 자동 배열">
+          <Button
+            variant="secondary"
+            size={compact ? "icon" : "sm"}
+            onClick={() => autoLayout()}
+            aria-label="겹침 없이 자동 배열"
+            className="border-brand/30 text-brand"
+          >
+            <LayoutGrid size={16} />
+            {!compact && <span>자동 배열</span>}
+          </Button>
+        </Tooltip>
+
         <Dropdown
           align="right"
           width={230}
           trigger={
-            <Button variant="ghost" size={compact ? "icon" : "sm"}>
-              <Icon
-                name={
-                  LAYOUT_OPTIONS.find((l) => l.id === activeLayoutMode)?.icon ??
-                  "ListTree"
-                }
-                size={16}
-              />
-              {!compact && <span>정렬</span>}
-            </Button>
+            <Tooltip label="배열 방식 선택">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="배열 방식 선택"
+                className="gap-0"
+              >
+                <Icon
+                  name={
+                    LAYOUT_OPTIONS.find((l) => l.id === activeLayoutMode)
+                      ?.icon ?? "ListTree"
+                  }
+                  size={15}
+                />
+                <ChevronDown size={11} className="-ml-0.5" />
+              </Button>
+            </Tooltip>
           }
           items={LAYOUT_OPTIONS.map((opt) => ({
             id: opt.id,
