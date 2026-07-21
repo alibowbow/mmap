@@ -2,13 +2,14 @@
 
 import { Check, Copy, QrCode, ShieldCheck } from "lucide-react";
 import qrcode from "qrcode-generator";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import {
   buildShareUrl,
   SHARE_QR_MAX_LEN,
+  SHARE_URL_MAX_LEN,
   SHARE_URL_WARN_LEN,
 } from "@/lib/share";
 import {
@@ -42,13 +43,32 @@ export function ShareDialog() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, doc]);
 
-  const tooLong = url.length > SHARE_URL_WARN_LEN;
+  const tooLong = url.length > SHARE_URL_MAX_LEN;
+  const nearLimit = !tooLong && url.length > SHARE_URL_WARN_LEN;
   const qr = useMemo(
-    () => (open && url && url.length <= SHARE_QR_MAX_LEN ? qrSvg(url) : null),
-    [open, url]
+    () =>
+      open && url && !tooLong && url.length <= SHARE_QR_MAX_LEN
+        ? qrSvg(url)
+        : null,
+    [open, tooLong, url]
   );
 
+  useEffect(() => {
+    if (!open || !tooLong) return;
+    addToast(
+      `해시 공유 한도(${SHARE_URL_MAX_LEN.toLocaleString()}자)를 초과했습니다. JSON 내보내기를 이용해 주세요.`,
+      "error"
+    );
+  }, [addToast, open, tooLong]);
+
   const handleCopy = async () => {
+    if (tooLong) {
+      addToast(
+        `링크가 ${url.length.toLocaleString()}자로 너무 깁니다. 해시 공유를 사용할 수 없습니다.`,
+        "error"
+      );
+      return;
+    }
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -67,7 +87,11 @@ export function ShareDialog() {
       description="서버 없이, 이 링크 하나에 맵 전체가 담깁니다."
       className="sm:max-w-lg"
       footer={
-        <Button variant="primary" onClick={handleCopy} disabled={!url}>
+        <Button
+          variant="primary"
+          onClick={handleCopy}
+          disabled={!url || tooLong}
+        >
           {copied ? <Check size={15} /> : <Copy size={15} />}
           {copied ? "복사됨" : "링크 복사"}
         </Button>
@@ -77,11 +101,17 @@ export function ShareDialog() {
       <div className="flex items-center gap-2">
         <input
           readOnly
-          value={url}
+          value={tooLong ? "해시 공유 한도 초과" : url}
           onFocus={(e) => e.currentTarget.select()}
           className="min-w-0 flex-1 rounded-xl border border-line bg-surface-sunken px-3 py-2 text-xs text-ink-soft focus:outline-none focus:ring-2 focus:ring-brand/40"
         />
-        <Button size="icon" variant="secondary" onClick={handleCopy} aria-label="링크 복사">
+        <Button
+          size="icon"
+          variant="secondary"
+          onClick={handleCopy}
+          disabled={!url || tooLong}
+          aria-label="링크 복사"
+        >
           {copied ? <Check size={15} /> : <Copy size={15} />}
         </Button>
       </div>
@@ -92,15 +122,23 @@ export function ShareDialog() {
       </div>
 
       {tooLong && (
-        <div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
-          링크가 매우 깁니다. 일부 메신저에서 잘릴 수 있어요. 큰 맵은{" "}
+        <div className="mt-3 rounded-xl border border-red-400/40 bg-red-400/10 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+          안전한 해시 공유 한도 {SHARE_URL_MAX_LEN.toLocaleString()}자를
+          초과하여 링크 복사를 막았습니다. 노드를 줄이거나{" "}
           <button
             className="font-semibold underline underline-offset-2"
             onClick={() => setDialog("export")}
           >
             내보내기
           </button>
-          를 권장합니다.
+          를 이용해 주세요.
+        </div>
+      )}
+
+      {nearLimit && (
+        <div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+          링크가 안전 한도에 가깝습니다. 일부 메신저에서는 미리보기 대신
+          링크 자체를 전송해 주세요.
         </div>
       )}
 
