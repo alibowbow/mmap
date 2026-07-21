@@ -68,6 +68,15 @@ const NODE_TYPES = [
 ] as const;
 const NODE_STATUSES = ["none", "todo", "doing", "done", "blocked"] as const;
 const BRANCH_SIDES = ["left", "right"] as const;
+const NODE_STYLES = [
+  "card",
+  "soft",
+  "outline",
+  "line",
+  "pill",
+  "sticky",
+  "neon",
+] as const;
 
 // Drop any "__proto__" key while parsing. JSON.parse doesn't pollute the
 // prototype on its own (it defines an own property), but this removes the odd
@@ -168,6 +177,7 @@ type CompactNodeExtras = {
   d?: string; // description
   s?: number; // status index
   c?: number; // color palette index
+  o?: number; // per-node style index
   i?: string; // icon
   e?: string; // emoji
   b?: number; // branch side index
@@ -237,6 +247,10 @@ function encodeCompactPayload(doc: MindMapDocument): CompactSharePayload {
       if (index >= 0) extras.s = index;
     }
     if (data.color) extras.c = internColor(data.color);
+    if (data.style) {
+      const index = NODE_STYLES.indexOf(data.style);
+      if (index >= 0) extras.o = index;
+    }
     if (data.icon) extras.i = data.icon;
     if (data.emoji) extras.e = data.emoji;
     if (data.side) {
@@ -365,6 +379,14 @@ function expandCompactPayload(
       extras.c < colors.length
     ) {
       data.color = colors[extras.c];
+    }
+    if (
+      typeof extras.o === "number" &&
+      Number.isInteger(extras.o) &&
+      extras.o >= 0 &&
+      extras.o < NODE_STYLES.length
+    ) {
+      data.style = NODE_STYLES[extras.o];
     }
     if (typeof extras.i === "string") data.icon = extras.i;
     if (typeof extras.e === "string") data.emoji = extras.e;

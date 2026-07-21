@@ -32,6 +32,10 @@ export type MindMapNodeData = {
   type: MindMapNodeType;
   status?: MindMapNodeStatus;
   color?: string;
+  // Optional per-node visual override. When absent, the workspace-wide style
+  // is used. Share links preserve this so selected hierarchy levels can keep
+  // a distinct silhouette without changing every node in the recipient's map.
+  style?: "card" | "soft" | "outline" | "line" | "pill" | "sticky" | "neon";
   icon?: string;
   emoji?: string;
   side?: BranchSide; // explicit branch direction (bidirectional layout)
