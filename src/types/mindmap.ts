@@ -53,6 +53,7 @@ export type MindMapNodeData = {
   _depth?: number; // computed depth, injected at render for per-level sizing
   _dimmed?: boolean; // presentation spotlight: fade non-current nodes
   _autoColor?: string; // rainbow-branch inherited color (explicit color wins)
+  _suppressMenu?: boolean; // transient: a drag must not summon the node menu
 };
 
 export type MindMapNode = Node<MindMapNodeData>;
