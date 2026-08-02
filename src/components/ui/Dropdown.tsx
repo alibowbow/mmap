@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { cn } from "@/lib/cn";
 
@@ -32,6 +32,18 @@ export function Dropdown({
 }: DropdownProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const menuId = useId();
+  const focusTrigger = () =>
+    ref.current?.querySelector<HTMLButtonElement>("button")?.focus();
+
+  useEffect(() => {
+    const triggerButton = ref.current?.querySelector<HTMLButtonElement>("button");
+    if (!triggerButton) return;
+    triggerButton.setAttribute("aria-haspopup", "menu");
+    triggerButton.setAttribute("aria-expanded", String(open));
+    triggerButton.setAttribute("aria-controls", menuId);
+  }, [menuId, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -43,8 +55,51 @@ export function Dropdown({
         setOpen(false);
       }
     };
+    const focusItems = () =>
+      Array.from(
+        menuRef.current?.querySelectorAll<HTMLButtonElement>(
+          'button[role="menuitem"]:not([disabled])'
+        ) ?? []
+      );
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setOpen(false);
+        focusTrigger();
+        return;
+      }
+      if (event.key === "Tab") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setOpen(false);
+        focusTrigger();
+        return;
+      }
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+      const buttons = focusItems();
+      if (buttons.length === 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      const next =
+        event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? buttons.length - 1
+            : event.key === "ArrowDown"
+              ? (current + 1 + buttons.length) % buttons.length
+              : (current - 1 + buttons.length) % buttons.length;
+      buttons[next]?.focus();
+    };
+    const frame = requestAnimationFrame(() => focusItems()[0]?.focus());
     document.addEventListener("pointerdown", onDown, true);
-    return () => document.removeEventListener("pointerdown", onDown, true);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, [open]);
 
   return (
@@ -62,6 +117,9 @@ export function Dropdown({
       <AnimatePresence>
         {open && (
           <motion.div
+            ref={menuRef}
+            id={menuId}
+            role="menu"
             initial={{ opacity: 0, scale: 0.96, y: -4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -4 }}
@@ -75,14 +133,18 @@ export function Dropdown({
             {items.map((item) => (
               <button
                 key={item.id}
+                role="menuitem"
+                tabIndex={-1}
+                aria-current={item.active ? "true" : undefined}
                 disabled={item.disabled}
                 onClick={(e) => {
                   e.stopPropagation();
                   item.onSelect?.();
                   setOpen(false);
+                  requestAnimationFrame(focusTrigger);
                 }}
                 className={cn(
-                  "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-left transition",
+                  "flex min-h-11 w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm transition",
                   "hover:bg-surface-raised disabled:opacity-40 disabled:pointer-events-none",
                   item.danger ? "text-red-500" : "text-ink",
                   item.active && "bg-surface-raised font-medium"

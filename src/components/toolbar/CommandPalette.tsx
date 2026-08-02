@@ -2,9 +2,10 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Search } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Icon } from "@/components/ui/Icon";
+import { useDialogFocus } from "@/hooks/useDialogFocus";
 import { cn } from "@/lib/cn";
 import { filterCommands } from "@/lib/commands";
 import { useMindMapStore } from "@/store/mindMapStore";
@@ -17,7 +18,7 @@ export function CommandPalette() {
 
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useDialogFocus<HTMLDivElement>(open, close);
 
   const results = useMemo(() => filterCommands(query), [query]);
 
@@ -25,7 +26,6 @@ export function CommandPalette() {
     if (open) {
       setQuery("");
       setActive(0);
-      requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [open]);
 
@@ -50,6 +50,7 @@ export function CommandPalette() {
       {open && (
         <div className="fixed inset-0 z-[110] flex items-start justify-center p-4 pt-[12vh]">
           <motion.div
+            aria-hidden="true"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -57,6 +58,11 @@ export function CommandPalette() {
             onClick={close}
           />
           <motion.div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="명령 팔레트"
+            tabIndex={-1}
             initial={{ opacity: 0, scale: 0.97, y: -8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: -8 }}
@@ -66,12 +72,12 @@ export function CommandPalette() {
             <div className="flex items-center gap-2.5 border-b border-line/60 px-4">
               <Search size={18} className="text-ink-faint" />
               <input
-                ref={inputRef}
+                data-dialog-autofocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={onKeyDown}
                 placeholder="명령 검색…"
-                className="h-12 flex-1 bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none"
+                className="h-12 flex-1 bg-transparent text-sm text-ink placeholder:text-ink-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ink-soft"
               />
               <kbd className="rounded-md border border-line bg-surface-base px-1.5 py-0.5 text-[10px] text-ink-faint">
                 ESC

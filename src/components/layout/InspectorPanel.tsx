@@ -17,17 +17,23 @@ export function InspectorPanel({ asDrawer = false }: { asDrawer?: boolean }) {
 
   return (
     <aside
+      aria-label="선택한 노드 편집"
       className={cn(
-        "flex h-full w-[320px] flex-col border-l border-line mf-glass",
-        asDrawer && "w-full sm:w-[340px]"
+        "flex h-full w-[304px] flex-col border-l border-line bg-surface-raised",
+        asDrawer && "w-[min(304px,calc(100vw-1.5rem))]"
       )}
     >
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-line/60 px-4">
-        <h2 className="text-sm font-semibold text-ink">인스펙터</h2>
+      <div className="flex h-[60px] shrink-0 items-center justify-between border-b border-line/70 px-4">
+        <div>
+          <h2 className="text-sm font-semibold text-ink">노드 편집</h2>
+          <p className="mt-0.5 text-[11px] text-ink-faint">
+            내용과 가지 속성을 다듬습니다
+          </p>
+        </div>
         <button
           onClick={() => setInspectorOpen(false)}
           aria-label="인스펙터 닫기"
-          className="h-8 w-8 flex items-center justify-center rounded-lg text-ink-faint hover:bg-surface-overlay hover:text-ink"
+          className="flex h-10 w-10 items-center justify-center rounded-xl text-ink-faint transition-colors hover:bg-surface-sunken hover:text-ink"
         >
           <X size={17} />
         </button>
@@ -35,10 +41,10 @@ export function InspectorPanel({ asDrawer = false }: { asDrawer?: boolean }) {
 
       {node ? (
         <>
-          <div className="flex-1 overflow-y-auto mf-scroll p-4 pb-6">
+          <div className="mf-scroll flex-1 overflow-y-auto p-4 pb-8">
             <NodeEditorFields node={node} />
           </div>
-          <div className="shrink-0 border-t border-line/60 p-3">
+          <div className="shrink-0 border-t border-line/70 bg-surface-raised p-3">
             <Button
               variant="primary"
               className="w-full justify-center"

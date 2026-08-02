@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BarChart3,
+  Command,
   Droplet,
   FileImage,
   FileJson,
@@ -26,9 +27,11 @@ import {
   SunMoon,
   Type,
   Upload,
+  X,
   Zap,
 } from "lucide-react";
 
+import { useDialogFocus } from "@/hooks/useDialogFocus";
 import {
   ACCENT_OPTIONS,
   CANVAS_BG_OPTIONS,
@@ -56,7 +59,8 @@ function Tile({
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-center gap-1 rounded-xl px-0.5 py-1.5 transition active:bg-surface-overlay"
+      aria-label={label}
+      className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-0.5 py-1.5 transition active:bg-surface-overlay"
     >
       <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-surface-overlay text-ink-soft">
         {icon}
@@ -110,8 +114,10 @@ export function MobileMoreMenu() {
   const setEdgeLine = useMindMapStore((s) => s.setEdgeLine);
   const applyThemePreset = useMindMapStore((s) => s.applyThemePreset);
   const addToast = useMindMapStore((s) => s.addToast);
+  const openCommandPalette = useMindMapStore((s) => s.openCommandPalette);
 
   const close = () => setOpen(false);
+  const dialogRef = useDialogFocus<HTMLDivElement>(open, close);
 
   // Cycle through the available fonts and surface the new one via a toast.
   const cycleFont = () => {
@@ -193,6 +199,7 @@ export function MobileMoreMenu() {
       {open && (
         <>
           <motion.div
+            aria-hidden="true"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -200,14 +207,27 @@ export function MobileMoreMenu() {
             onClick={close}
           />
           <motion.div
+            ref={dialogRef}
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 32, stiffness: 320 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="더 많은 도구"
+            tabIndex={-1}
             className="fixed inset-x-0 bottom-0 z-[121] rounded-t-3xl border-t border-line bg-surface-raised p-3 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-float"
           >
-            <div className="flex items-center justify-center pb-1 pt-1">
-              <div className="h-1.5 w-10 rounded-full bg-ink-faint/40" />
+            <div className="flex h-12 items-center gap-2">
+              <div className="h-1.5 w-10 rounded-full bg-ink-faint/40" aria-hidden="true" />
+              <span className="flex-1 text-sm font-semibold text-ink">더 많은 도구</span>
+              <button
+                onClick={close}
+                aria-label="더 많은 도구 닫기"
+                className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-soft active:bg-surface-overlay"
+              >
+                <X size={19} />
+              </button>
             </div>
             <div className="max-h-[70vh] overflow-y-auto overscroll-contain mf-scroll pb-1">
               <Section title="문서 · 파일" />
@@ -275,7 +295,7 @@ export function MobileMoreMenu() {
                   <button
                     key={p.id}
                     onClick={() => applyThemePreset(p.id)}
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-line px-2 py-2 text-[11px] font-medium text-ink-soft active:bg-surface-overlay"
+                    className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-line px-2 py-2 text-[11px] font-medium text-ink-soft active:bg-surface-overlay"
                   >
                     <span
                       className="h-3 w-3 shrink-0 rounded-full"
@@ -352,6 +372,14 @@ export function MobileMoreMenu() {
 
               <Section title="보기 · 도움말" />
               <div className="grid grid-cols-4 gap-0.5">
+                <Tile
+                  icon={<Command size={18} />}
+                  label="명령"
+                  onClick={() => {
+                    close();
+                    openCommandPalette();
+                  }}
+                />
                 <Tile
                   icon={<Presentation size={18} />}
                   label="발표 모드"

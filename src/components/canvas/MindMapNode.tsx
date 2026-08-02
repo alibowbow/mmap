@@ -79,6 +79,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
   const isRoot = d.isRoot || d.type === "root";
   // "plain" nodes show only the user's text — no type icon/label or color rail.
   const isPlain = d.type === "plain" && !isRoot;
+  const isPrimaryBranch = (d._depth ?? 0) === 1;
 
   // Visual style (workspace-wide). Unknown ids (e.g. from an older or newer
   // stored workspace) fall back to card.
@@ -218,34 +219,35 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
   // disarm an in-progress drag (which would let the context menu slip through).
   const onPointerLeave = () => clearPressTimer();
 
-  // Clear selection treatment: a solid brand ring with an offset + lift.
+  // Selection is a crisp drafting outline instead of a scale jump, so nearby
+  // branches stay visually stable while the user moves through the map.
   const SEL =
-    "ring-2 ring-brand ring-offset-2 ring-offset-surface-base shadow-float scale-[1.03]";
+    "ring-2 ring-brand/25 ring-offset-2 ring-offset-surface-base shadow-float";
   // Per-style chrome (background, border, rounding, shadow).
   const chrome = cn(
-    "transition-all duration-150",
+    "transition-[border-color,box-shadow,background-color,opacity] duration-150",
     style === "card" &&
       (selected
-        ? `rounded-2xl border border-brand bg-surface-raised ${SEL}`
-        : "rounded-2xl border border-line bg-surface-raised shadow-node hover:shadow-float hover:-translate-y-0.5"),
+        ? `rounded-[18px] border border-brand bg-surface-raised ${SEL}`
+        : "rounded-[18px] border border-line/90 bg-surface-raised shadow-node hover:border-ink-faint/60 hover:shadow-float"),
     style === "soft" &&
       (selected
         ? `rounded-[26px] border border-brand bg-surface-raised ${SEL}`
-        : "rounded-[26px] border border-line bg-surface-raised shadow-node hover:shadow-float hover:-translate-y-0.5"),
+        : "rounded-[26px] border border-line bg-surface-raised shadow-node hover:border-ink-faint/60 hover:shadow-float"),
     isOutline &&
       (selected
         ? `rounded-2xl border-2 bg-surface-base/30 ${SEL}`
-        : "rounded-2xl border-2 bg-surface-base/30 hover:-translate-y-0.5"),
+        : "rounded-2xl border-2 bg-surface-base/30"),
     isLine &&
       (selected
         ? `rounded-md border-0 border-b-2 bg-transparent ${SEL}`
-        : "rounded-md border-0 border-b-2 bg-transparent hover:-translate-y-0.5"),
+        : "rounded-md border-0 border-b-2 bg-transparent"),
     // Capsule: fixed 38px radius (not rounded-full) so the geometry stays
     // stable when the node grows taller than its min-height.
     isPill &&
       (selected
         ? `rounded-[38px] border border-brand bg-surface-raised ${SEL}`
-        : "rounded-[38px] border border-line bg-surface-raised shadow-node hover:shadow-float hover:-translate-y-0.5"),
+        : "rounded-[38px] border border-line bg-surface-raised shadow-node hover:border-ink-faint/60 hover:shadow-float"),
     // Post-it: no border, paper shadow. No hover-lift — a levitating pinned
     // note fights the metaphor; the shadow deepens instead.
     isSticky &&
@@ -257,7 +259,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
     isNeon &&
       (selected
         ? `rounded-2xl border-2 bg-surface-raised ${SEL}`
-        : "rounded-2xl border-2 bg-surface-raised hover:-translate-y-0.5")
+        : "rounded-2xl border-2 bg-surface-raised")
   );
 
   return (
@@ -270,7 +272,10 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
       style={{
         width: NODE_WIDTH,
         minHeight: isLine ? undefined : NODE_HEIGHT,
-        borderColor: isOutline || isLine || isNeon ? color : undefined,
+        borderColor:
+          isOutline || isLine || isNeon || (isPrimaryBranch && style === "card")
+            ? color
+            : undefined,
         // Independent CSS property — composes with Tailwind transforms.
         rotate: stickyTilt ? `${stickyTilt}deg` : undefined,
       }}
@@ -279,6 +284,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
         // Root node centers its text vertically → make it a flex column so the
         // content wrapper can stretch to the node's min-height.
         isRoot && !isLine && "flex flex-col",
+        isRoot && !selected && "shadow-float",
         chrome,
         // Presentation spotlight: fade every node except the current one.
         d._dimmed && "opacity-35 transition-opacity duration-300",
@@ -315,7 +321,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
           // click reaches a handler that closes the context menu, and React
           // batches that with openContextMenu so the menu never appears.
           onClick={(e) => e.stopPropagation()}
-          className="nodrag nopan flex items-center gap-0.5 rounded-full border border-line bg-surface-overlay/95 p-1 shadow-float backdrop-blur-xl"
+          className="nodrag nopan hidden items-center gap-0.5 rounded-[16px] border border-line bg-surface-raised p-1 shadow-float md:flex"
         >
           {swatchesOpen ? (
             <>
@@ -327,14 +333,14 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
                     setSwatchesOpen(false);
                   }}
                   aria-label={`색상 ${c}`}
-                  className="h-6 w-6 rounded-full border-2 border-surface-raised transition hover:scale-110"
+                  className="h-8 w-8 rounded-full border-2 border-surface-raised transition-transform hover:scale-105"
                   style={{ background: c }}
                 />
               ))}
               <button
                 onClick={() => setSwatchesOpen(false)}
                 aria-label="색상 닫기"
-                className="flex h-7 w-7 items-center justify-center rounded-full text-ink-faint hover:bg-surface-raised"
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-faint hover:bg-surface-sunken"
               >
                 <ChevronRight size={14} className="rotate-180" />
               </button>
@@ -345,7 +351,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
                 onClick={() => addChildNode(id)}
                 aria-label="자식 추가"
                 title="자식 추가 (Tab)"
-                className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-brand/15 hover:text-brand"
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-soft transition-colors hover:bg-brand/15 hover:text-brand"
               >
                 <Plus size={15} />
               </button>
@@ -354,7 +360,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
                   onClick={() => addSiblingNode(id)}
                   aria-label="형제 추가"
                   title="형제 추가 (Enter)"
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-brand/15 hover:text-brand"
+                  className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-soft transition-colors hover:bg-brand/15 hover:text-brand"
                 >
                   <CornerDownRight size={14} />
                 </button>
@@ -363,7 +369,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
                 onClick={() => setEditingNode(id)}
                 aria-label="내용 편집"
                 title="편집 (F2)"
-                className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-brand/15 hover:text-brand"
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-soft transition-colors hover:bg-brand/15 hover:text-brand"
               >
                 <Pencil size={13} />
               </button>
@@ -371,7 +377,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
                 onClick={() => setSwatchesOpen(true)}
                 aria-label="색상 변경"
                 title="색상"
-                className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-brand/15 hover:text-brand"
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-soft transition-colors hover:bg-brand/15 hover:text-brand"
               >
                 <Palette size={14} />
               </button>
@@ -379,7 +385,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
                 onClick={(e) => openContextMenu(id, e.clientX, e.clientY)}
                 aria-label="더 많은 옵션"
                 title="더 보기"
-                className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-brand/15 hover:text-brand"
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-soft transition-colors hover:bg-brand/15 hover:text-brand"
               >
                 <MoreHorizontal size={15} />
               </button>
@@ -390,7 +396,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
                     onClick={() => deleteNode(id)}
                     aria-label="노드 삭제"
                     title="삭제 (Delete)"
-                    className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-red-500/15 hover:text-red-500"
+                    className="flex h-8 w-8 items-center justify-center rounded-xl text-ink-soft transition-colors hover:bg-red-500/15 hover:text-red-500"
                   >
                     <Trash2 size={13} />
                   </button>
@@ -497,7 +503,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
                 className="ml-auto inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
                 style={{
                   background: hexToRgba(statusConf.color, 0.14),
-                  color: statusConf.color,
+                  color: "rgb(var(--ink-soft))",
                 }}
               >
                 <span
@@ -543,7 +549,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
             placeholder="내용 입력…"
             style={{ fontSize: labelSize }}
             className={cn(
-              "nodrag w-full resize-none rounded-lg bg-surface-base border border-brand/50 px-2 py-1 font-medium text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-brand/40",
+              "nodrag w-full resize-none rounded-lg border border-brand/50 bg-surface-base px-2 py-1 font-medium text-ink placeholder:text-ink-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-soft",
               isRoot && "text-center"
             )}
           />
@@ -551,7 +557,12 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
           <div
             style={{ fontSize: labelSize }}
             className={cn(
-              "font-semibold leading-snug break-words",
+              "leading-snug break-words",
+              isRoot
+                ? "font-bold tracking-[-0.01em]"
+                : isPrimaryBranch
+                  ? "font-semibold"
+                  : "font-medium",
               isRoot && "w-full text-center",
               d.label ? "text-ink" : "text-ink-faint font-normal italic"
             )}
@@ -569,7 +580,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
 
         {/* Cross-map navigation chips */}
         {(d.linkedDocId || d.backDocId) && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
+          <div className="mt-2 hidden flex-wrap gap-1.5 md:flex">
             {d.linkedDocId && (
               <button
                 onClick={(e) => {
@@ -633,7 +644,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
         {/* Footer: link. The href is clamped to safe schemes so a link opened
             from an untrusted share/import can't smuggle a javascript: URL. */}
         {safeLink && (
-          <div className="mt-2 flex items-center gap-2 text-[10px] text-ink-faint">
+          <div className="mt-2 hidden items-center gap-2 text-[10px] text-ink-faint md:flex">
             <a
               href={safeLink}
               target="_blank"
@@ -662,9 +673,9 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
             "nodrag mf-node-affordance absolute top-1/2 -translate-y-1/2 z-10",
             // The capsule curve pulls the visual edge inward at mid-height.
             isPill ? "-right-1" : "-right-2.5",
-            "flex h-5 w-5 items-center justify-center rounded-full transition",
+            "hidden h-7 w-7 items-center justify-center rounded-full transition-colors md:flex",
             "text-ink-faint hover:bg-surface-raised hover:text-brand hover:shadow-sm",
-            d.collapsed ? "opacity-90" : "opacity-25 group-hover:opacity-80"
+            d.collapsed ? "opacity-100" : "opacity-45 group-hover:opacity-90"
           )}
         >
           <ChevronRight

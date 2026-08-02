@@ -21,86 +21,96 @@
 
 /* ── Design tokens ──────────────────────────────────────────────────────── */
 :root {
-  --surface-base: 248 250 252; /* slate-50 */
-  --surface-raised: 255 255 255;
+  --surface-base: 244 245 247;
+  --surface-raised: 255 255 253;
   --surface-overlay: 255 255 255;
-  --surface-sunken: 241 245 249;
-  --line: 226 232 240; /* slate-200 */
-  --ink: 15 23 42; /* slate-900 */
-  --ink-soft: 71 85 105; /* slate-600 */
-  --ink-faint: 148 163 184; /* slate-400 */
-  --brand: 99 102 241; /* indigo-500 */
+  --surface-sunken: 236 238 242;
+  --line: 211 216 225;
+  --ink: 24 29 39;
+  --ink-soft: 71 80 96;
+  --ink-faint: 105 115 133;
+  --brand: 79 70 229;
+  --brand-contrast: 255 255 255;
   --brand-soft: 224 231 255;
-  --grid-dot: 203 213 225;
-  --grid-glow-a: 224 231 255;
-  --grid-glow-b: 240 249 255;
+  --grid-dot: 186 194 207;
 }
 
 .dark {
-  --surface-base: 8 11 20;
-  --surface-raised: 17 22 34;
-  --surface-overlay: 24 30 44;
-  --surface-sunken: 12 16 26;
-  --line: 38 47 66;
-  --ink: 237 242 252;
-  --ink-soft: 156 168 191;
-  --ink-faint: 100 113 138;
-  --brand: 129 140 248; /* indigo-400 */
+  --surface-base: 12 14 18;
+  --surface-raised: 20 23 29;
+  --surface-overlay: 25 29 36;
+  --surface-sunken: 15 18 23;
+  --line: 50 56 68;
+  --ink: 241 244 249;
+  --ink-soft: 180 188 204;
+  --ink-faint: 133 145 166;
+  --brand: 129 140 248;
+  --brand-contrast: 15 23 42;
   --brand-soft: 49 46 90;
-  --grid-dot: 51 63 88;
-  --grid-glow-a: 30 30 70;
-  --grid-glow-b: 12 28 50;
+  --grid-dot: 58 66 80;
 }
 
 /* ── Accent presets (html[data-accent]) ─────────────────────────────────────
    Light value = *-500, dark value = *-400; soft = *-100 / deep muted tone.
    "indigo" is the :root default, so it needs no override here. */
 [data-accent="violet"] {
-  --brand: 139 92 246;
+  --brand: 124 58 237;
+  --brand-contrast: 255 255 255;
   --brand-soft: 237 233 254;
 }
 .dark[data-accent="violet"] {
   --brand: 167 139 250;
+  --brand-contrast: 15 23 42;
   --brand-soft: 55 43 92;
 }
 [data-accent="blue"] {
-  --brand: 59 130 246;
+  --brand: 37 99 235;
+  --brand-contrast: 255 255 255;
   --brand-soft: 219 234 254;
 }
 .dark[data-accent="blue"] {
   --brand: 96 165 250;
+  --brand-contrast: 15 23 42;
   --brand-soft: 28 46 82;
 }
 [data-accent="teal"] {
-  --brand: 20 184 166;
+  --brand: 15 118 110;
+  --brand-contrast: 255 255 255;
   --brand-soft: 204 251 241;
 }
 .dark[data-accent="teal"] {
   --brand: 45 212 191;
+  --brand-contrast: 15 23 42;
   --brand-soft: 17 60 56;
 }
 [data-accent="emerald"] {
-  --brand: 16 185 129;
+  --brand: 4 120 87;
+  --brand-contrast: 255 255 255;
   --brand-soft: 209 250 229;
 }
 .dark[data-accent="emerald"] {
   --brand: 52 211 153;
+  --brand-contrast: 15 23 42;
   --brand-soft: 18 61 48;
 }
 [data-accent="amber"] {
-  --brand: 245 158 11;
+  --brand: 180 83 9;
+  --brand-contrast: 255 255 255;
   --brand-soft: 254 243 199;
 }
 .dark[data-accent="amber"] {
   --brand: 251 191 36;
+  --brand-contrast: 15 23 42;
   --brand-soft: 69 51 17;
 }
 [data-accent="rose"] {
-  --brand: 244 63 94;
+  --brand: 225 29 72;
+  --brand-contrast: 255 255 255;
   --brand-soft: 255 228 230;
 }
 .dark[data-accent="rose"] {
   --brand: 251 113 133;
+  --brand-contrast: 15 23 42;
   --brand-soft: 76 29 43;
 }
 
@@ -121,20 +131,15 @@ body {
   overscroll-behavior: none;
 }
 
-/* Dot grid + subtle gradient canvas backdrop */
+/* Quiet drafting surface. React Flow paints the selected grid pattern above
+   this base, so the map remains the visual focus rather than decorative glow. */
 .mf-canvas-bg {
   background-color: rgb(var(--surface-base));
-  background-image:
-    radial-gradient(
-      circle at 20% 10%,
-      rgb(var(--grid-glow-a) / 0.5),
-      transparent 45%
-    ),
-    radial-gradient(
-      circle at 85% 85%,
-      rgb(var(--grid-glow-b) / 0.45),
-      transparent 45%
-    );
+  background-image: linear-gradient(
+    180deg,
+    rgb(var(--surface-raised) / 0.34),
+    transparent 32%
+  );
 }
 
 /* ── Brand ──────────────────────────────────────────────────────────────────
@@ -152,9 +157,14 @@ body {
 
 /* Glassmorphism helper */
 .mf-glass {
-  background: rgb(var(--surface-overlay) / 0.72);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  background: rgb(var(--surface-overlay) / 0.92);
+  backdrop-filter: blur(12px) saturate(115%);
+  -webkit-backdrop-filter: blur(12px) saturate(115%);
+}
+
+:where(button, a, input, textarea, select):focus-visible {
+  outline: 2px solid rgb(var(--ink-soft));
+  outline-offset: 2px;
 }
 
 /* Thin scrollbars */
@@ -245,11 +255,11 @@ body {
   border: 1px solid rgb(var(--line));
 }
 .react-flow__controls-button {
-  background: rgb(var(--surface-overlay));
+  background: rgb(var(--surface-raised));
   border-bottom: 1px solid rgb(var(--line));
   color: rgb(var(--ink-soft));
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
 }
 .react-flow__controls-button:hover {
   background: rgb(var(--surface-raised));
@@ -259,10 +269,10 @@ body {
 }
 
 .react-flow__minimap {
-  border-radius: 14px;
+  border-radius: 16px;
   overflow: hidden;
   border: 1px solid rgb(var(--line));
-  background: rgb(var(--surface-overlay)) !important;
+  background: rgb(var(--surface-raised) / 0.96) !important;
 }
 
 .react-flow__edge-path {
@@ -294,7 +304,23 @@ body {
 
 /* Hide native focus ring on the pane */
 .react-flow__pane:focus {
-  outline: none;
+  outline: 2px solid rgb(var(--brand) / 0.55);
+  outline-offset: -3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .mf-edge-flow {
+    animation: none !important;
+  }
 }
 
 /* Utility for safe-area bottom padding */

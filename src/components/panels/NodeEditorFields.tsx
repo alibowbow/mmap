@@ -29,6 +29,7 @@ import {
   NODE_TYPE_CONFIG,
 } from "@/lib/constants";
 import { createId } from "@/lib/id";
+import { sanitizeHref } from "@/lib/share";
 import { getRootNode } from "@/lib/tree";
 import { useMindMapStore } from "@/store/mindMapStore";
 import type { BranchSide, ChecklistItem, MindMapNode } from "@/types/mindmap";
@@ -68,6 +69,7 @@ export function NodeEditorFields({ node }: { node: MindMapNode }) {
   const [tagDraft, setTagDraft] = useState("");
   const [checkDraft, setCheckDraft] = useState("");
   const isRoot = d.isRoot || d.type === "root";
+  const safeLink = sanitizeHref(d.link);
   // Branch direction only makes sense for first-level branches off the root.
   const isFirstLevel = !isRoot && d.parentId === rootId;
 
@@ -129,9 +131,10 @@ export function NodeEditorFields({ node }: { node: MindMapNode }) {
                     ? "border-brand bg-brand/10 text-ink"
                     : "border-line text-ink-soft hover:bg-surface-overlay"
                 )}
-                style={active ? { color: conf.color } : undefined}
               >
-                <Icon name={conf.icon} size={16} />
+                <span style={{ color: conf.color }}>
+                  <Icon name={conf.icon} size={16} />
+                </span>
                 {conf.label}
               </button>
             );
@@ -150,16 +153,23 @@ export function NodeEditorFields({ node }: { node: MindMapNode }) {
                 key={st}
                 onClick={() => updateNodeData(node.id, { status: st })}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition min-h-[36px]",
+                  "inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition",
                   active
-                    ? "border-transparent text-white"
+                    ? "text-ink"
                     : "border-line text-ink-soft hover:bg-surface-overlay"
                 )}
-                style={active ? { background: conf.color } : undefined}
+                style={
+                  active
+                    ? {
+                        background: `${conf.color}1A`,
+                        borderColor: conf.color,
+                      }
+                    : undefined
+                }
               >
                 <span
                   className="h-2 w-2 rounded-full"
-                  style={{ background: active ? "#fff" : conf.dot }}
+                  style={{ background: conf.dot }}
                 />
                 {conf.label}
               </button>
@@ -185,7 +195,7 @@ export function NodeEditorFields({ node }: { node: MindMapNode }) {
                   key={opt.label}
                   onClick={() => setNodeSide(node.id, opt.id)}
                   className={cn(
-                    "inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-xs font-medium transition min-h-[40px]",
+                    "inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-xs font-medium transition",
                     active
                       ? "border-brand bg-brand/10 text-ink"
                       : "border-line text-ink-soft hover:bg-surface-overlay"
@@ -211,7 +221,7 @@ export function NodeEditorFields({ node }: { node: MindMapNode }) {
                 onClick={() => updateNodeData(node.id, { color: c })}
                 aria-label={`색상 ${c}`}
                 className={cn(
-                  "h-8 w-8 rounded-full border-2 transition flex items-center justify-center",
+                  "flex h-11 w-11 items-center justify-center rounded-full border-2 transition",
                   active ? "border-ink scale-110" : "border-transparent"
                 )}
                 style={{ background: c }}
@@ -222,7 +232,8 @@ export function NodeEditorFields({ node }: { node: MindMapNode }) {
           })}
           {/* Custom hex picker */}
           <label
-            className="relative h-8 w-8 cursor-pointer overflow-hidden rounded-full border-2 border-dashed border-line"
+            className="relative h-11 w-11 cursor-pointer overflow-hidden rounded-full border-2 border-dashed border-line"
+            aria-label="직접 색상 선택"
             title="직접 색상 선택"
             style={{
               background:
@@ -263,7 +274,7 @@ export function NodeEditorFields({ node }: { node: MindMapNode }) {
                 <button
                   onClick={() => removeTag(tag)}
                   aria-label={`${tag} 삭제`}
-                  className="text-ink-faint hover:text-red-500"
+                  className="flex h-11 w-11 items-center justify-center rounded-full text-ink-faint hover:bg-surface-sunken hover:text-red-500"
                 >
                   <X size={12} />
                 </button>
@@ -283,7 +294,11 @@ export function NodeEditorFields({ node }: { node: MindMapNode }) {
             }}
             placeholder="태그 추가 후 Enter"
           />
-          <Button size="icon" onClick={addTag} aria-label="태그 추가">
+          <Button
+            size="icon"
+            onClick={addTag}
+            aria-label="태그 추가"
+          >
             <Plus size={16} />
           </Button>
         </div>
@@ -301,7 +316,7 @@ export function NodeEditorFields({ node }: { node: MindMapNode }) {
                 <button
                   onClick={() => toggleChecklist(item.id)}
                   className={cn(
-                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition",
+                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition",
                     item.checked
                       ? "bg-emerald-500 border-emerald-500 text-white"
                       : "border-line"
@@ -323,7 +338,7 @@ export function NodeEditorFields({ node }: { node: MindMapNode }) {
                 <button
                   onClick={() => removeChecklist(item.id)}
                   aria-label="항목 삭제"
-                  className="text-ink-faint hover:text-red-500"
+                  className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-faint hover:bg-surface-sunken hover:text-red-500"
                 >
                   <X size={14} />
                 </button>
@@ -363,24 +378,43 @@ export function NodeEditorFields({ node }: { node: MindMapNode }) {
             className="pl-9"
           />
         </div>
+        {safeLink && (
+          <a
+            href={safeLink}
+            target="_blank"
+            rel="noreferrer"
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface-base px-3 text-sm font-semibold text-ink transition hover:border-line-strong hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-soft"
+          >
+            <SquareArrowOutUpRight size={15} /> 링크 열기
+          </a>
+        )}
       </Section>
 
       {/* Cross-map link */}
-      {!isRoot && (
+      {(!isRoot || d.backDocId) && (
         <Section label="맵 연결">
-          {d.linkedDocId ? (
+          {!isRoot &&
+            (d.linkedDocId ? (
+              <Button
+                className="w-full justify-center"
+                onClick={() => openLinkedDoc(d.linkedDocId!)}
+              >
+                <MapIcon size={15} /> 연결된 맵 열기
+              </Button>
+            ) : (
+              <Button
+                className="w-full justify-center"
+                onClick={() => promoteNodeToMap(node.id)}
+              >
+                <SquareArrowOutUpRight size={15} /> 새 맵으로 분리
+              </Button>
+            ))}
+          {d.backDocId && (
             <Button
               className="w-full justify-center"
-              onClick={() => openLinkedDoc(d.linkedDocId!)}
+              onClick={() => openLinkedDoc(d.backDocId!, d.backNodeId)}
             >
-              <MapIcon size={15} /> 연결된 맵 열기
-            </Button>
-          ) : (
-            <Button
-              className="w-full justify-center"
-              onClick={() => promoteNodeToMap(node.id)}
-            >
-              <SquareArrowOutUpRight size={15} /> 새 맵으로 분리
+              <ArrowLeft size={15} /> 상위 맵 열기
             </Button>
           )}
         </Section>

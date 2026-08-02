@@ -85,7 +85,7 @@ export function RelationEdge({
                 e.stopPropagation();
               }}
               placeholder="관계 이름"
-              className="w-28 rounded-full border border-brand/50 bg-surface-raised px-2.5 py-1 text-[11px] text-ink shadow-soft focus:outline-none focus:ring-2 focus:ring-brand/40"
+              className="w-28 rounded-full border border-brand/50 bg-surface-raised px-2.5 py-1 text-[11px] text-ink shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-soft"
             />
           ) : (
             (label || isSelected) && (
@@ -101,7 +101,7 @@ export function RelationEdge({
                 className={cn(
                   "rounded-full border px-2.5 py-1 text-[11px] shadow-soft transition",
                   isSelected
-                    ? "border-brand bg-brand text-white"
+                    ? "border-brand bg-brand text-brand-contrast"
                     : "border-line bg-surface-raised text-ink-soft hover:border-brand/50",
                   !label && "italic text-white/80"
                 )}
@@ -117,7 +117,7 @@ export function RelationEdge({
                 removeRelation(id);
               }}
               aria-label="관계선 삭제"
-              className="flex h-5 w-5 items-center justify-center rounded-full border border-line bg-surface-raised text-ink-soft shadow-soft transition hover:bg-red-500 hover:text-white"
+              className="hidden h-8 w-8 items-center justify-center rounded-full border border-line bg-surface-raised text-ink-soft shadow-soft transition hover:bg-red-500 hover:text-white md:flex"
             >
               <X size={11} />
             </button>

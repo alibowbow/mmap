@@ -14,7 +14,13 @@ import {
   type Node,
 } from "@xyflow/react";
 import { ChevronDown, Map as MapIcon } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type FocusEvent,
+} from "react";
 
 import { CanvasEmptyState } from "@/components/canvas/CanvasEmptyState";
 import { MindMapEdge } from "@/components/canvas/MindMapEdge";
@@ -67,7 +73,6 @@ function CanvasInner() {
   const onNodesChange = useMindMapStore((s) => s.onNodesChange);
   const onEdgesChange = useMindMapStore((s) => s.onEdgesChange);
   const selectNode = useMindMapStore((s) => s.selectNode);
-  const toggleNodeSelection = useMindMapStore((s) => s.toggleNodeSelection);
   const setEditingNode = useMindMapStore((s) => s.setEditingNode);
   const openContextMenu = useMindMapStore((s) => s.openContextMenu);
   const closeContextMenu = useMindMapStore((s) => s.closeContextMenu);
@@ -99,6 +104,25 @@ function CanvasInner() {
   } | null>(null);
   // Tracks a single-node drag for re-parent detection.
   const reparent = useRef<{ id: string; descendants: Set<string> } | null>(null);
+  const pointerFocus = useRef(false);
+
+  const onCanvasPointerDown = useCallback(() => {
+    pointerFocus.current = true;
+    window.setTimeout(() => {
+      pointerFocus.current = false;
+    }, 0);
+  }, []);
+
+  const onCanvasFocus = useCallback(
+    (event: FocusEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement;
+      const nodeElement = target.closest<HTMLElement>(".react-flow__node");
+      if (pointerFocus.current || target !== nodeElement) return;
+      const nodeId = nodeElement.dataset.id;
+      if (nodeId) selectNode(nodeId);
+    },
+    [selectNode]
+  );
 
   // Compute visible nodes/edges (hide collapsed subtrees) and selection flag.
   const { displayNodes, displayEdges } = useMemo(() => {
@@ -153,6 +177,7 @@ function CanvasInner() {
     const dn: Node<MindMapNodeData>[] = nodes.map((n) => ({
       ...n,
       type: "mindmap",
+      ariaLabel: `노드: ${n.data.label || "내용 없음"}`,
       selected: selectedSet.has(n.id),
       hidden: nodeHidden(n.id),
       draggable: !presentationMode,
@@ -259,14 +284,12 @@ function CanvasInner() {
       }
       // This is a new, intentional click after the drag guard expired.
       if (menuBlockedNodeId === node.id) setMenuBlockedNodeId(null);
-      // Shift / Cmd / Ctrl + click toggles multi-selection.
-      if (e.shiftKey || e.metaKey || e.ctrlKey) toggleNodeSelection(node.id);
-      else selectNode(node.id);
+      // React Flow emits controlled selection changes through onNodesChange.
+      // Let that single path own plain and modifier clicks; toggling here as
+      // well would apply Shift/Cmd selection twice.
       closeContextMenu();
     },
     [
-      selectNode,
-      toggleNodeSelection,
       closeContextMenu,
       dragMenuIsSuppressed,
       menuBlockedNodeId,
@@ -446,6 +469,11 @@ function CanvasInner() {
 
   return (
     <div
+      data-mindmap-canvas="true"
+      role="region"
+      aria-label="MindForge 마인드맵 캔버스"
+      onPointerDownCapture={onCanvasPointerDown}
+      onFocusCapture={onCanvasFocus}
       className={cn(
         "relative h-full w-full mf-canvas-bg",
         connectMode && "mf-connecting"
@@ -471,13 +499,15 @@ function CanvasInner() {
         onMoveEnd={(_, vp) => updateViewport(vp)}
         minZoom={0.15}
         maxZoom={2.5}
+        disableKeyboardA11y
+        deleteKeyCode={null}
         nodesDraggable={!presentationMode && !connectMode}
         nodesConnectable={connectMode && !presentationMode}
-        nodesFocusable={false}
+        nodesFocusable
         edgesFocusable={false}
         connectionRadius={40}
         elementsSelectable
-        multiSelectionKeyCode={null}
+        multiSelectionKeyCode={["Shift", "Meta", "Control"]}
         selectionKeyCode="Shift"
         selectionMode={SelectionMode.Partial}
         panOnScroll
@@ -487,7 +517,14 @@ function CanvasInner() {
         panOnDrag={presentationMode ? false : [0, 1, 2]}
         proOptions={{ hideAttribution: true }}
         fitView
-        fitViewOptions={{ padding: 0.25, maxZoom: 1.2 }}
+        fitViewOptions={{
+          padding: isMobile ? 0.1 : 0.25,
+          // Initial shared maps can be much larger than the starter map. The
+          // store's panel-aware fit pass raises compact maps to 0.35 after the
+          // bounds are known, while large maps must remain free to reach 0.15.
+          minZoom: 0.15,
+          maxZoom: 1.2,
+        }}
         className="touch-none"
       >
         {canvasBg !== "none" && (
@@ -501,14 +538,14 @@ function CanvasInner() {
             }
             gap={canvasBg === "dots" ? 22 : 30}
             size={canvasBg === "dots" ? 1.4 : canvasBg === "cross" ? 5 : 1}
-            className={canvasBg === "dots" ? "!opacity-70" : "!opacity-40"}
+            className={canvasBg === "dots" ? "!opacity-55" : "!opacity-35"}
           />
         )}
         {!presentationMode && !isMobile && (
           <Controls
             showInteractive={false}
             position="bottom-left"
-            className="!mb-4 !ml-4"
+            className="!mb-5 !ml-5"
           />
         )}
         {!presentationMode && (!isMobile || miniMapOpen) && (
@@ -516,7 +553,7 @@ function CanvasInner() {
             pannable
             zoomable
             position="bottom-right"
-            className={cn("!mb-4 !mr-4", isMobile && "!h-24 !w-32")}
+            className={cn("!mb-5 !mr-5", isMobile && "!h-24 !w-32")}
             nodeColor={(n) => {
               const data = n.data as MindMapNodeData;
               return (
@@ -536,7 +573,7 @@ function CanvasInner() {
         <button
           onClick={() => setMiniMapOpen((o) => !o)}
           aria-label="미니맵 토글"
-          className="absolute bottom-[5.5rem] right-3 z-10 flex h-10 w-10 items-center justify-center rounded-xl mf-glass border border-line text-ink-soft shadow-soft"
+          className="absolute bottom-[5.75rem] right-3 z-10 flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-surface-raised/96 text-ink-soft shadow-soft backdrop-blur-md"
         >
           {miniMapOpen ? <ChevronDown size={18} /> : <MapIcon size={18} />}
         </button>
@@ -552,7 +589,7 @@ function CanvasInner() {
               onClick={() =>
                 useMindMapStore.getState().setConnectMode(false)
               }
-              className="ml-1 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-white transition hover:opacity-90"
+              className="ml-1 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-brand-contrast transition hover:opacity-90"
             >
               완료
             </button>
@@ -568,7 +605,7 @@ function CanvasInner() {
             포커스 모드 — 이 가지만 표시 중
             <button
               onClick={exitFocusMode}
-              className="ml-1 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-white transition hover:opacity-90"
+              className="ml-1 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-brand-contrast transition hover:opacity-90"
             >
               전체 보기
             </button>

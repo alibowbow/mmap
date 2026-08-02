@@ -266,14 +266,17 @@ export function NodeContextMenu() {
                 key={st}
                 onClick={() => updateNodeData(node.id, { status: st })}
                 className={cn(
-                  "rounded-full px-2 py-0.5 text-[10px] font-medium transition",
+                  "min-h-8 rounded-full border px-2 py-0.5 text-[10px] font-medium transition",
                   (node.data.status ?? "none") === st
-                    ? "text-white"
-                    : "bg-surface-raised text-ink-soft"
+                    ? "text-ink"
+                    : "border-transparent bg-surface-raised text-ink-soft"
                 )}
                 style={
                   (node.data.status ?? "none") === st
-                    ? { background: NODE_STATUS_CONFIG[st].color }
+                    ? {
+                        background: `${NODE_STATUS_CONFIG[st].color}1A`,
+                        borderColor: NODE_STATUS_CONFIG[st].color,
+                      }
                     : undefined
                 }
               >
