@@ -1,12 +1,18 @@
 "use client";
 
-import { AnimatePresence, motion, type PanInfo } from "framer-motion";
-import { Maximize2, Minimize2, Plus } from "lucide-react";
+import {
+  AnimatePresence,
+  motion,
+  useDragControls,
+  type PanInfo,
+} from "framer-motion";
+import { Maximize2, Minimize2, Plus, X } from "lucide-react";
 import { useState } from "react";
 
 import { NodeEditorFields } from "@/components/panels/NodeEditorFields";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
+import { useDialogFocus } from "@/hooks/useDialogFocus";
 import { NODE_TYPE_CONFIG } from "@/lib/constants";
 import {
   selectSelectedNode,
@@ -28,6 +34,8 @@ export function MobileNodeSheet() {
   const addChildNode = useMindMapStore((s) => s.addChildNode);
 
   const [snap, setSnap] = useState<Snap>("medium");
+  const dragControls = useDragControls();
+  const dialogRef = useDialogFocus<HTMLDivElement>(open, () => setOpen(false));
 
   const onDragEnd = (_: unknown, info: PanInfo) => {
     if (info.offset.y > 140) {
@@ -48,6 +56,7 @@ export function MobileNodeSheet() {
       {open && node && (
         <>
           <motion.div
+            aria-hidden="true"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -55,22 +64,38 @@ export function MobileNodeSheet() {
             onClick={() => setOpen(false)}
           />
           <motion.div
+            ref={dialogRef}
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 32, stiffness: 320 }}
             drag="y"
-            dragControls={undefined}
+            dragControls={dragControls}
+            dragListener={false}
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0.05, bottom: 0.4 }}
             onDragEnd={onDragEnd}
+            role="dialog"
+            aria-modal="true"
+            aria-label="노드 편집"
+            tabIndex={-1}
             style={{ height: `${SNAP_VH[snap]}dvh` }}
             className="fixed inset-x-0 bottom-0 z-[121] flex flex-col rounded-t-3xl border-t border-line bg-surface-raised shadow-float"
           >
             {/* Drag handle */}
-            <div className="flex shrink-0 cursor-grab touch-none items-center justify-center pt-2.5 pb-1.5 active:cursor-grabbing">
+            <button
+              type="button"
+              onPointerDown={(event) => dragControls.start(event)}
+              onClick={() =>
+                setSnap((current) =>
+                  current === "expanded" ? "medium" : "expanded"
+                )
+              }
+              aria-label="시트 끌기 또는 크기 전환"
+              className="flex h-11 shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
+            >
               <div className="h-1.5 w-10 rounded-full bg-ink-faint/40" />
-            </div>
+            </button>
 
             {/* Header */}
             <div className="flex shrink-0 items-center gap-2 px-4 pb-2">
@@ -93,13 +118,20 @@ export function MobileNodeSheet() {
                   setSnap((s) => (s === "expanded" ? "medium" : "expanded"))
                 }
                 aria-label="시트 크기 전환"
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-ink-soft active:bg-surface-overlay"
+                className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-soft active:bg-surface-overlay"
               >
                 {snap === "expanded" ? (
                   <Minimize2 size={17} />
                 ) : (
                   <Maximize2 size={17} />
                 )}
+              </button>
+              <button
+                onClick={() => setOpen(false)}
+                aria-label="노드 편집 닫기"
+                className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-soft active:bg-surface-overlay"
+              >
+                <X size={19} />
               </button>
             </div>
 
@@ -113,7 +145,7 @@ export function MobileNodeSheet() {
             <div className="shrink-0 border-t border-line/60 bg-surface-raised p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
               <Button
                 variant="primary"
-                className="w-full justify-center"
+                className="h-11 w-full justify-center"
                 onClick={() => addChildNode(node.id)}
               >
                 <Plus size={16} /> 자식 노드 추가

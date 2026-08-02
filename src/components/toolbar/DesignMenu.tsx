@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/ui/Icon";
@@ -12,6 +13,10 @@ import {
   EDGE_LINE_OPTIONS,
   EDGE_STYLE_OPTIONS,
   EDGE_WIDTH_OPTIONS,
+  FONT_OPTIONS,
+  FONT_SIZE_MAX,
+  FONT_SIZE_MIN,
+  LEVEL_FONT_LABELS,
   NODE_STYLE_OPTIONS,
   THEME_PRESETS,
 } from "@/lib/constants";
@@ -29,7 +34,9 @@ function Toggle({
   return (
     <button
       onClick={() => onChange(!on)}
-      className="flex w-full items-center justify-between rounded-lg px-1 py-1.5 text-sm text-ink"
+      role="switch"
+      aria-checked={on}
+      className="flex min-h-10 w-full items-center justify-between rounded-xl px-2 py-1.5 text-sm text-ink transition-colors hover:bg-surface-sunken"
     >
       <span>{label}</span>
       <span
@@ -74,6 +81,11 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
   const setAccent = useMindMapStore((s) => s.setAccent);
   const rainbowBranches = useMindMapStore((s) => s.rainbowBranches);
   const setRainbowBranches = useMindMapStore((s) => s.setRainbowBranches);
+  const font = useMindMapStore((s) => s.font);
+  const setFont = useMindMapStore((s) => s.setFont);
+  const levelFontSizes = useMindMapStore((s) => s.levelFontSizes);
+  const setLevelFontSize = useMindMapStore((s) => s.setLevelFontSize);
+  const resetLevelFontSizes = useMindMapStore((s) => s.resetLevelFontSizes);
 
   useEffect(() => {
     if (!open) return;
@@ -98,7 +110,7 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -4 }}
             transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute right-0 top-full z-50 mt-2 max-h-[min(72vh,620px)] w-64 overflow-y-auto mf-scroll rounded-2xl border border-line bg-surface-overlay/95 p-3 shadow-float backdrop-blur-xl"
+            className="absolute right-0 top-full z-50 mt-2 max-h-[min(76vh,680px)] w-72 overflow-y-auto mf-scroll rounded-[20px] border border-line bg-surface-raised p-3.5 shadow-float"
           >
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
               테마 프리셋
@@ -120,6 +132,69 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
                   {p.label}
                 </button>
               ))}
+            </div>
+
+            <div className="my-2 h-px bg-line" />
+
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+              타이포그래피
+            </p>
+            <div className="mb-3 grid grid-cols-2 gap-1.5">
+              {FONT_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  onClick={() => setFont(option.id)}
+                  aria-pressed={font === option.id}
+                  className={cn(
+                    "flex min-h-10 items-center gap-2 rounded-xl border px-2.5 text-left text-xs transition-colors",
+                    font === option.id
+                      ? "border-brand bg-brand/10 text-ink"
+                      : "border-line text-ink-soft hover:bg-surface-sunken hover:text-ink"
+                  )}
+                >
+                  <span className="text-base" style={{ fontFamily: option.family }}>
+                    가
+                  </span>
+                  <span className="truncate">{option.label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="space-y-1.5 rounded-xl bg-surface-sunken/70 p-2">
+              {LEVEL_FONT_LABELS.map((label, index) => {
+                const size = levelFontSizes[index] ?? 14;
+                return (
+                  <div key={label} className="flex items-center gap-1.5">
+                    <span className="min-w-0 flex-1 truncate text-xs text-ink-soft">
+                      {label}
+                    </span>
+                    <button
+                      onClick={() => setLevelFontSize(index, size - 1)}
+                      disabled={size <= FONT_SIZE_MIN}
+                      aria-label={`${label} 글자 작게`}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-soft transition-colors hover:bg-surface-raised disabled:opacity-35"
+                    >
+                      <Minus size={13} />
+                    </button>
+                    <span className="w-6 text-center text-xs tabular-nums text-ink">
+                      {size}
+                    </span>
+                    <button
+                      onClick={() => setLevelFontSize(index, size + 1)}
+                      disabled={size >= FONT_SIZE_MAX}
+                      aria-label={`${label} 글자 크게`}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-soft transition-colors hover:bg-surface-raised disabled:opacity-35"
+                    >
+                      <Plus size={13} />
+                    </button>
+                  </div>
+                );
+              })}
+              <button
+                onClick={resetLevelFontSizes}
+                className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs text-ink-faint transition-colors hover:bg-surface-raised hover:text-ink"
+              >
+                <RotateCcw size={13} /> 기본 크기
+              </button>
             </div>
 
             <div className="my-2 h-px bg-line" />

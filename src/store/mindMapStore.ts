@@ -45,6 +45,7 @@ import {
   buildEdgesFromNodes,
   getChildrenMap,
   getDescendantIds,
+  getHiddenNodeIds,
   getNodeMap,
   getRootNode,
   getSubtreeIds,
@@ -1483,11 +1484,117 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     },
 
     fitToView: () => {
-      const { flow } = get();
+      const { flow, nodes } = get();
       if (!flow) return;
-      requestAnimationFrame(() =>
-        flow.fitView({ padding: 0.2, duration: 400, maxZoom: 1.2 })
-      );
+      requestAnimationFrame(() => {
+        const canvas = document.querySelector<HTMLElement>(
+          '[data-mindmap-canvas="true"]'
+        );
+        const canvasRect = canvas?.getBoundingClientRect();
+        const isCompact = (canvasRect?.width ?? window.innerWidth) < 768;
+        const px = (value: number): `${number}px` => `${value}px`;
+        let left = 24;
+        let right = 24;
+        let bottom = 24;
+
+        // Tablet/laptop panels float above the canvas. Fit against the actual
+        // visible work area so the root or outer branches never land behind a
+        // panel. Wide-screen inline panels sit outside the canvas and therefore
+        // contribute no inset here.
+        if (canvas && canvasRect) {
+          const leftPanel = document.querySelector<HTMLElement>(
+            '[data-floating-panel="left"]'
+          );
+          const rightPanel = document.querySelector<HTMLElement>(
+            '[data-floating-panel="right"]'
+          );
+          const leftRect = leftPanel?.getBoundingClientRect();
+          const rightRect = rightPanel?.getBoundingClientRect();
+
+          if (leftRect && leftRect.right > canvasRect.left) {
+            left = Math.max(left, leftRect.right - canvasRect.left + 16);
+          }
+          if (rightRect && rightRect.left < canvasRect.right) {
+            right = Math.max(right, canvasRect.right - rightRect.left + 16);
+          }
+
+          // The minimap owns the lower-right corner. Reserving its vertical
+          // footprint is enough to keep nodes above it without squeezing the
+          // map from two axes at once.
+          const miniMap = canvas.querySelector<HTMLElement>(
+            ".react-flow__minimap"
+          );
+          const miniMapRect = miniMap?.getBoundingClientRect();
+          if (miniMapRect && miniMapRect.height > 0) {
+            bottom = Math.max(
+              bottom,
+              canvasRect.bottom - miniMapRect.top + 16
+            );
+          }
+        }
+
+        // A fixed mobile minimum zoom made small maps pleasantly legible, but
+        // prevented larger shared maps from ever fitting on-screen. Estimate
+        // the visible map bounds first: keep 0.35 for compact maps and relax
+        // to the canvas minimum only when the map genuinely needs more room.
+        let compactMinZoom = 0.15;
+        if (isCompact && canvasRect) {
+          const hiddenNodeIds = getHiddenNodeIds(nodes);
+          const visibleNodes = nodes.filter(
+            (node) => !hiddenNodeIds.has(node.id)
+          );
+
+          if (visibleNodes.length > 0) {
+            let minX = Number.POSITIVE_INFINITY;
+            let minY = Number.POSITIVE_INFINITY;
+            let maxX = Number.NEGATIVE_INFINITY;
+            let maxY = Number.NEGATIVE_INFINITY;
+
+            for (const node of visibleNodes) {
+              const width = node.measured?.width ?? NODE_WIDTH;
+              const height = node.measured?.height ?? NODE_HEIGHT;
+              minX = Math.min(minX, node.position.x);
+              minY = Math.min(minY, node.position.y);
+              maxX = Math.max(maxX, node.position.x + width);
+              maxY = Math.max(maxY, node.position.y + height);
+            }
+
+            const mapWidth = Math.max(1, maxX - minX);
+            const mapHeight = Math.max(1, maxY - minY);
+            const availableWidth = Math.max(1, canvasRect.width - 32);
+            const availableHeight = Math.max(1, canvasRect.height - 32);
+            const naturalFitZoom =
+              Math.min(
+                availableWidth / mapWidth,
+                availableHeight / mapHeight
+              ) * 0.9;
+
+            compactMinZoom = naturalFitZoom >= 0.35 ? 0.35 : 0.15;
+          }
+        }
+
+        flow.fitView({
+          padding: isCompact
+            ? {
+                top: px(16),
+                right: px(16),
+                bottom: px(16),
+                left: px(16),
+              }
+            : {
+                top: px(24),
+                right: px(right),
+                bottom: px(bottom),
+                left: px(left),
+              },
+          duration: window.matchMedia("(prefers-reduced-motion: reduce)")
+            .matches
+            ? 0
+            : 400,
+          minZoom: isCompact ? compactMinZoom : 0.15,
+          maxZoom: 1.2,
+        });
+      });
     },
 
     focusNode: (nodeId) => {
@@ -1498,7 +1605,13 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       flow.setCenter(
         node.position.x + NODE_WIDTH / 2,
         node.position.y + NODE_HEIGHT / 2,
-        { zoom: Math.max(flow.getZoom?.() ?? 1, 1), duration: 450 }
+        {
+          zoom: Math.max(flow.getZoom?.() ?? 1, 1),
+          duration: window.matchMedia("(prefers-reduced-motion: reduce)")
+            .matches
+            ? 0
+            : 450,
+        }
       );
     },
 

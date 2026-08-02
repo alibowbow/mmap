@@ -6,8 +6,10 @@ import {
   ChevronsLeft,
   Clock,
   Copy,
+  Files,
   FilePlus2,
   LayoutTemplate,
+  ListTree,
   MoreHorizontal,
   Pencil,
   Pin,
@@ -60,21 +62,22 @@ function DocumentCard({ doc }: { doc: MindMapDocument }) {
 
   return (
     <div
-      onClick={() => setActiveDocument(doc.id)}
       className={cn(
-        "group cursor-pointer rounded-xl border px-3 py-2.5 transition",
+        "group relative rounded-xl border p-1 transition-colors",
         active
-          ? "border-brand/40 bg-brand/10"
-          : "border-transparent hover:border-line hover:bg-surface-overlay"
+          ? "border-brand/35 bg-brand/10"
+          : "border-transparent hover:border-line hover:bg-surface-sunken/70"
       )}
     >
-      <div className="flex items-center gap-2">
+      {active && (
+        <span className="absolute bottom-2 left-0 top-2 w-0.5 rounded-full bg-brand" />
+      )}
+      <div className="flex min-w-0 items-center gap-1">
         {editing ? (
           <input
             autoFocus
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            onClick={(e) => e.stopPropagation()}
             onBlur={() => {
               renameDocument(doc.id, draft.trim() || doc.title);
               setEditing(false);
@@ -86,30 +89,38 @@ function DocumentCard({ doc }: { doc: MindMapDocument }) {
               }
               if (e.key === "Escape") setEditing(false);
             }}
-            className="flex-1 rounded-md bg-surface-base border border-brand/50 px-1.5 py-0.5 text-sm text-ink focus:outline-none"
+            className="mx-1 h-10 min-w-0 flex-1 rounded-lg border border-brand/50 bg-surface-base px-2 text-sm text-ink outline-none"
           />
         ) : (
-          <span
-            className={cn(
-              "flex-1 truncate text-sm font-medium",
-              active ? "text-ink" : "text-ink-soft group-hover:text-ink"
-            )}
+          <button
+            onClick={() => setActiveDocument(doc.id)}
+            aria-current={active ? "page" : undefined}
+            className="min-w-0 flex-1 rounded-lg px-2 py-1.5 text-left"
           >
-            {doc.title}
-          </span>
+            <span
+              className={cn(
+                "block truncate text-sm font-medium",
+                active ? "text-ink" : "text-ink-soft group-hover:text-ink"
+              )}
+            >
+              {doc.title}
+            </span>
+            <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-ink-faint">
+              <span>{doc.nodes.length} 노드</span>
+              <span aria-hidden="true">·</span>
+              <span>{timeAgo(doc.updatedAt)}</span>
+            </span>
+          </button>
         )}
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleDocumentPin(doc.id);
-          }}
+          onClick={() => toggleDocumentPin(doc.id)}
           aria-label={doc.pinned ? "고정 해제" : "상단에 고정"}
           title={doc.pinned ? "고정 해제" : "상단에 고정"}
           className={cn(
-            "h-7 w-7 flex items-center justify-center rounded-lg transition shrink-0",
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
             doc.pinned
               ? "text-brand opacity-100"
-              : "text-ink-faint opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-surface-raised"
+              : "text-ink-faint opacity-100 xl:opacity-0 xl:group-hover:opacity-100 hover:bg-surface-raised"
           )}
         >
           <Pin size={14} className={doc.pinned ? "fill-current" : undefined} />
@@ -120,7 +131,7 @@ function DocumentCard({ doc }: { doc: MindMapDocument }) {
           trigger={
             <button
               aria-label="문서 메뉴"
-              className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition h-7 w-7 flex items-center justify-center rounded-lg text-ink-faint hover:bg-surface-raised"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-ink-faint opacity-100 transition-colors hover:bg-surface-raised xl:opacity-0 xl:group-hover:opacity-100"
             >
               <MoreHorizontal size={16} />
             </button>
@@ -157,11 +168,6 @@ function DocumentCard({ doc }: { doc: MindMapDocument }) {
           ]}
         />
       </div>
-      <div className="mt-0.5 flex items-center gap-2 text-[11px] text-ink-faint">
-        <span>{doc.nodes.length} 노드</span>
-        <span>·</span>
-        <span>{timeAgo(doc.updatedAt)}</span>
-      </div>
     </div>
   );
 }
@@ -170,11 +176,13 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
   const documents = useMindMapStore((s) => s.documents);
   const createDocument = useMindMapStore((s) => s.createDocument);
   const setDialog = useMindMapStore((s) => s.setDialog);
-  const setSearchOpen = useMindMapStore((s) => s.setSearchOpen);
   const toggleSidebar = useMindMapStore((s) => s.toggleSidebar);
 
   const [query, setQuery] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("recent");
+  const [activeView, setActiveView] = useState<"documents" | "outline">(
+    "documents"
+  );
 
   const sortFn = (a: MindMapDocument, b: MindMapDocument) => {
     if (sortMode === "name") return a.title.localeCompare(b.title, "ko");
@@ -196,15 +204,16 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
 
   return (
     <aside
+      aria-label="문서와 지도 구조"
       className={cn(
-        "flex h-full w-[272px] flex-col border-r border-line mf-glass",
+        "flex h-full w-[248px] flex-col border-r border-line bg-surface-raised",
         inDrawer && "w-full"
       )}
     >
       {/* Brand header */}
-      <div className="flex items-center justify-between px-4 h-14 border-b border-line/60">
+      <div className="flex h-[60px] items-center justify-between border-b border-line/70 px-3.5">
         <div className="flex items-center gap-2.5">
-          <BrandMark size={26} className="shrink-0 rounded-lg shadow-sm" />
+          <BrandMark size={27} className="shrink-0 rounded-lg" />
           <div className="flex flex-col justify-center leading-none">
             <span className="mf-brand-text text-[15px] font-bold tracking-tight">
               MindForge
@@ -218,111 +227,133 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
           <button
             onClick={toggleSidebar}
             aria-label="사이드바 접기"
-            className="h-8 w-8 flex items-center justify-center rounded-lg text-ink-faint hover:bg-surface-overlay hover:text-ink"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-ink-faint transition-colors hover:bg-surface-sunken hover:text-ink"
           >
             <ChevronsLeft size={18} />
           </button>
         )}
       </div>
 
-      {/* Quick actions */}
-      <div className="p-3 space-y-2">
-        <Button
-          variant="primary"
-          className="w-full justify-start"
-          onClick={() => createDocument()}
-        >
-          <FilePlus2 size={16} /> 새 문서
-        </Button>
-        <div className="flex gap-2">
-          <Button
-            className="flex-1 justify-center"
-            onClick={() => setDialog("template")}
-          >
-            <LayoutTemplate size={15} /> 템플릿
-          </Button>
-          <Button
-            className="flex-1 justify-center"
-            onClick={() => setSearchOpen(true)}
-          >
-            <Search size={15} /> 검색
-          </Button>
-        </div>
-      </div>
-
-      {/* Document search + sort */}
-      <div className="px-3 pb-2 space-y-1.5">
-        <div className="relative">
-          <Search
-            size={13}
-            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint"
-          />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="문서 검색…"
-            className="w-full rounded-lg border border-line bg-surface-base py-1.5 pl-7 pr-7 text-xs text-ink placeholder:text-ink-faint focus:outline-none focus:ring-1 focus:ring-brand/40"
-          />
-          {query && (
-            <button
-              onClick={() => setQuery("")}
-              aria-label="검색어 지우기"
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-ink-faint hover:text-ink"
-            >
-              <X size={13} />
-            </button>
+      <div className="mx-3 mt-3 grid grid-cols-2 rounded-xl bg-surface-sunken p-1">
+        <button
+          onClick={() => setActiveView("documents")}
+          aria-pressed={activeView === "documents"}
+          className={cn(
+            "flex h-9 items-center justify-center gap-1.5 rounded-[9px] text-xs font-semibold transition-colors",
+            activeView === "documents"
+              ? "bg-surface-raised text-ink shadow-sm"
+              : "text-ink-faint hover:text-ink"
           )}
-        </div>
-        <div className="flex items-center justify-between">
-          <p className="px-1 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
-            문서 ({filtered.length})
-          </p>
-          <Dropdown
-            align="right"
-            width={160}
-            trigger={
-              <button className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-ink-faint hover:bg-surface-overlay hover:text-ink">
-                {sortLabel}
-              </button>
-            }
-            items={SORT_OPTIONS.map((o) => ({
-              id: o.id,
-              label: o.label,
-              icon: o.icon,
-              active: sortMode === o.id,
-              onSelect: () => setSortMode(o.id),
-            }))}
-          />
-        </div>
+        >
+          <Files size={15} /> 문서
+        </button>
+        <button
+          onClick={() => setActiveView("outline")}
+          aria-pressed={activeView === "outline"}
+          className={cn(
+            "flex h-9 items-center justify-center gap-1.5 rounded-[9px] text-xs font-semibold transition-colors",
+            activeView === "outline"
+              ? "bg-surface-raised text-ink shadow-sm"
+              : "text-ink-faint hover:text-ink"
+          )}
+        >
+          <ListTree size={15} /> 구조
+        </button>
       </div>
 
-      {/* Document list */}
-      <div className="flex-1 overflow-y-auto mf-scroll px-3 pb-3 space-y-1 min-h-0">
-        {pinned.length > 0 && (
-          <>
-            <p className="px-1 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
-              고정됨
-            </p>
-            {pinned.map((doc) => (
+      {activeView === "documents" ? (
+        <>
+          <div className="flex gap-2 p-3 pb-2">
+            <Button
+              variant="primary"
+              className="min-w-0 flex-1 justify-center"
+              onClick={() => createDocument()}
+            >
+              <FilePlus2 size={16} /> 새 문서
+            </Button>
+            <Button
+              size="icon"
+              onClick={() => setDialog("template")}
+              aria-label="템플릿에서 만들기"
+              title="템플릿에서 만들기"
+            >
+              <LayoutTemplate size={16} />
+            </Button>
+          </div>
+
+          <div className="space-y-1.5 px-3 pb-2">
+            <div className="relative">
+              <Search
+                size={14}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint"
+              />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="문서 검색…"
+                aria-label="문서 검색"
+                className="h-10 w-full rounded-xl border border-line bg-surface-base pl-9 pr-9 text-xs text-ink placeholder:text-ink-faint outline-none transition focus-visible:border-brand/50 focus-visible:ring-2 focus-visible:ring-ink-soft"
+              />
+              {query && (
+                <button
+                  onClick={() => setQuery("")}
+                  aria-label="검색어 지우기"
+                  className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-ink-faint hover:bg-surface-sunken hover:text-ink"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <div className="flex items-center justify-between px-1">
+              <p className="text-[11px] font-semibold text-ink-faint">
+                {filtered.length}개 문서
+              </p>
+              <Dropdown
+                align="right"
+                width={160}
+                trigger={
+                  <button className="flex min-h-8 items-center gap-1 rounded-lg px-2 text-[11px] text-ink-faint hover:bg-surface-sunken hover:text-ink">
+                    {sortLabel}
+                  </button>
+                }
+                items={SORT_OPTIONS.map((option) => ({
+                  id: option.id,
+                  label: option.label,
+                  icon: option.icon,
+                  active: sortMode === option.id,
+                  onSelect: () => setSortMode(option.id),
+                }))}
+              />
+            </div>
+          </div>
+
+          <div className="mf-scroll min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-3">
+            {pinned.length > 0 && (
+              <>
+                <p className="px-1 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+                  고정됨
+                </p>
+                {pinned.map((doc) => (
+                  <DocumentCard key={doc.id} doc={doc} />
+                ))}
+                <div className="my-1.5 h-px bg-line/70" />
+              </>
+            )}
+            {rest.map((doc) => (
               <DocumentCard key={doc.id} doc={doc} />
             ))}
-            <div className="my-1.5 h-px bg-line/70" />
-          </>
-        )}
-        {rest.map((doc) => (
-          <DocumentCard key={doc.id} doc={doc} />
-        ))}
-        {filtered.length === 0 && (
-          <p className="px-2 py-4 text-center text-xs text-ink-faint">
-            검색 결과가 없습니다
-          </p>
-        )}
-      </div>
-
-      {/* Outline */}
-      <div className="border-t border-line/60 min-h-0 max-h-[40%] flex flex-col">
-        <OutlinePanel />
-      </div>
+            {filtered.length === 0 && (
+              <p className="px-2 py-8 text-center text-xs text-ink-faint">
+                검색 결과가 없습니다
+              </p>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="mt-2 flex min-h-0 flex-1 flex-col border-t border-line/60">
+          <OutlinePanel />
+        </div>
+      )}
     </aside>
   );
 }

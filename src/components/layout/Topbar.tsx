@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ALargeSmall,
   BarChart3,
   ChevronDown,
   Command,
@@ -12,6 +11,7 @@ import {
   Maximize,
   Monitor,
   Moon,
+  MoreHorizontal,
   PanelRight,
   Play,
   Redo2,
@@ -19,19 +19,18 @@ import {
   Share2,
   Sidebar as SidebarIcon,
   Sun,
-  Type,
   Undo2,
 } from "lucide-react";
 import { useState } from "react";
 
 import { DesignMenu } from "@/components/toolbar/DesignMenu";
-import { FontSizeMenu } from "@/components/toolbar/FontSizeMenu";
+import { BrandMark } from "@/components/ui/BrandMark";
 import { Button } from "@/components/ui/Button";
 import { Dropdown } from "@/components/ui/Dropdown";
 import { Icon } from "@/components/ui/Icon";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { cn } from "@/lib/cn";
-import { FONT_OPTIONS, LAYOUT_OPTIONS } from "@/lib/constants";
+import { LAYOUT_OPTIONS } from "@/lib/constants";
 import {
   selectActiveDocument,
   useMindMapStore,
@@ -45,22 +44,22 @@ function SaveIndicator() {
     saveStatus === "saving"
       ? "저장 중…"
       : saveStatus === "error"
-      ? "저장 실패"
-      : lastSavedAt
-      ? `저장됨 · ${new Date(lastSavedAt).toLocaleTimeString("ko-KR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })}`
-      : "자동 저장";
+        ? "저장 실패"
+        : lastSavedAt
+          ? `저장됨 · ${new Date(lastSavedAt).toLocaleTimeString("ko-KR", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}`
+          : "자동 저장";
 
   return (
-    <div className="hidden md:flex items-center gap-1.5 text-[11px] text-ink-faint">
+    <div className="hidden 2xl:flex items-center gap-1.5 text-[11px] text-ink-faint">
       <span
         className={cn(
           "h-1.5 w-1.5 rounded-full",
-          saveStatus === "saving" && "bg-amber-400 animate-pulse",
-          saveStatus === "saved" && "bg-emerald-400",
-          saveStatus === "error" && "bg-red-400",
+          saveStatus === "saving" && "animate-pulse bg-amber-500",
+          saveStatus === "saved" && "bg-emerald-500",
+          saveStatus === "error" && "bg-red-500",
           saveStatus === "idle" && "bg-ink-faint"
         )}
       />
@@ -74,6 +73,7 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
   const sidebarCollapsed = useMindMapStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useMindMapStore((s) => s.toggleSidebar);
   const toggleInspector = useMindMapStore((s) => s.toggleInspector);
+  const setInspectorOpen = useMindMapStore((s) => s.setInspectorOpen);
   const inspectorOpen = useMindMapStore((s) => s.inspectorOpen);
   const renameDocument = useMindMapStore((s) => s.renameDocument);
   const connectMode = useMindMapStore((s) => s.connectMode);
@@ -84,8 +84,6 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
   const futureLen = useMindMapStore((s) => s.future.length);
   const theme = useMindMapStore((s) => s.theme);
   const toggleTheme = useMindMapStore((s) => s.toggleTheme);
-  const font = useMindMapStore((s) => s.font);
-  const setFont = useMindMapStore((s) => s.setFont);
   const autoLayout = useMindMapStore((s) => s.autoLayout);
   const activeLayoutMode = useMindMapStore((s) => s.activeLayoutMode);
   const fitToView = useMindMapStore((s) => s.fitToView);
@@ -98,36 +96,55 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
   const [draft, setDraft] = useState("");
 
   const ThemeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
+  const activeLayout =
+    LAYOUT_OPTIONS.find((layout) => layout.id === activeLayoutMode) ??
+    LAYOUT_OPTIONS[0];
+
+  const toggleDocuments = () => {
+    const opening = sidebarCollapsed;
+    if (compact && opening && inspectorOpen) setInspectorOpen(false);
+    toggleSidebar();
+  };
+
+  const toggleDetails = () => {
+    const opening = !inspectorOpen;
+    if (compact && opening && !sidebarCollapsed) toggleSidebar();
+    toggleInspector();
+  };
 
   return (
-    <header className="relative z-30 flex h-14 shrink-0 items-center gap-2 border-b border-line px-3 mf-glass">
-      {sidebarCollapsed && (
-        <Tooltip label="사이드바 열기">
-          <Button variant="ghost" size="icon" onClick={toggleSidebar}>
-            <SidebarIcon size={18} />
-          </Button>
-        </Tooltip>
-      )}
+    <header className="relative z-[60] flex h-[60px] shrink-0 items-center gap-2 border-b border-line bg-surface-raised/95 px-2.5 shadow-[0_1px_0_rgb(var(--line)/0.45)] backdrop-blur-md">
+      <Tooltip label={sidebarCollapsed ? "문서 패널 열기" : "문서 패널 닫기"}>
+        <Button
+          variant={sidebarCollapsed ? "ghost" : "subtle"}
+          size="icon"
+          onClick={toggleDocuments}
+          aria-label={sidebarCollapsed ? "문서 패널 열기" : "문서 패널 닫기"}
+        >
+          <SidebarIcon size={18} />
+        </Button>
+      </Tooltip>
 
-      {/* Title */}
-      <div className="flex min-w-0 flex-1 items-center gap-2">
+      <BrandMark size={25} className="hidden shrink-0 rounded-lg sm:block" />
+
+      <div className="flex min-w-[8rem] flex-1 items-center gap-2 overflow-hidden">
         {editing ? (
           <input
             autoFocus
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(event) => setDraft(event.target.value)}
             onBlur={() => {
               if (doc) renameDocument(doc.id, draft.trim() || doc.title);
               setEditing(false);
             }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
                 if (doc) renameDocument(doc.id, draft.trim() || doc.title);
                 setEditing(false);
               }
-              if (e.key === "Escape") setEditing(false);
+              if (event.key === "Escape") setEditing(false);
             }}
-            className="min-w-0 max-w-xs rounded-lg bg-surface-base border border-brand/50 px-2 py-1 text-sm font-semibold text-ink focus:outline-none"
+            className="h-9 min-w-0 max-w-sm flex-1 rounded-xl border border-brand/50 bg-surface-base px-3 text-sm font-semibold text-ink outline-none focus-visible:ring-2 focus-visible:ring-ink-soft"
           />
         ) : (
           <button
@@ -135,8 +152,8 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
               setDraft(doc?.title ?? "");
               setEditing(true);
             }}
-            className="truncate text-sm font-semibold text-ink hover:text-brand transition max-w-[40vw]"
-            title="제목 클릭하여 수정"
+            className="min-w-0 truncate text-left text-sm font-semibold text-ink transition-colors hover:text-brand"
+            title="제목을 클릭해 수정"
           >
             {doc?.title ?? "MindForge"}
           </button>
@@ -144,8 +161,7 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
         <SaveIndicator />
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1 rounded-[14px] border border-line/80 bg-surface-sunken/70 p-1">
         <Tooltip label="실행 취소 (Ctrl+Z)">
           <Button
             variant="ghost"
@@ -153,8 +169,9 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
             onClick={undo}
             disabled={historyLen === 0}
             aria-label="실행 취소"
+            className="h-8 w-8 rounded-[10px]"
           >
-            <Undo2 size={17} />
+            <Undo2 size={16} />
           </Button>
         </Tooltip>
         <Tooltip label="다시 실행 (Ctrl+Shift+Z)">
@@ -164,23 +181,21 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
             onClick={redo}
             disabled={futureLen === 0}
             aria-label="다시 실행"
+            className="h-8 w-8 rounded-[10px]"
           >
-            <Redo2 size={17} />
+            <Redo2 size={16} />
           </Button>
         </Tooltip>
+      </div>
 
-        <div className="mx-1 h-5 w-px bg-line" />
-
-        {/* One click always reflows the current map. Layout choice remains a
-            separate compact menu so the primary action never just opens a
-            dropdown when the user needs overlapping nodes fixed now. */}
-        <Tooltip label="노드 겹침을 풀어 자동 배열">
+      <div className="flex shrink-0 items-center gap-1">
+        <Tooltip label="노드를 겹치지 않게 자동 배열">
           <Button
             variant="secondary"
             size={compact ? "icon" : "sm"}
             onClick={() => autoLayout()}
             aria-label="겹침 없이 자동 배열"
-            className="border-brand/30 text-brand"
+            className="border-brand/30 bg-brand/10 text-brand"
           >
             <LayoutGrid size={16} />
             {!compact && <span>자동 배열</span>}
@@ -189,194 +204,128 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
 
         <Dropdown
           align="right"
-          width={230}
+          width={226}
           trigger={
-            <Tooltip label="배열 방식 선택">
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="배열 방식 선택"
-                className="gap-0"
-              >
-                <Icon
-                  name={
-                    LAYOUT_OPTIONS.find((l) => l.id === activeLayoutMode)
-                      ?.icon ?? "ListTree"
-                  }
-                  size={15}
-                />
-                <ChevronDown size={11} className="-ml-0.5" />
+            <Tooltip label={`배열 방식: ${activeLayout.label}`}>
+              <Button variant="ghost" size="icon" aria-label="배열 방식 선택">
+                <Icon name={activeLayout.icon} size={16} />
+                <ChevronDown size={11} className="-ml-1" />
               </Button>
             </Tooltip>
           }
-          items={LAYOUT_OPTIONS.map((opt) => ({
-            id: opt.id,
-            label: opt.label,
-            icon: <Icon name={opt.icon} size={15} />,
-            active: opt.id === activeLayoutMode,
-            onSelect: () => autoLayout(opt.id),
+          items={LAYOUT_OPTIONS.map((option) => ({
+            id: option.id,
+            label: option.label,
+            icon: <Icon name={option.icon} size={15} />,
+            active: option.id === activeLayoutMode,
+            onSelect: () => autoLayout(option.id),
           }))}
         />
 
-        <Tooltip label="화면 맞춤">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={fitToView}
-            aria-label="화면 맞춤"
-          >
-            <Maximize size={16} />
+        <Tooltip label="전체 지도를 화면에 맞춤">
+          <Button variant="ghost" size="icon" onClick={fitToView} aria-label="화면 맞춤">
+            <Maximize size={17} />
           </Button>
         </Tooltip>
+      </div>
 
-        <Tooltip label={connectMode ? "연결 모드 종료" : "관계선 연결 모드"}>
-          <Button
-            variant={connectMode ? "primary" : "ghost"}
-            size="icon"
-            onClick={() => setConnectMode(!connectMode)}
-            aria-label="관계선 연결 모드"
-          >
-            <Link2 size={16} />
-          </Button>
-        </Tooltip>
-
-        <Tooltip label="스냅샷 (버전 기록)">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setDialog("snapshots")}
-            aria-label="스냅샷"
-          >
-            <History size={16} />
-          </Button>
-        </Tooltip>
-
-        <Tooltip label="문서 통계">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setDialog("stats")}
-            aria-label="문서 통계"
-          >
-            <BarChart3 size={16} />
-          </Button>
-        </Tooltip>
-
-        {!compact && (
-          <Tooltip label="커맨드 팔레트 (Ctrl+K)">
-            <Button variant="ghost" size="sm" onClick={openCommandPalette}>
-              <Command size={15} />
-              <span className="text-ink-faint">⌘K</span>
-            </Button>
-          </Tooltip>
-        )}
-
+      <div className="flex shrink-0 items-center gap-1">
         <DesignMenu
           trigger={
-            <Button variant="ghost" size="icon" aria-label="디자인">
+            <Button variant="ghost" size={compact ? "icon" : "sm"} aria-label="지도 디자인">
               <Shapes size={17} />
+              {!compact && <span>디자인</span>}
             </Button>
           }
         />
+
+        <Button
+          variant="primary"
+          size={compact ? "icon" : "sm"}
+          onClick={() => setDialog("share")}
+          aria-label="링크로 공유"
+        >
+          <Share2 size={16} />
+          {!compact && <span>공유</span>}
+        </Button>
 
         <Dropdown
           align="right"
-          width={200}
+          width={238}
           trigger={
-            <Button variant="ghost" size="icon" aria-label="폰트 변경">
-              <Type size={17} />
-            </Button>
-          }
-          items={FONT_OPTIONS.map((opt) => ({
-            id: opt.id,
-            label: opt.label,
-            active: opt.id === font,
-            onSelect: () => setFont(opt.id),
-            icon: <span style={{ fontFamily: opt.family }}>가</span>,
-          }))}
-        />
-
-        <FontSizeMenu
-          trigger={
-            <Button variant="ghost" size="icon" aria-label="레벨별 글자 크기">
-              <ALargeSmall size={18} />
-            </Button>
-          }
-        />
-
-        <Tooltip label="링크로 공유">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setDialog("share")}
-            aria-label="링크로 공유"
-          >
-            <Share2 size={16} />
-          </Button>
-        </Tooltip>
-
-        <Dropdown
-          align="right"
-          width={200}
-          trigger={
-            <Tooltip label="내보내기">
-              <Button variant="ghost" size="icon" aria-label="내보내기">
-                <Download size={17} />
+            <Tooltip label="더 많은 도구">
+              <Button variant="ghost" size="icon" aria-label="더 많은 도구">
+                <MoreHorizontal size={18} />
               </Button>
             </Tooltip>
           }
           items={[
             {
+              id: "commands",
+              label: "명령 팔레트",
+              icon: <Command size={16} />,
+              onSelect: openCommandPalette,
+            },
+            {
+              id: "connect",
+              label: connectMode ? "관계선 연결 종료" : "관계선 연결",
+              icon: <Link2 size={16} />,
+              active: connectMode,
+              onSelect: () => setConnectMode(!connectMode),
+            },
+            {
+              id: "snapshots",
+              label: "버전 기록",
+              icon: <History size={16} />,
+              onSelect: () => setDialog("snapshots"),
+            },
+            {
+              id: "stats",
+              label: "문서 통계",
+              icon: <BarChart3 size={16} />,
+              onSelect: () => setDialog("stats"),
+            },
+            {
+              id: "presentation",
+              label: "프레젠테이션",
+              icon: <Play size={16} />,
+              onSelect: openPresentationMode,
+            },
+            {
+              id: "theme",
+              label: "밝기 테마 전환",
+              icon: <ThemeIcon size={16} />,
+              onSelect: toggleTheme,
+            },
+            {
               id: "png",
               label: "PNG 이미지 저장",
-              icon: <Icon name="Image" size={15} />,
+              icon: <Download size={16} />,
               onSelect: () => exportImage("png"),
             },
             {
               id: "svg",
               label: "SVG 이미지 저장",
-              icon: <Icon name="Image" size={15} />,
+              icon: <Icon name="Image" size={16} />,
               onSelect: () => exportImage("svg"),
             },
             {
               id: "export",
-              label: "내보내기",
-              icon: <Icon name="FileJson" size={15} />,
+              label: "데이터 내보내기",
+              icon: <Icon name="FileJson" size={16} />,
               onSelect: () => setDialog("export"),
             },
           ]}
         />
 
-        <div className="mx-1 h-5 w-px bg-line" />
-
-        <Tooltip label="프레젠테이션">
+        <Tooltip label={inspectorOpen ? "편집 패널 닫기" : "편집 패널 열기"}>
           <Button
-            variant="ghost"
+            variant={inspectorOpen ? "subtle" : "ghost"}
             size="icon"
-            onClick={openPresentationMode}
-            aria-label="프레젠테이션 모드"
+            onClick={toggleDetails}
+            aria-label={inspectorOpen ? "편집 패널 닫기" : "편집 패널 열기"}
           >
-            <Play size={16} />
-          </Button>
-        </Tooltip>
-        <Tooltip label="테마 변경">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleTheme}
-            aria-label="테마 변경"
-          >
-            <ThemeIcon size={17} />
-          </Button>
-        </Tooltip>
-        <Tooltip label="인스펙터 토글">
-          <Button
-            variant={inspectorOpen ? "secondary" : "ghost"}
-            size="icon"
-            onClick={toggleInspector}
-            aria-label="인스펙터 토글"
-          >
-            <PanelRight size={17} />
+            <PanelRight size={18} />
           </Button>
         </Tooltip>
       </div>
