@@ -68,7 +68,13 @@ function SaveIndicator() {
   );
 }
 
-export function Topbar({ compact = false }: { compact?: boolean }) {
+export function Topbar({
+  compact = false,
+  onHome,
+}: {
+  compact?: boolean;
+  onHome: () => void;
+}) {
   const doc = useMindMapStore(selectActiveDocument);
   const sidebarCollapsed = useMindMapStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useMindMapStore((s) => s.toggleSidebar);
@@ -125,7 +131,16 @@ export function Topbar({ compact = false }: { compact?: boolean }) {
         </Button>
       </Tooltip>
 
-      <BrandMark size={25} className="hidden shrink-0 rounded-lg sm:block" />
+      <Tooltip label="메인으로">
+        <button
+          type="button"
+          onClick={onHome}
+          aria-label="메인으로"
+          className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-surface-sunken sm:flex"
+        >
+          <BrandMark size={25} className="rounded-lg" />
+        </button>
+      </Tooltip>
 
       <div className="flex min-w-[8rem] flex-1 items-center gap-2 overflow-hidden">
         {editing ? (

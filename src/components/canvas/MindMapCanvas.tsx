@@ -16,6 +16,7 @@ import {
 import { ChevronDown, Map as MapIcon } from "lucide-react";
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -83,6 +84,10 @@ function CanvasInner() {
   const pushHistory = useMindMapStore((s) => s.pushHistory);
   const setDropTargetId = useMindMapStore((s) => s.setDropTargetId);
   const reparentNode = useMindMapStore((s) => s.reparentNode);
+
+  useEffect(() => {
+    return () => registerFlow(null);
+  }, [registerFlow]);
 
   const [miniMapOpen, setMiniMapOpen] = useState(false);
   // React Flow can emit click/context-menu events immediately after a drag.

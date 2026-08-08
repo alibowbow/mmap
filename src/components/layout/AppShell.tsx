@@ -1,13 +1,13 @@
 "use client";
 
-import { AnimatePresence, MotionConfig, motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Eye,
   EyeOff,
   LayoutGrid,
-  Menu,
   Redo2,
   Search,
   Undo2,
@@ -40,8 +40,6 @@ import { NodeContextMenu } from "@/components/toolbar/NodeContextMenu";
 import { TutorialCoach } from "@/components/tutorial/TutorialCoach";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { Button } from "@/components/ui/Button";
-import { ToastViewport } from "@/components/ui/Toast";
-import { useDebouncedEffect } from "@/hooks/useDebouncedEffect";
 import {
   useIsDesktop,
   useIsMobile,
@@ -49,8 +47,6 @@ import {
 } from "@/hooks/useIsMobile";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { cn } from "@/lib/cn";
-import { fontFamilyFor } from "@/lib/constants";
-import { readShareCodeFromHash } from "@/lib/share";
 import { getVisibleDfsOrder } from "@/lib/tree";
 import {
   selectActiveDocument,
@@ -61,7 +57,7 @@ import {
 const ONBOARD_KEY = "mindforge-onboarded-v1";
 
 // ── Mobile top bar ───────────────────────────────────────────────────────────
-function MobileTopbar() {
+function MobileTopbar({ onHome }: { onHome: () => void }) {
   const doc = useMindMapStore(selectActiveDocument);
   const setMobileDrawerOpen = useMindMapStore((s) => s.setMobileDrawerOpen);
   const setSearchOpen = useMindMapStore((s) => s.setSearchOpen);
@@ -77,17 +73,19 @@ function MobileTopbar() {
   return (
     <header className="relative z-30 flex min-h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-end gap-0.5 border-b border-line bg-surface-raised px-1.5 pb-1.5 pt-[env(safe-area-inset-top)]">
       <button
-        onClick={() => setMobileDrawerOpen(true)}
-        aria-label="문서 목록"
+        onClick={onHome}
+        aria-label="메인으로"
         className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-soft active:bg-surface-sunken"
       >
-        <Menu size={20} />
+        <BrandMark size={27} className="rounded-lg" />
       </button>
       <button
         onClick={() => setMobileDrawerOpen(true)}
-        className="flex h-11 min-w-0 flex-1 items-center justify-center truncate px-1 text-center text-sm font-semibold text-ink"
+        aria-label="문서 목록 열기"
+        className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1 truncate px-1 text-center text-sm font-semibold text-ink"
       >
-        {doc?.title ?? "MindForge"}
+        <span className="truncate">{doc?.title ?? "MindForge"}</span>
+        <ChevronDown size={13} className="shrink-0 text-ink-faint" />
       </button>
       <button
         onClick={undo}
@@ -343,18 +341,12 @@ function SlideOver({
 }
 
 // ── App shell ────────────────────────────────────────────────────────────────
-export function AppShell() {
+export function AppShell({ onHome }: { onHome: () => void }) {
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
   const isDesktop = useIsDesktop();
 
-  const loadWorkspace = useMindMapStore((s) => s.loadWorkspace);
-  const saveWorkspace = useMindMapStore((s) => s.saveWorkspace);
-  const revision = useMindMapStore((s) => s.revision);
   const hydrated = useMindMapStore((s) => s.hydrated);
-  const theme = useMindMapStore((s) => s.theme);
-  const setTheme = useMindMapStore((s) => s.setTheme);
-  const font = useMindMapStore((s) => s.font);
 
   const sidebarCollapsed = useMindMapStore((s) => s.sidebarCollapsed);
   const inspectorOpen = useMindMapStore((s) => s.inspectorOpen);
@@ -396,89 +388,8 @@ export function AppShell() {
     showTablet,
   ]);
 
-  // Load once on mount.
-  useEffect(() => {
-    loadWorkspace();
-  }, [loadWorkspace]);
-
-  // If the page was opened via a share link (#m=…), decode it into a NEW copy
-  // (after the workspace has loaded), then strip the fragment so a refresh
-  // doesn't re-import it. Runs once; the cleared hash makes any re-run a no-op.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const code = readShareCodeFromHash(window.location.hash);
-    if (!code) return;
-    try {
-      useMindMapStore.getState().importSharedDocument(code);
-    } finally {
-      // Always strip the fragment — even if import throws — so a refresh never
-      // re-imports and a poisoned link doesn't linger in the address bar.
-      const { pathname, search } = window.location;
-      window.history.replaceState(null, "", pathname + search);
-    }
-  }, []);
-
-  // Debounced auto-save whenever the workspace changes.
-  useDebouncedEffect(
-    () => {
-      if (hydrated) saveWorkspace();
-    },
-    [revision, hydrated],
-    700
-  );
-
-  // Flush the pending autosave immediately when the tab is backgrounded or
-  // closed. The debounce has a 700ms trailing delay, so on mobile a quick
-  // edit-then-switch-away could otherwise lose the last change.
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    const flush = () => {
-      if (useMindMapStore.getState().hydrated) saveWorkspace();
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === "hidden") flush();
-    };
-    window.addEventListener("pagehide", flush);
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      window.removeEventListener("pagehide", flush);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [saveWorkspace]);
-
-  // React to OS theme changes when in "system" mode.
-  useEffect(() => {
-    if (theme !== "system" || typeof window === "undefined") return;
-    const mql = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = () => setTheme("system");
-    mql.addEventListener("change", handler);
-    return () => mql.removeEventListener("change", handler);
-  }, [theme, setTheme]);
-
   return (
-    <MotionConfig reducedMotion="user">
-      <div
-        className="flex h-[100dvh] w-full overflow-hidden bg-surface-base text-ink"
-        style={{ fontFamily: fontFamilyFor(font) }}
-      >
-      {/* Brand splash while the workspace hydrates from storage. */}
-      <AnimatePresence>
-        {!hydrated && (
-          <motion.div
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.35 }}
-            className="fixed inset-0 z-[200] flex flex-col items-center justify-center gap-2.5 bg-surface-base"
-          >
-            <BrandMark size={46} className="rounded-xl shadow-float" />
-            <span className="mf-brand-text text-lg font-bold tracking-tight">
-              MindForge
-            </span>
-            <span className="text-[11px] tracking-wide text-ink-faint">
-              생각을 벼리다
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div className="flex h-[100dvh] w-full overflow-hidden bg-surface-base text-ink">
 
       {/* Desktop sidebar (inline) */}
       {showDesktopChrome && !sidebarCollapsed && <Sidebar />}
@@ -487,9 +398,9 @@ export function AppShell() {
       <main className="relative flex min-w-0 flex-1 flex-col">
         {!presentationMode &&
           (isMobile ? (
-            <MobileTopbar />
+            <MobileTopbar onHome={onHome} />
           ) : (
-            <Topbar compact={isTablet} />
+            <Topbar compact={isTablet} onHome={onHome} />
           ))}
 
         <div className="relative min-h-0 flex-1">
@@ -556,9 +467,6 @@ export function AppShell() {
       {presentationMode && <PresentationControls />}
 
       <TutorialCoach />
-
-      <ToastViewport />
-      </div>
-    </MotionConfig>
+    </div>
   );
 }
