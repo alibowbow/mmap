@@ -142,42 +142,54 @@ body {
   );
 }
 
-/* Home workbench surfaces: bright paper layers with a restrained blueprint
-   grid. The visual identity comes from the map lines and real document nodes,
-   while these textures stay quiet enough for long titles and dense lists. */
-.mf-home-blueprint {
-  background-color: #eef6ff;
-  background-image:
-    radial-gradient(circle at 1px 1px, rgb(96 165 250 / 0.2) 1px, transparent 1.15px),
-    linear-gradient(145deg, rgb(255 255 255 / 0.36), transparent 58%);
-  background-size: 22px 22px, 100% 100%;
+/* The home workspace is paper-light, with a real map overview as its anchor. */
+.mf-home { background: #fafaf7; }
+.dark .mf-home { background: rgb(var(--surface-base)); }
+.mf-home-frame { width: 100%; max-width: 1480px; margin-inline: auto; padding-inline: clamp(16px, 3.3vw, 48px); }
+.mf-home-header { background: rgb(var(--surface-raised)); border-bottom: 1px solid rgb(var(--line)); }
+.mf-home-nav { min-width: 44px; justify-content: center; display: inline-flex; min-height: 44px; align-items: center; padding-inline: 12px; font-size: 13px; font-weight: 600; color: rgb(var(--ink-soft)); }
+.mf-home-nav:hover { color: rgb(var(--brand)); }
+.mf-workspace-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-block: 24px 20px; }
+.mf-home-actions { display: flex; gap: 10px; }
+.mf-launchpad { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(340px, 1fr); gap: 18px; align-items: start; }
+.mf-home-blueprint { background-color: #edf5fb; background-image: radial-gradient(circle at 1px 1px, rgb(70 128 180 / 0.14) 1px, transparent 1px); background-size: 20px 20px; }
+.dark .mf-home-blueprint { background-color: #1a2736; }
+.mf-recent-map { display: flex; flex-direction: column; min-width: 0; border: 1px solid rgb(127 174 212 / 0.4); border-radius: 14px; padding: 20px 22px 14px; }
+.mf-featured-preview { display: flex; width: 100%; height: 216px; align-items: center; justify-content: center; border-radius: 10px; }
+.mf-map-preview { display: block; width: 100%; height: 100%; max-width: 640px; font-family: inherit; }
+.mf-template-shelf { min-width: 0; border: 1px solid #eae0c7; border-radius: 14px; padding: 8px 12px 12px; background: #faf5e8; }
+.dark .mf-template-shelf { border-color: #494231; background: #29271f; }
+.mf-template-title { display: flex; min-height: 48px; align-items: center; justify-content: space-between; padding-inline: 4px; font-size: 15px; font-weight: 700; }
+.mf-template-toggle { display: none; width: 100%; min-height: 48px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; font-size: 15px; font-weight: 700; }
+.mf-template-toggle > svg { display: none; }
+.mf-template-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.mf-template-choice { display: flex; min-height: 66px; align-items: center; gap: 8px; padding: 10px 8px; border: 1px solid transparent; border-radius: 9px; background: rgb(var(--surface-raised) / 0.75); text-align: left; transition: border-color 150ms, background-color 150ms; }
+.mf-template-choice:hover { border-color: rgb(var(--line)); background: rgb(var(--surface-raised)); }
+.mf-document-library { padding-top: 28px; }
+.mf-document-thumbnail { height: 156px; background: rgb(var(--surface-base) / 0.7); background-image: radial-gradient(circle at 1px 1px, rgb(var(--ink) / 0.07) 0.7px, transparent 0.9px); background-size: 15px 15px; }
+.mf-document-card:hover { box-shadow: 0 5px 18px rgb(25 50 80 / 0.05); }
+.mf-home button:focus-visible, .mf-home select:focus-visible { outline: 2px solid rgb(var(--brand)); outline-offset: 3px; }
+@media (max-width: 1023px) {
+  .mf-launchpad { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .mf-featured-preview { height: 200px; }
+  .mf-template-title { display: none; }
+  .mf-template-toggle { display: flex; }
+  .mf-template-toggle > svg { display: block; }
+  .mf-template-grid { display: none; }
+  .mf-template-shelf[data-expanded="true"] .mf-template-grid { display: grid; }
+  .mf-template-shelf { padding: 0 12px; }
+  .mf-template-shelf[data-expanded="true"] { padding-bottom: 12px; }
 }
-
-.mf-template-tray {
-  background-color: #fff8e6;
-  background-image:
-    radial-gradient(circle at 15% 8%, rgb(251 191 36 / 0.08), transparent 32%),
-    linear-gradient(180deg, rgb(255 255 255 / 0.28), transparent 42%);
-}
-
-.dark .mf-home-blueprint {
-  background-color: #172033;
-  background-image:
-    radial-gradient(circle at 1px 1px, rgb(96 165 250 / 0.18) 1px, transparent 1.15px),
-    linear-gradient(145deg, rgb(255 255 255 / 0.025), transparent 58%);
-}
-
-.dark .mf-template-tray {
-  background-color: #272318;
-  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.025), transparent 42%);
-}
-
-.mf-home .mf-scroll {
-  scrollbar-width: none;
-}
-
-.mf-home .mf-scroll::-webkit-scrollbar {
-  display: none;
+@media (max-width: 639px) {
+  .mf-template-nav { display: none; }
+  .mf-workspace-heading { display: block; padding-block: 20px 16px; }
+  .mf-home-actions { display: grid; grid-template-columns: 1fr 1fr; margin-top: 16px; }
+  .mf-home-nav { padding-inline: 6px; font-size: 12px; }
+  .mf-recent-map { padding: 14px 14px 10px; }
+  .mf-featured-preview { height: 144px; }
+  .mf-document-library { padding-top: 22px; }
+  .mf-document-thumbnail { height: 142px; }
+  .mf-template-choice { min-height: 66px; }
 }
 
 /* ── Brand ──────────────────────────────────────────────────────────────────
