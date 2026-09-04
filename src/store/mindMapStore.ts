@@ -563,6 +563,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         src.edges.map((e) => ({ ...e }))
       );
       copy.relations = (src.relations ?? []).map((r) => ({ ...r }));
+      copy.layoutMode = src.layoutMode;
+      copy.viewport = src.viewport ? { ...src.viewport } : undefined;
       set((s) => ({
         documents: [copy, ...s.documents],
         revision: s.revision + 1,

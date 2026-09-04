@@ -7,12 +7,13 @@ import {
   Monitor,
   Moon,
   Plus,
-  Search,
   ShieldCheck,
   Sun,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
+import { DocumentPreview } from "@/components/home/DocumentPreview";
+import { DocumentLibrary } from "@/components/home/DocumentLibrary";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
@@ -20,7 +21,6 @@ import { TEMPLATES } from "@/lib/templates";
 import { useMindMapStore } from "@/store/mindMapStore";
 import type {
   MindMapDocument,
-  MindMapNode,
   TemplateType,
 } from "@/types/mindmap";
 
@@ -58,101 +58,6 @@ function relativeTime(iso: string): string {
     month: "short",
     day: "numeric",
   }).format(date);
-}
-
-function nodeCenter(node: MindMapNode) {
-  return {
-    x: node.position.x + (node.measured?.width ?? node.width ?? 150) / 2,
-    y: node.position.y + (node.measured?.height ?? node.height ?? 48) / 2,
-  };
-}
-
-function DocumentPreview({
-  document,
-  color,
-}: {
-  document: MindMapDocument;
-  color: string;
-}) {
-  const geometry = useMemo(() => {
-    const nodes = document.nodes.slice(0, 30);
-    if (!nodes.length) return { points: [], links: [] };
-
-    const centers = nodes.map((node) => ({ id: node.id, ...nodeCenter(node) }));
-    const byId = new Map(centers.map((point) => [point.id, point]));
-    const minX = Math.min(...centers.map((point) => point.x));
-    const maxX = Math.max(...centers.map((point) => point.x));
-    const minY = Math.min(...centers.map((point) => point.y));
-    const maxY = Math.max(...centers.map((point) => point.y));
-    const spanX = Math.max(1, maxX - minX);
-    const spanY = Math.max(1, maxY - minY);
-    const scale = (point: { x: number; y: number }) => ({
-      x: 10 + ((point.x - minX) / spanX) * 140,
-      y: 8 + ((point.y - minY) / spanY) * 58,
-    });
-    const points = nodes.map((node) => ({
-      id: node.id,
-      isRoot: Boolean(node.data.isRoot),
-      ...scale(byId.get(node.id)!),
-    }));
-    const scaledById = new Map(points.map((point) => [point.id, point]));
-    const links = nodes.flatMap((node) => {
-      if (!node.data.parentId) return [];
-      const source = scaledById.get(node.data.parentId);
-      const target = scaledById.get(node.id);
-      return source && target ? [{ source, target }] : [];
-    });
-    return { points, links };
-  }, [document]);
-
-  return (
-    <svg
-      viewBox="0 0 160 74"
-      className="h-14 w-28 shrink-0 overflow-visible sm:w-32"
-      aria-hidden="true"
-      style={{ color }}
-    >
-      {geometry.links.map(({ source, target }, index) => {
-        const middle = source.x + (target.x - source.x) * 0.55;
-        return (
-          <path
-            key={`${source.id}-${target.id}-${index}`}
-            d={`M ${source.x} ${source.y} C ${middle} ${source.y}, ${middle} ${target.y}, ${target.x} ${target.y}`}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            opacity="0.72"
-          />
-        );
-      })}
-      {geometry.points.map((point) =>
-        point.isRoot ? (
-          <rect
-            key={point.id}
-            x={point.x - 6}
-            y={point.y - 3.5}
-            width="12"
-            height="7"
-            rx="2.5"
-            fill="rgb(var(--surface-raised))"
-            stroke="currentColor"
-            strokeWidth="1.8"
-          />
-        ) : (
-          <circle
-            key={point.id}
-            cx={point.x}
-            cy={point.y}
-            r="2.1"
-            fill="rgb(var(--surface-raised))"
-            stroke="currentColor"
-            strokeWidth="1.4"
-          />
-        )
-      )}
-    </svg>
-  );
 }
 
 function TemplatePreview({ color }: { color: string }) {
@@ -350,7 +255,6 @@ export function HomeScreen({
   const documents = useMindMapStore((state) => state.documents);
   const theme = useMindMapStore((state) => state.theme);
   const toggleTheme = useMindMapStore((state) => state.toggleTheme);
-  const [query, setQuery] = useState("");
 
   const recent = useMemo(
     () =>
@@ -362,17 +266,6 @@ export function HomeScreen({
         .slice(0, 4),
     [documents]
   );
-
-  const filteredDocuments = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase("ko-KR");
-    const ordered = [...documents].sort(
-      (a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt)
-    );
-    if (!normalized) return ordered;
-    return ordered.filter((document) =>
-      document.title.toLocaleLowerCase("ko-KR").includes(normalized)
-    );
-  }, [documents, query]);
 
   const ThemeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
   const themeLabel =
@@ -500,47 +393,7 @@ export function HomeScreen({
           </div>
         </section>
 
-        <section aria-labelledby="documents-heading" className="bg-surface-raised px-4 py-6 sm:px-6 lg:px-8">
-          <div className="mx-auto w-full max-w-[1240px]">
-            <div className="flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-baseline gap-2">
-                <h2 id="documents-heading" tabIndex={-1} className="scroll-mt-4 text-lg font-bold tracking-[-0.025em] text-ink outline-none">전체 문서</h2>
-                <span className="text-[11px] tabular-nums text-ink-faint">{documents.length}개</span>
-              </div>
-              <label className="relative block w-full sm:w-[260px]">
-                <span className="sr-only">문서 검색</span>
-                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="문서 검색"
-                  className="h-11 w-full rounded-xl border border-line bg-surface-base pl-9 pr-3 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-brand/50 focus:ring-2 focus:ring-brand/15"
-                />
-              </label>
-            </div>
-
-            <div id="documents-list" aria-live="polite" className="divide-y divide-line/80">
-              {filteredDocuments.map((document, index) => (
-                <button
-                  key={document.id}
-                  type="button"
-                  onClick={() => onOpenDocument(document.id)}
-                  className="group grid min-h-[58px] w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-1 text-left transition-colors hover:bg-surface-base/70 sm:grid-cols-[auto_minmax(0,1fr)_120px_100px_auto] sm:px-2"
-                >
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: PREVIEW_COLORS[index % PREVIEW_COLORS.length] }} />
-                  <span className="truncate text-sm font-medium text-ink">{document.title}</span>
-                  <span className="hidden text-xs tabular-nums text-ink-faint sm:block">{document.nodes.length} 노드</span>
-                  <time dateTime={document.updatedAt} className="text-[11px] tabular-nums text-ink-faint">{relativeTime(document.updatedAt)}</time>
-                  <ArrowRight size={15} className="hidden text-ink-faint transition-transform group-hover:translate-x-0.5 sm:block" />
-                </button>
-              ))}
-              {!filteredDocuments.length && (
-                <div className="flex min-h-[120px] items-center justify-center text-sm text-ink-faint">검색 결과가 없습니다.</div>
-              )}
-            </div>
-          </div>
-        </section>
+        <DocumentLibrary documents={documents} onOpen={onOpenDocument} />
       </main>
     </div>
   );
