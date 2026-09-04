@@ -4,7 +4,7 @@ import { layoutRightTree } from "@/lib/layout";
 import { buildEdgesFromNodes } from "@/lib/tree";
 import type { Edge, MindMapNode } from "@/types/mindmap";
 
-type OutlineItem = { level: number; text: string };
+type OutlineItem = { level: number; text: string; checked?: boolean };
 
 // Parse Markdown / indented outline text into flat (level, text) items.
 // Supports: #/##/### headings, -/*/+ and numbered bullets, [ ]/[x] checkboxes,
@@ -28,14 +28,13 @@ export function parseOutlineToItems(text: string): OutlineItem[] {
     const indent = (m?.[1] ?? "").replace(/\t/g, "  ");
     const depth = Math.floor(indent.length / 2);
     let content = (m?.[2] ?? "").trim();
-    content = content
-      .replace(/^([-*+]|\d+[.)])\s+/, "") // bullet / number
-      .replace(/^\[[ xX]\]\s+/, "") // checkbox
-      .trim();
+    content = content.replace(/^([-*+]|\d+[.)])\s+/, "");
+    const checkbox = content.match(/^\[([ xX])\]\s+/);
+    content = content.replace(/^\[[ xX]\]\s+/, "").trim();
     if (!content) continue;
 
     const base = headingLevel >= 0 ? headingLevel + 1 : 0;
-    items.push({ level: base + depth, text: content });
+    items.push({ level: base + depth, text: content, ...(checkbox ? { checked: checkbox[1].toLowerCase() === "x" } : {}) });
   }
 
   return items;
@@ -57,9 +56,9 @@ export function parseOutlineToTree(
   const nodes: MindMapNode[] = [];
   const stack: { level: number; id: string }[] = [];
 
-  const make = (label: string, parentId: string | null, isRoot: boolean) => {
+  const make = (label: string, parentId: string | null, isRoot: boolean, checked?: boolean) => {
     const id = createId(isRoot ? "root" : "n");
-    const type = isRoot ? "root" : "plain";
+    const type = isRoot ? "root" : checked !== undefined ? "task" : "plain";
     nodes.push({
       id,
       type: "mindmap",
@@ -69,7 +68,7 @@ export function parseOutlineToTree(
         parentId,
         isRoot,
         type,
-        status: "none",
+        status: checked === undefined ? "none" : checked ? "done" : "todo",
         color: NODE_TYPE_CONFIG[type].color,
         collapsed: false,
       },
@@ -87,7 +86,7 @@ export function parseOutlineToTree(
       stack.pop();
     }
     const parentId = stack.length ? stack[stack.length - 1].id : null;
-    const id = make(it.text, parentId, parentId === null);
+    const id = make(it.text, parentId, parentId === null, it.checked);
     stack.push({ level: it.level, id });
   }
 

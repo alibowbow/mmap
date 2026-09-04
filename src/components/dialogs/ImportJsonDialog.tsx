@@ -1,7 +1,7 @@
 "use client";
 
 import { FileUp, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -18,7 +18,7 @@ const OUTLINE_PLACEHOLDER = `# 중심 주제
 ## 두 번째 가지
   들여쓰기로 하위 항목도 가능`;
 
-export function ImportJsonDialog() {
+export function ImportJsonDialog({ onImported }: { onImported?: () => void } = {}) {
   const open = useMindMapStore((s) => s.dialog === "import");
   const tab = useMindMapStore((s) => s.importTab);
   const setTab = useMindMapStore((s) => s.setImportTab);
@@ -28,35 +28,46 @@ export function ImportJsonDialog() {
 
   const [jsonText, setJsonText] = useState("");
   const [outlineText, setOutlineText] = useState("");
+  const [fileError, setFileError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const close = () => {
     setDialog(null);
     setJsonText("");
     setOutlineText("");
+    setFileError("");
   };
 
   // JSON preview
-  const jsonPreview = jsonText.trim() ? parseImportJson(jsonText) : null;
+  const jsonPreview = useMemo(() => jsonText.trim() ? parseImportJson(jsonText) : null, [jsonText]);
   const jsonSummary =
     jsonPreview && jsonPreview.ok ? summarizeDocument(jsonPreview.document) : null;
 
   // Outline preview
-  const outlineTree = outlineText.trim()
-    ? parseOutlineToTree(outlineText)
-    : null;
+  const outlineTree = useMemo(() => outlineText.trim() ? parseOutlineToTree(outlineText) : null, [outlineText]);
 
   const handleFile = (file: File) => {
+    setFileError("");
+    if (file.size > 10 * 1024 * 1024) {
+      setFileError("10MB 이하 파일을 선택하세요.");
+      return;
+    }
     const reader = new FileReader();
-    reader.onload = () => setJsonText(String(reader.result ?? ""));
+    const targetTab = tab;
+    reader.onload = () => {
+      const text = String(reader.result ?? "").replace(/^\uFEFF/, "");
+      if (targetTab === "json") setJsonText(text);
+      else setOutlineText(text);
+    };
+    reader.onerror = () => setFileError("파일을 읽지 못했습니다. 다시 선택하세요.");
     reader.readAsText(file);
   };
 
   const handleImport = () => {
-    if (tab === "json") {
-      if (importJson(jsonText)) setJsonText("");
-    } else {
-      if (importOutline(outlineText)) setOutlineText("");
+    const imported = tab === "json" ? importJson(jsonText) : importOutline(outlineText);
+    if (imported) {
+      close();
+      onImported?.();
     }
   };
 
@@ -87,9 +98,10 @@ export function ImportJsonDialog() {
         ).map((t) => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => { setTab(t.id); setFileError(""); }}
+            aria-pressed={tab === t.id}
             className={cn(
-              "rounded-lg px-3 py-1.5 text-sm font-medium transition",
+              "min-h-11 rounded-lg px-3 py-1.5 text-sm font-medium transition",
               tab === t.id
                 ? "bg-surface-raised text-ink shadow-sm"
                 : "text-ink-soft hover:text-ink"
@@ -100,6 +112,10 @@ export function ImportJsonDialog() {
         ))}
       </div>
 
+      <input ref={fileRef} type="file" accept={tab === "json" ? "application/json,.json" : "text/plain,text/markdown,.txt,.md,.markdown"} className="hidden"
+        onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFile(file); e.target.value = ""; }} />
+      {fileError && <p role="alert" className="mb-3 text-sm text-red-500">{fileError}</p>}
+
       {tab === "json" ? (
         <div className="space-y-3">
           <button
@@ -108,17 +124,8 @@ export function ImportJsonDialog() {
           >
             <FileUp size={18} /> JSON 파일 선택
           </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="application/json,.json"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleFile(f);
-            }}
-          />
           <Textarea
+            aria-label="JSON 내용"
             value={jsonText}
             onChange={(e) => setJsonText(e.target.value)}
             placeholder='{ "document": { ... } }'
@@ -146,11 +153,13 @@ export function ImportJsonDialog() {
         </div>
       ) : (
         <div className="space-y-3">
+          <Button className="w-full" onClick={() => fileRef.current?.click()}><FileUp size={17} /> Markdown / 텍스트 파일 선택</Button>
           <p className="text-xs leading-relaxed text-ink-soft">
             마크다운 제목(#, ##), 글머리표(-, *), 또는 들여쓰기(공백·탭)로
-            계층을 표현하면 자동으로 가지로 변환됩니다.
+            계층을 표현하면 자동으로 가지로 변환됩니다. [ ]와 [x]는 할 일과 완료 상태를 유지합니다.
           </p>
           <Textarea
+            aria-label="아웃라인 내용"
             value={outlineText}
             onChange={(e) => setOutlineText(e.target.value)}
             placeholder={OUTLINE_PLACEHOLDER}

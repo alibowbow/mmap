@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { HomeScreen } from "@/components/home/HomeScreen";
+import { ImportJsonDialog } from "@/components/dialogs/ImportJsonDialog";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { ToastViewport } from "@/components/ui/Toast";
 import { useDebouncedEffect } from "@/hooks/useDebouncedEffect";
@@ -204,11 +205,13 @@ export function MindForgeApp() {
   );
 
   const openImport = useCallback(() => {
+    useMindMapStore.getState().setDialog("import");
+  }, []);
+
+  const openImportedDocument = useCallback(() => {
     const state = useMindMapStore.getState();
-    const documentId = state.activeDocumentId ?? state.documents[0]?.id;
-    if (!documentId) return;
-    showEditor(documentId);
-    state.setDialog("import");
+    state.saveWorkspace();
+    if (state.activeDocumentId) showEditor(state.activeDocumentId);
   }, [showEditor]);
 
   const goHome = useCallback(() => {
@@ -234,11 +237,14 @@ export function MindForgeApp() {
             <span className="text-[11px] tracking-wide text-ink-faint">생각을 벼리다</span>
           </div>
         ) : view === "home" ? (
+          <>
           <HomeScreen
             onCreate={createAndOpen}
             onOpenDocument={openDocument}
             onImport={openImport}
           />
+          <ImportJsonDialog onImported={openImportedDocument} />
+          </>
         ) : (
           <AppShell onHome={goHome} />
         )}
