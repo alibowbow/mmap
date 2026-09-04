@@ -41,13 +41,13 @@ export function DocumentLibrary({ documents, onOpen }: {
   };
 
   return (
-    <section aria-labelledby="documents-heading" className="bg-surface-raised px-4 py-7 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-[1240px]">
+    <section aria-labelledby="documents-heading" className="mf-document-library">
+      <div className="w-full">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <h2 id="documents-heading" tabIndex={-1} className="scroll-mt-4 text-lg font-bold tracking-tight outline-none">
+          <h2 id="documents-heading" tabIndex={-1} className="scroll-mt-4 text-xl font-bold tracking-tight outline-none">
             전체 문서 <span className="ml-1 text-xs font-normal text-ink-faint">{documents.length}개</span>
           </h2>
-          <div className="relative w-full sm:w-80">
+          <div className="relative w-full sm:w-[min(440px,50%)]">
             <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 text-ink-faint" />
             <input type="search" aria-label="문서와 내용 검색" placeholder="제목, 노드 내용, 태그 검색" value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -75,22 +75,22 @@ export function DocumentLibrary({ documents, onOpen }: {
             </div>
           </div>
         </div>
-        <p role="status" className="mb-3 text-xs text-ink-faint">{results.length}개 문서{query.trim() ? ` · “${query.trim()}” 검색 결과` : " · 고정한 문서가 먼저 표시됩니다"}</p>
-        <div id="documents-list" className={cn(view === "grid" ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "space-y-2")}>
+        <p role="status" className="mb-3 break-words text-xs text-ink-faint">{results.length}개 문서{query.trim() ? ` · “${query.trim()}” 검색 결과` : " · 고정한 문서가 먼저 표시됩니다"}</p>
+        <div id="documents-list" className={cn(view === "grid" ? "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" : "space-y-2")}>
           {results.map(({ document: doc, progress, snippet }, index) => (
-            <article key={doc.id} data-document-id={doc.id} className={cn("relative rounded-2xl border border-line bg-surface-raised transition-colors hover:border-brand/40", view === "list" && "flex items-center")}>
-              <button type="button" aria-label={`${doc.title} 열기`} onClick={() => onOpen(doc.id)} className={cn("min-w-0 text-left", view === "grid" ? "block w-full rounded-t-2xl px-4 pb-2 pt-4" : "flex flex-1 flex-wrap items-center gap-x-4 gap-y-1 rounded-l-2xl p-4")}>
-                {view === "grid" && <div className="mb-4 flex h-20 items-center justify-center rounded-xl bg-surface-base"><DocumentPreview document={doc} color={COLORS[index % COLORS.length]} /></div>}
+            <article key={doc.id} data-document-id={doc.id} className={cn("mf-document-card relative min-w-0 rounded-xl border border-line bg-surface-raised transition-[border-color,box-shadow] hover:border-brand/40", view === "list" && "flex items-center")}>
+              <button type="button" aria-label={`${doc.title} 열기`} onClick={() => onOpen(doc.id)} className={cn("min-w-0 text-left", view === "grid" ? "block w-full rounded-t-xl px-4 pb-2 pt-3" : "flex flex-1 flex-wrap items-center gap-x-4 gap-y-1 rounded-l-2xl p-4")}>
+                {view === "grid" && <div className="mf-document-thumbnail mb-3 flex items-center justify-center rounded-lg"><DocumentPreview document={doc} color={COLORS[index % COLORS.length]} /></div>}
                 <span className={cn("block min-w-0", view === "list" && "w-full sm:w-auto sm:flex-1")}>
-                  <span className="block truncate text-sm font-semibold" title={doc.title}>{doc.title}</span>
+                  <span className="block truncate text-[15px] font-semibold" title={doc.title}>{doc.title}</span>
                   {snippet && <span className="mt-1 block truncate text-xs text-ink-soft" title={snippet}>{snippet}</span>}
                 </span>
-                <span className="mt-1.5 flex items-center gap-2 text-[11px] text-ink-faint">
+                <span className="mt-1.5 flex items-center gap-2 text-xs text-ink-faint">
                   <span>{doc.nodes.length} 노드</span><span aria-hidden="true">·</span>
                   <time dateTime={doc.updatedAt}>{new Date(doc.updatedAt).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}</time>
                 </span>
                 {progress.total > 0 && <span className={cn("mt-3 block", view === "list" && "w-24 shrink-0")}>
-                  <span className="mb-1 flex justify-between gap-2 text-[11px] text-ink-soft"><span>할 일 완료</span><span>{progress.done}/{progress.total}</span></span>
+                  <span className="mb-1 flex justify-between gap-2 text-xs text-ink-soft"><span>할 일 완료</span><span>{progress.done}/{progress.total}</span></span>
                   <span role="progressbar" aria-label={`${doc.title} 할 일 완료`} aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.done} className="block h-1 rounded-full bg-surface-sunken"><span className="block h-full rounded-full bg-emerald-500" style={{ width: `${progress.done / progress.total * 100}%` }} /></span>
                 </span>}
               </button>
