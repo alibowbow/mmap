@@ -90,7 +90,7 @@ export function parseOutlineToTree(
     stack.push({ level: it.level, id });
   }
 
-  const laid = layoutRightTree(nodes);
+  const laid = nodes.length > 200 ? nodes : layoutRightTree(nodes);
   const title = nodes.find((n) => n.data.isRoot)?.data.label || "가져온 아웃라인";
   return { nodes: laid, edges: buildEdgesFromNodes(laid), title };
 }

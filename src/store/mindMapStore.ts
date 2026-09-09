@@ -34,7 +34,17 @@ import {
 import { renderCanvasImage } from "@/lib/image";
 import { parseOutlineToTree } from "@/lib/outlineImport";
 import { createId } from "@/lib/id";
-import { runLayout, runSubtreeLayout } from "@/lib/layout";
+import { runLayout } from "@/lib/layout";
+import { LayoutRuntime, type LayoutRequest } from "@/lib/layoutRuntime";
+import { nodeRect, nodeSize } from "@/lib/layout-engine/adapter";
+import { union, boundsOf } from "@/lib/layout-engine/geometry";
+import type {
+  EdgeRoute,
+  EnginePort,
+  LayoutResult,
+  RequestStamp,
+} from "@/lib/layout-engine/types";
+import { EMPTY_STAMP } from "@/lib/layout-engine/adapter";
 import {
   backupCorruptData,
   loadWorkspaceFromStorage,
@@ -85,26 +95,30 @@ const HISTORY_LIMIT = 60;
 // Throttle repeated save-failure toasts (autosave fires often).
 let lastSaveErrorAt = 0;
 
-// Briefly flag a layout change so nodes tween to their new positions instead
-// of hard-cutting. Removed after the transition so live dragging stays 1:1.
-let layoutAnimTimer: ReturnType<typeof setTimeout> | null = null;
-function beginLayoutAnimation() {
-  if (typeof document === "undefined") return;
-  document.documentElement.classList.add("mf-animating-layout");
-  if (layoutAnimTimer) clearTimeout(layoutAnimTimer);
-  layoutAnimTimer = setTimeout(() => {
-    document.documentElement.classList.remove("mf-animating-layout");
-    layoutAnimTimer = null;
-  }, 360);
-}
+// Runtime is initialized after the store; all user actions own transactions here.
+let layoutRuntime: LayoutRuntime;
 
-type HistoryEntry = {
+export type HistoryEntry = {
+  layoutMode?: LayoutMode;
   nodes: MindMapNode[];
   edges: Edge[];
   relations: MindMapRelation[];
 };
 
 export type MindMapState = {
+  layoutRoutes: Record<string, EdgeRoute>;
+  layoutResult: LayoutResult | null;
+  layoutStamp: RequestStamp;
+  layoutBusy: boolean;
+  requestLayout: (request?: LayoutRequest) => void;
+  settleLayout: () => Promise<void>;
+  beginNodeDrag: (ids: string[]) => void;
+  endNodeDrag: () => void;
+  noteCameraIntent: () => void;
+  updateLayoutMeasurements: (
+    ports: ReadonlyMap<string, readonly EnginePort[]>,
+    labels?: ReadonlyMap<string, { width: number; height: number }>,
+  ) => void;
   // ── Data ──
   documents: MindMapDocument[];
   activeDocumentId: string | null;
@@ -340,7 +354,7 @@ function applyThemeClass(theme: MindMapTheme) {
 function makeDocument(
   title: string,
   nodes: MindMapNode[],
-  edges: Edge[]
+  edges: Edge[],
 ): MindMapDocument {
   const ts = nowIso();
   return {
@@ -378,6 +392,13 @@ function cloneNode(n: MindMapNode): MindMapNode {
   };
 }
 
+function reconcileEdges(nodes: MindMapNode[], edges: Edge[]): Edge[] {
+  const old = new Map(edges.map((e) => [`${e.source}\0${e.target}`, e]));
+  return buildEdgesFromNodes(nodes).map(
+    (e) => old.get(`${e.source}\0${e.target}`) ?? e,
+  );
+}
+
 export const useMindMapStore = create<MindMapState>((set, get) => {
   // Write the live nodes/edges back into the active document and mark dirty.
   // Relations referencing deleted nodes are pruned here — every node mutation
@@ -385,13 +406,13 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
   function syncActiveDocument(
     nodes: MindMapNode[],
     edges: Edge[],
-    touch = true
+    touch = true,
   ) {
     const { activeDocumentId, documents } = get();
     if (!activeDocumentId) return;
     const nodeIds = new Set(nodes.map((n) => n.id));
     const relations = get().relations.filter(
-      (r) => nodeIds.has(r.source) && nodeIds.has(r.target)
+      (r) => nodeIds.has(r.source) && nodeIds.has(r.target),
     );
     const updated = documents.map((d) =>
       d.id === activeDocumentId
@@ -400,9 +421,10 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
             nodes,
             edges,
             relations,
+            layoutMode: get().activeLayoutMode,
             updatedAt: touch ? nowIso() : d.updatedAt,
           }
-        : d
+        : d,
     );
     set((s) => ({
       documents: updated,
@@ -414,15 +436,38 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
 
   // Apply a node mutation: snapshot history, set live + document state.
   function commit(
-    producer: (nodes: MindMapNode[], edges: Edge[]) => {
+    producer: (
+      nodes: MindMapNode[],
+      edges: Edge[],
+    ) => {
       nodes: MindMapNode[];
       edges: Edge[];
     },
-    record = true
+    record = true,
   ) {
-    const { nodes, edges } = get();
-    if (record) get().pushHistory();
-    const next = producer(nodes, edges);
+    const state = get();
+    const next = producer(state.nodes, state.edges);
+    const sameNodes =
+      next.nodes.length === state.nodes.length &&
+      next.nodes.every((n, i) => {
+        const old = state.nodes[i];
+        return (
+          n === old ||
+          (n.id === old.id &&
+            n.position.x === old.position.x &&
+            n.position.y === old.position.y &&
+            JSON.stringify(n.data) === JSON.stringify(old.data))
+        );
+      });
+    if (sameNodes && JSON.stringify(next.edges) === JSON.stringify(state.edges))
+      return;
+    layoutRuntime.begin(
+      "edit",
+      !record ||
+        layoutRuntime.isDragging ||
+        (layoutRuntime.kind === "text" && !!state.editingNodeId),
+    );
+    layoutRuntime.record({ ...state, nodes: next.nodes, edges: next.edges });
     set({ nodes: next.nodes, edges: next.edges });
     syncActiveDocument(next.nodes, next.edges);
   }
@@ -436,6 +481,17 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
   }
 
   return {
+    layoutRoutes: {},
+    layoutResult: null,
+    layoutStamp: EMPTY_STAMP,
+    layoutBusy: false,
+    requestLayout: (request) => layoutRuntime.queue(request),
+    settleLayout: () => layoutRuntime.settle(),
+    beginNodeDrag: (ids) => layoutRuntime.beginDrag(ids),
+    endNodeDrag: () => layoutRuntime.endDrag(),
+    noteCameraIntent: () => layoutRuntime.cameraIntent(),
+    updateLayoutMeasurements: (ports, labels) =>
+      layoutRuntime.measurements(ports, labels),
     documents: [],
     activeDocumentId: null,
     nodes: [],
@@ -529,7 +585,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
               ...(() => {
                 const { nodes, edges } = buildTemplate(templateType);
                 return [nodes, edges] as [MindMapNode[], Edge[]];
-              })()
+              })(),
             )
           : blankRootDocument();
       set((s) => ({
@@ -560,7 +616,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const copy = makeDocument(
         `${src.title} (복사본)`,
         src.nodes.map(cloneNode),
-        src.edges.map((e) => ({ ...e }))
+        src.edges.map((e) => ({ ...e })),
       );
       copy.relations = (src.relations ?? []).map((r) => ({ ...r }));
       copy.layoutMode = src.layoutMode;
@@ -586,10 +642,10 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         activeDocumentId: wasActive ? nextDocs[0].id : s.activeDocumentId,
         nodes: wasActive ? nextDocs[0].nodes : s.nodes,
         edges: wasActive ? nextDocs[0].edges : s.edges,
-        relations: wasActive ? nextDocs[0].relations ?? [] : s.relations,
+        relations: wasActive ? (nextDocs[0].relations ?? []) : s.relations,
         selectedRelationId: wasActive ? null : s.selectedRelationId,
         activeLayoutMode: wasActive
-          ? nextDocs[0].layoutMode ?? "right-tree"
+          ? (nextDocs[0].layoutMode ?? "right-tree")
           : s.activeLayoutMode,
         ...(wasActive
           ? selectionFor(getRootNode(nextDocs[0].nodes)?.id ?? null)
@@ -605,7 +661,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     renameDocument: (documentId, title) => {
       set((s) => ({
         documents: s.documents.map((d) =>
-          d.id === documentId ? { ...d, title, updatedAt: nowIso() } : d
+          d.id === documentId ? { ...d, title, updatedAt: nowIso() } : d,
         ),
         revision: s.revision + 1,
       }));
@@ -616,7 +672,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     toggleDocumentPin: (documentId) => {
       set((s) => ({
         documents: s.documents.map((d) =>
-          d.id === documentId ? { ...d, pinned: !d.pinned } : d
+          d.id === documentId ? { ...d, pinned: !d.pinned } : d,
         ),
         revision: s.revision + 1,
       }));
@@ -709,7 +765,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           backupCorruptData(result.raw);
           get().addToast(
             "저장된 데이터가 손상되어 새로 시작합니다. 이전 데이터는 백업해 두었습니다.",
-            "error"
+            "error",
           );
         }
       }
@@ -718,7 +774,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       if (result.ok && result.droppedDocs > 0) {
         get().addToast(
           `문서 ${result.droppedDocs}개가 손상되어 제외되었습니다.`,
-          "error"
+          "error",
         );
       }
       get().fitToView();
@@ -781,7 +837,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
             result.quota
               ? "저장 공간이 가득 찼습니다. 내보내기로 백업하고 오래된 스냅샷/문서를 정리하세요."
               : "자동 저장에 실패했습니다. 내보내기로 백업하세요.",
-            "error"
+            "error",
           );
         }
       }
@@ -796,7 +852,29 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const newNode: MindMapNode = {
         id,
         type: "mindmap",
-        position: { ...parent.position }, // temporary; auto-layout repositions it
+        position: (() => {
+          const siblings = nodes.filter((n) => n.data.parentId === parentId);
+          const last = siblings[siblings.length - 1];
+          const size = nodeSize(parent);
+          const left =
+            parent.data.side === "left" ||
+            (last && last.position.x < parent.position.x);
+          if (get().activeLayoutMode === "vertical")
+            return {
+              x: last
+                ? last.position.x + nodeSize(last).width + 28
+                : parent.position.x,
+              y: parent.position.y + size.height + 56,
+            };
+          return {
+            x:
+              last?.position.x ??
+              parent.position.x + (left ? -NODE_WIDTH - 56 : size.width + 56),
+            y: last
+              ? last.position.y + nodeSize(last).height + 28
+              : parent.position.y,
+          };
+        })(),
         data: {
           label: DEFAULT_NODE_LABEL,
           parentId,
@@ -809,19 +887,18 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       commit((nds, eds) => {
         // expand parent if collapsed so the new child is visible
         const expanded = nds.map((n) =>
-          n.id === parentId ? { ...n, data: { ...n.data, collapsed: false } } : n
+          n.id === parentId
+            ? { ...n, data: { ...n.data, collapsed: false } }
+            : n,
         );
         const withNew = [...expanded, newNode];
-        // Re-run the active layout so the new node never overlaps siblings.
-        const laid = runLayout(withNew, get().activeLayoutMode);
-        return { nodes: laid, edges: buildEdgesFromNodes(laid) };
+        return { nodes: withNew, edges: reconcileEdges(withNew, eds) };
       });
       // Select the new node but don't jump into edit mode — the user asked
       // that adding a child not immediately open the text cursor. (The
       // continuous Tab-while-typing flow opts back in explicitly.)
       set({ ...selectionFor(id), editingNodeId: null });
-      beginLayoutAnimation();
-      focusSoon(id);
+
       return id;
     },
 
@@ -836,21 +913,18 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     },
 
     updateNodeLabel: (nodeId, label) => {
-      commit(
-        (nds, eds) => ({
-          nodes: nds.map((n) =>
-            n.id === nodeId ? { ...n, data: { ...n.data, label } } : n
-          ),
-          edges: eds,
-        }),
-        false // label edits are noisy; skip per-keystroke history
-      );
+      commit((nds, eds) => ({
+        nodes: nds.map((n) =>
+          n.id === nodeId ? { ...n, data: { ...n.data, label } } : n,
+        ),
+        edges: eds,
+      }));
     },
 
     updateNodeData: (nodeId, partial) => {
       commit((nds, eds) => ({
         nodes: nds.map((n) =>
-          n.id === nodeId ? { ...n, data: { ...n.data, ...partial } } : n
+          n.id === nodeId ? { ...n, data: { ...n.data, ...partial } } : n,
         ),
         edges: eds,
       }));
@@ -868,11 +942,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       }
       const ids = new Set(getSubtreeIds(nodes, nodeId));
       const parentId = node.data.parentId;
-      beginLayoutAnimation();
-      commit((nds) => {
+      commit((nds, eds) => {
         const remaining = nds.filter((n) => !ids.has(n.id));
-        const laid = runLayout(remaining, get().activeLayoutMode);
-        return { nodes: laid, edges: buildEdgesFromNodes(laid) };
+        return { nodes: remaining, edges: reconcileEdges(remaining, eds) };
       });
       set({
         ...selectionFor(parentId),
@@ -895,7 +967,10 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const parentId = node.data.parentId;
       commit((nds) => {
         const nextNodes = nds.filter((n) => !ids.has(n.id));
-        return { nodes: nextNodes, edges: buildEdgesFromNodes(nextNodes) };
+        return {
+          nodes: nextNodes,
+          edges: reconcileEdges(nextNodes, get().edges),
+        };
       });
       set({
         ...selectionFor(parentId),
@@ -910,15 +985,16 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const node = getNodeMap(nodes).get(nodeId);
       if (!node) return;
       const subtreeIds = getSubtreeIds(nodes, nodeId);
+      const sourceMap = getNodeMap(nodes);
       const idMap = new Map<string, string>();
       for (const oldId of subtreeIds) idMap.set(oldId, createId("n"));
       const clones: MindMapNode[] = subtreeIds.map((oldId) => {
-        const original = getNodeMap(nodes).get(oldId)!;
+        const original = sourceMap.get(oldId)!;
         const newId = idMap.get(oldId)!;
         const isSubRoot = oldId === nodeId;
         const newParent = isSubRoot
-          ? original.data.parentId ?? null
-          : idMap.get(original.data.parentId ?? "") ?? null;
+          ? (original.data.parentId ?? nodeId)
+          : (idMap.get(original.data.parentId ?? "") ?? null);
         const clone = cloneNode(original);
         return {
           ...clone,
@@ -928,11 +1004,14 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
             ...clone.data,
             parentId: newParent,
             isRoot: false,
-            label: isSubRoot ? `${clone.data.label} (복사본)` : clone.data.label,
+            type: clone.data.type === "root" ? "plain" : clone.data.type,
+            label: isSubRoot
+              ? `${clone.data.label} (복사본)`
+              : clone.data.label,
           },
           position: {
-            x: original.position.x + (isSubRoot ? NODE_WIDTH + 60 : 0),
-            y: original.position.y + (isSubRoot ? 40 : 0),
+            x: original.position.x + NODE_WIDTH + 60,
+            y: original.position.y + 40,
           },
         };
       });
@@ -984,12 +1063,21 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         return {
           ...clone,
           id: idMap.get(n.id)!,
+          position: {
+            x:
+              n.position.x -
+              clipboard[0].position.x +
+              target.position.x +
+              nodeSize(target).width +
+              56,
+            y: n.position.y - clipboard[0].position.y + target.position.y + 104,
+          },
           selected: false,
           data: {
             ...clone.data,
             parentId: isSubRoot
               ? targetId
-              : idMap.get(clone.data.parentId ?? "") ?? targetId,
+              : (idMap.get(clone.data.parentId ?? "") ?? targetId),
             isRoot: false,
             type: clone.data.type === "root" ? "plain" : clone.data.type,
             // Pasted portals shouldn't share the original's cross-map links.
@@ -1003,12 +1091,10 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         const expanded = nds.map((n) =>
           n.id === targetId
             ? { ...n, data: { ...n.data, collapsed: false } }
-            : n
+            : n,
         );
         const withNew = [...expanded, ...clones];
-        const laid = runLayout(withNew, get().activeLayoutMode);
-        beginLayoutAnimation();
-        return { nodes: laid, edges: buildEdgesFromNodes(laid) };
+        return { nodes: withNew, edges: reconcileEdges(withNew, get().edges) };
       });
       const newRootId = idMap.get(srcRootId)!;
       set({ ...selectionFor(newRootId) });
@@ -1043,12 +1129,12 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
             ...clone.data,
             parentId: isSubRoot
               ? null
-              : idMap.get(original.data.parentId ?? "") ?? null,
+              : (idMap.get(original.data.parentId ?? "") ?? null),
             isRoot: isSubRoot,
             type: isSubRoot ? "root" : clone.data.type,
             collapsed: false,
             linkedDocId: undefined,
-            backDocId: isSubRoot ? activeDocumentId ?? undefined : undefined,
+            backDocId: isSubRoot ? (activeDocumentId ?? undefined) : undefined,
             backNodeId: isSubRoot ? nodeId : undefined,
           },
         };
@@ -1057,7 +1143,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const newDoc = makeDocument(
         node.data.label || "새 맵",
         laid,
-        buildEdgesFromNodes(laid)
+        buildEdgesFromNodes(laid),
       );
 
       // Update the current document: drop the moved descendants and turn the
@@ -1072,9 +1158,12 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
                   ...n,
                   data: { ...n.data, collapsed: false, linkedDocId: newDoc.id },
                 }
-              : n
+              : n,
           );
-        return { nodes: nextNodes, edges: buildEdgesFromNodes(nextNodes) };
+        return {
+          nodes: nextNodes,
+          edges: reconcileEdges(nextNodes, get().edges),
+        };
       });
 
       set((s) => ({ documents: [newDoc, ...s.documents] }));
@@ -1093,18 +1182,17 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           requestAnimationFrame(() => {
             get().selectNode(nodeId);
             get().focusNode(nodeId);
-          })
+          }),
         );
       }
     },
 
     toggleCollapse: (nodeId) => {
-      beginLayoutAnimation();
       commit((nds, eds) => ({
         nodes: nds.map((n) =>
           n.id === nodeId
             ? { ...n, data: { ...n.data, collapsed: !n.data.collapsed } }
-            : n
+            : n,
         ),
         edges: eds,
       }));
@@ -1113,23 +1201,32 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     // Set a first-level branch's direction and re-run the bidirectional layout
     // so the change is immediately visible.
     setNodeSide: (nodeId, side) => {
-      beginLayoutAnimation();
-      commit((nds) => {
-        const updated = nds.map((n) =>
-          n.id === nodeId ? { ...n, data: { ...n.data, side } } : n
-        );
-        const laid = runLayout(updated, "bidirectional");
-        return { nodes: laid, edges: buildEdgesFromNodes(laid) };
-      });
-      set((s) => ({
-        activeLayoutMode: "bidirectional",
-        documents: s.documents.map((d) =>
-          d.id === s.activeDocumentId
-            ? { ...d, layoutMode: "bidirectional" as LayoutMode }
-            : d
+      const state = get(),
+        node = state.nodes.find((n) => n.id === nodeId);
+      if (!node || node.data.side === side) return;
+      const root = getRootNode(state.nodes);
+      if (!root) return;
+      const ids = new Set(getSubtreeIds(state.nodes, nodeId));
+      const destination =
+        root.position.x +
+        (side === "left"
+          ? -nodeSize(node).width - 56
+          : nodeSize(root).width + 56);
+      const delta = destination - node.position.x;
+      commit((nodes, edges) => ({
+        nodes: nodes.map((n) =>
+          ids.has(n.id)
+            ? {
+                ...n,
+                position: { x: n.position.x + delta, y: n.position.y },
+                data: n.id === nodeId ? { ...n.data, side } : n.data,
+              }
+            : n,
         ),
+        edges,
       }));
-      requestAnimationFrame(() => get().fitToView());
+      set({ activeLayoutMode: "bidirectional" });
+      syncActiveDocument(get().nodes, get().edges);
     },
 
     selectNode: (nodeId) =>
@@ -1174,7 +1271,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     // text. It never touches the stored label, so undo history stays clean:
     // the pre-edit label is captured on commit.
     setEditingNode: (nodeId, seed) =>
-      set({ editingNodeId: nodeId, editSeed: nodeId ? seed ?? null : null }),
+      set({ editingNodeId: nodeId, editSeed: nodeId ? (seed ?? null) : null }),
 
     // Apply the same data patch to many nodes at once.
     bulkUpdateData: (ids, partial) => {
@@ -1182,7 +1279,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const idset = new Set(ids);
       commit((nds, eds) => ({
         nodes: nds.map((n) =>
-          idset.has(n.id) ? { ...n, data: { ...n.data, ...partial } } : n
+          idset.has(n.id) ? { ...n, data: { ...n.data, ...partial } } : n,
         ),
         edges: eds,
       }));
@@ -1201,7 +1298,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       if (!toRemove.size) return;
       commit((nds) => {
         const next = nds.filter((n) => !toRemove.has(n.id));
-        return { nodes: next, edges: buildEdgesFromNodes(next) };
+        return { nodes: next, edges: reconcileEdges(next, get().edges) };
       });
       set({
         selectedNodeId: null,
@@ -1235,11 +1332,11 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           return { ...n, data: { ...n.data, collapsed: false } };
         return n;
       });
-      beginLayoutAnimation();
-      const laid = runSubtreeLayout(updated, newParentId, get().activeLayoutMode);
-      set({ nodes: laid, edges: buildEdgesFromNodes(laid), dropTargetId: null });
-      syncActiveDocument(laid, buildEdgesFromNodes(laid));
-      requestAnimationFrame(() => get().focusNode(nodeId));
+      commit(
+        () => ({ nodes: updated, edges: reconcileEdges(updated, get().edges) }),
+        !layoutRuntime.isDragging,
+      );
+      set({ dropTargetId: null });
       get().addToast("부모를 변경했습니다", "success");
     },
 
@@ -1270,6 +1367,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           minute: "2-digit",
         }),
         createdAt: nowIso(),
+        layoutMode: get().activeLayoutMode,
         nodes: nodes.map(cloneNode),
         edges: edges.map((e) => ({ ...e })),
         relations: relations.map((r) => ({ ...r })),
@@ -1279,7 +1377,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           d.id === activeDocumentId
             ? // Keep the most recent 5 — snapshots live in localStorage.
               { ...d, snapshots: [snap, ...(d.snapshots ?? [])].slice(0, 5) }
-            : d
+            : d,
         ),
         revision: s.revision + 1,
       }));
@@ -1291,18 +1389,24 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const doc = documents.find((d) => d.id === activeDocumentId);
       const snap = doc?.snapshots?.find((s) => s.id === snapshotId);
       if (!snap) return;
-      // Runs through commit so the restore itself is undoable.
-      commit(() => ({
+      layoutRuntime.begin("restore");
+      const restored = {
         nodes: snap.nodes.map(cloneNode),
         edges: snap.edges.map((e) => ({ ...e })),
-      }));
-      set({
         relations: (snap.relations ?? []).map((r) => ({ ...r })),
+        activeLayoutMode:
+          snap.layoutMode ?? doc?.layoutMode ?? ("right-tree" as LayoutMode),
+      };
+      layoutRuntime.record({ ...get(), ...restored });
+      set({
+        ...restored,
         ...selectionFor(getRootNode(snap.nodes)?.id ?? null),
         focusModeNodeId: null,
         dialog: null,
       });
       syncActiveDocument(get().nodes, get().edges);
+      layoutRuntime.cancel(true);
+      layoutRuntime.queue({ routingOnly: true });
       get().fitToView();
       get().addToast("스냅샷을 복원했습니다 (⌘Z로 되돌리기 가능)", "success");
     },
@@ -1316,18 +1420,17 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
             ? {
                 ...d,
                 snapshots: (d.snapshots ?? []).filter(
-                  (sn) => sn.id !== snapshotId
+                  (sn) => sn.id !== snapshotId,
                 ),
               }
-            : d
+            : d,
         ),
         revision: s.revision + 1,
       }));
     },
 
     // ── Relations (free-form cross links) ──
-    setConnectMode: (on) =>
-      set({ connectMode: on, selectedRelationId: null }),
+    setConnectMode: (on) => set({ connectMode: on, selectedRelationId: null }),
 
     addRelation: (source, target) => {
       if (source === target) return;
@@ -1338,7 +1441,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const dup = relations.some(
         (r) =>
           (r.source === source && r.target === target) ||
-          (r.source === target && r.target === source)
+          (r.source === target && r.target === source),
       );
       const map = getNodeMap(nodes);
       const treeEdge =
@@ -1370,10 +1473,12 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     },
 
     updateRelationLabel: (id, label) => {
+      const relation = get().relations.find((r) => r.id === id);
+      if (!relation || (relation.label ?? "") === label.trim()) return;
       get().pushHistory();
       set((s) => ({
         relations: s.relations.map((r) =>
-          r.id === id ? { ...r, label: label.trim() || undefined } : r
+          r.id === id ? { ...r, label: label.trim() || undefined } : r,
         ),
       }));
       syncActiveDocument(get().nodes, get().edges);
@@ -1388,8 +1493,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const next = get().nodes.map((n) =>
         idset.has(n.id)
           ? { ...n, position: { x: n.position.x + dx, y: n.position.y + dy } }
-          : n
+          : n,
       );
+      layoutRuntime.record({ ...get(), nodes: next });
       set({ nodes: next });
       syncActiveDocument(next, get().edges, false);
     },
@@ -1419,17 +1525,68 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       }
       const rest = changes.filter((c) => c.type !== "select");
       if (!rest.length) return;
-      const next = applyNodeChanges(rest, get().nodes) as MindMapNode[];
-      set({ nodes: next });
-      // Persist position/drag changes (debounced save handled upstream).
-      const meaningful = rest.some(
-        (c) =>
-          c.type === "position" ||
-          c.type === "remove" ||
-          c.type === "add" ||
-          c.type === "dimensions"
+      const before = get().nodes;
+      const normalized = rest.map((c) =>
+        c.type === "dimensions" && c.dimensions
+          ? {
+              ...c,
+              dimensions: {
+                width: Math.ceil(c.dimensions.width * 2) / 2,
+                height: Math.ceil(c.dimensions.height * 2) / 2,
+              },
+            }
+          : c,
       );
-      if (meaningful) syncActiveDocument(next, get().edges, false);
+      let next = applyNodeChanges(normalized, before) as MindMapNode[];
+      // Collapsed boundaries carry hidden descendants even on a normal drag.
+      // An explicit position in the same batch wins, preventing double deltas.
+      const moved = new Map(
+        rest.flatMap((c) =>
+          c.type === "position" && c.position ? [[c.id, c] as const] : [],
+        ),
+      );
+      const translated = new Set<string>();
+      const deltas = new Map<string, { x: number; y: number }>();
+      for (const n of before) {
+        const c = moved.get(n.id);
+        if (
+          !n.data.collapsed ||
+          !c ||
+          c.type !== "position" ||
+          !c.position ||
+          translated.has(n.id)
+        )
+          continue;
+        const delta = {
+          x: c.position.x - n.position.x,
+          y: c.position.y - n.position.y,
+        };
+        for (const id of getDescendantIds(before, n.id)) {
+          translated.add(id);
+          if (!moved.has(id) && !deltas.has(id)) deltas.set(id, delta);
+        }
+      }
+      if (deltas.size)
+        next = next.map((n) => {
+          const d = deltas.get(n.id);
+          return d
+            ? {
+                ...n,
+                position: { x: n.position.x + d.x, y: n.position.y + d.y },
+              }
+            : n;
+        });
+      const positioned = rest.some((c) => c.type === "position" && c.position);
+      if (positioned) layoutRuntime.record({ ...get(), nodes: next });
+      set({ nodes: next });
+      // Measurements are transient geometry; they do not dirty storage/history.
+      if (
+        positioned ||
+        rest.some((c) => c.type === "remove" || c.type === "add")
+      )
+        syncActiveDocument(next, get().edges, false);
+      else if (rest.some((c) => c.type === "dimensions"))
+        layoutRuntime.dimensionsChanged();
     },
 
     onEdgesChange: (changes) => {
@@ -1452,49 +1609,40 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       if (!activeDocumentId) return;
       set({
         documents: documents.map((d) =>
-          d.id === activeDocumentId ? { ...d, viewport } : d
+          d.id === activeDocumentId ? { ...d, viewport } : d,
         ),
       });
     },
 
     autoLayout: (mode) => {
-      const layoutMode = mode ?? get().activeLayoutMode;
-      beginLayoutAnimation();
-      commit((nds) => {
-        const laid = runLayout(nds, layoutMode);
-        return { nodes: laid, edges: buildEdgesFromNodes(laid) };
+      layoutRuntime.begin("layout");
+      layoutRuntime.queue({
+        strategy: "full",
+        mode: mode ?? get().activeLayoutMode,
+        routingOnly: false,
       });
-      // Remember the mode on the document so edge-face routing stays correct
-      // across document switches and reloads.
-      set((s) => ({
-        activeLayoutMode: layoutMode,
-        documents: s.documents.map((d) =>
-          d.id === s.activeDocumentId ? { ...d, layoutMode } : d
-        ),
-      }));
-      requestAnimationFrame(() => get().fitToView());
     },
 
     autoLayoutSubtree: (nodeId, mode) => {
-      const layoutMode = mode ?? get().activeLayoutMode;
-      beginLayoutAnimation();
-      commit((nds) => {
-        const laid = runSubtreeLayout(nds, nodeId, layoutMode);
-        return { nodes: laid, edges: buildEdgesFromNodes(laid) };
+      if (!get().nodes.some((n) => n.id === nodeId)) return;
+      layoutRuntime.begin("layout");
+      layoutRuntime.queue({
+        strategy: "subtree",
+        subtreeRootId: nodeId,
+        mode: mode ?? get().activeLayoutMode,
+        routingOnly: false,
       });
-      requestAnimationFrame(() => get().focusNode(nodeId));
     },
 
     fitToView: () => {
-      const { flow, nodes } = get();
+      const { flow } = get();
       if (!flow) return;
       requestAnimationFrame(() => {
         const canvas = document.querySelector<HTMLElement>(
-          '[data-mindmap-canvas="true"]'
+          '[data-mindmap-canvas="true"]',
         );
         const canvasRect = canvas?.getBoundingClientRect();
         const isCompact = (canvasRect?.width ?? window.innerWidth) < 768;
-        const px = (value: number): `${number}px` => `${value}px`;
         let left = 24;
         let right = 24;
         let bottom = 24;
@@ -1505,10 +1653,10 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         // contribute no inset here.
         if (canvas && canvasRect) {
           const leftPanel = document.querySelector<HTMLElement>(
-            '[data-floating-panel="left"]'
+            '[data-floating-panel="left"]',
           );
           const rightPanel = document.querySelector<HTMLElement>(
-            '[data-floating-panel="right"]'
+            '[data-floating-panel="right"]',
           );
           const leftRect = leftPanel?.getBoundingClientRect();
           const rightRect = rightPanel?.getBoundingClientRect();
@@ -1524,78 +1672,53 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           // footprint is enough to keep nodes above it without squeezing the
           // map from two axes at once.
           const miniMap = canvas.querySelector<HTMLElement>(
-            ".react-flow__minimap"
+            ".react-flow__minimap",
           );
           const miniMapRect = miniMap?.getBoundingClientRect();
           if (miniMapRect && miniMapRect.height > 0) {
-            bottom = Math.max(
-              bottom,
-              canvasRect.bottom - miniMapRect.top + 16
-            );
+            bottom = Math.max(bottom, canvasRect.bottom - miniMapRect.top + 16);
           }
         }
 
-        // A fixed mobile minimum zoom made small maps pleasantly legible, but
-        // prevented larger shared maps from ever fitting on-screen. Estimate
-        // the visible map bounds first: keep 0.35 for compact maps and relax
-        // to the canvas minimum only when the map genuinely needs more room.
-        let compactMinZoom = 0.15;
-        if (isCompact && canvasRect) {
-          const hiddenNodeIds = getHiddenNodeIds(nodes);
-          const visibleNodes = nodes.filter(
-            (node) => !hiddenNodeIds.has(node.id)
-          );
-
-          if (visibleNodes.length > 0) {
-            let minX = Number.POSITIVE_INFINITY;
-            let minY = Number.POSITIVE_INFINITY;
-            let maxX = Number.NEGATIVE_INFINITY;
-            let maxY = Number.NEGATIVE_INFINITY;
-
-            for (const node of visibleNodes) {
-              const width = node.measured?.width ?? NODE_WIDTH;
-              const height = node.measured?.height ?? NODE_HEIGHT;
-              minX = Math.min(minX, node.position.x);
-              minY = Math.min(minY, node.position.y);
-              maxX = Math.max(maxX, node.position.x + width);
-              maxY = Math.max(maxY, node.position.y + height);
-            }
-
-            const mapWidth = Math.max(1, maxX - minX);
-            const mapHeight = Math.max(1, maxY - minY);
-            const availableWidth = Math.max(1, canvasRect.width - 32);
-            const availableHeight = Math.max(1, canvasRect.height - 32);
-            const naturalFitZoom =
-              Math.min(
-                availableWidth / mapWidth,
-                availableHeight / mapHeight
-              ) * 0.9;
-
-            compactMinZoom = naturalFitZoom >= 0.35 ? 0.35 : 0.15;
-          }
+        const visible = flow.getNodes().filter((n) => !n.hidden);
+        let bounds = boundsOf(visible.map((n) => nodeRect(n as MindMapNode)));
+        const displayedEdges = new Set(
+          flow
+            .getEdges()
+            .filter((e) => !e.hidden)
+            .map((e) => e.id),
+        );
+        for (const [id, route] of Object.entries(get().layoutRoutes))
+          if (displayedEdges.has(id)) bounds = union(bounds, route.bounds);
+        if (!bounds || !canvasRect) return;
+        const top = isCompact ? 16 : 24;
+        if (isCompact) {
+          left = 16;
+          right = 16;
+          bottom = 16;
         }
-
-        flow.fitView({
-          padding: isCompact
-            ? {
-                top: px(16),
-                right: px(16),
-                bottom: px(16),
-                left: px(16),
-              }
-            : {
-                top: px(24),
-                right: px(right),
-                bottom: px(bottom),
-                left: px(left),
-              },
-          duration: window.matchMedia("(prefers-reduced-motion: reduce)")
-            .matches
-            ? 0
-            : 400,
-          minZoom: isCompact ? compactMinZoom : 0.15,
-          maxZoom: 1.2,
-        });
+        const width = Math.max(1, canvasRect.width - left - right);
+        const height = Math.max(1, canvasRect.height - top - bottom);
+        const natural =
+          Math.min(
+            width / Math.max(1, bounds.width),
+            height / Math.max(1, bounds.height),
+          ) * 0.9;
+        const min = isCompact && natural >= 0.35 ? 0.35 : 0.15;
+        const zoom = Math.max(min, Math.min(1.2, natural));
+        flow.setViewport(
+          {
+            x: left + (width - bounds.width * zoom) / 2 - bounds.x * zoom,
+            y: top + (height - bounds.height * zoom) / 2 - bounds.y * zoom,
+            zoom,
+          },
+          {
+            duration: window.matchMedia("(prefers-reduced-motion: reduce)")
+              .matches
+              ? 0
+              : 400,
+          },
+        );
       });
     },
 
@@ -1605,15 +1728,15 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const node = nodes.find((n) => n.id === nodeId);
       if (!node) return;
       flow.setCenter(
-        node.position.x + NODE_WIDTH / 2,
-        node.position.y + NODE_HEIGHT / 2,
+        node.position.x + nodeSize(node).width / 2,
+        node.position.y + nodeSize(node).height / 2,
         {
           zoom: Math.max(flow.getZoom?.() ?? 1, 1),
           duration: window.matchMedia("(prefers-reduced-motion: reduce)")
             .matches
             ? 0
             : 450,
-        }
+        },
       );
     },
 
@@ -1691,52 +1814,56 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
 
     // ── History ──
     pushHistory: () => {
-      const { nodes, edges, relations, history } = get();
-      const snapshot: HistoryEntry = {
-        nodes: nodes.map(cloneNode),
-        edges: edges.map((e) => ({ ...e })),
-        relations: relations.map((r) => ({ ...r })),
-      };
-      const next = [...history, snapshot].slice(-HISTORY_LIMIT);
-      set({ history: next, future: [] });
+      layoutRuntime.begin("edit");
+      layoutRuntime.recordBefore();
     },
 
     undo: () => {
+      layoutRuntime.cancel(true);
       const { history, nodes, edges, relations } = get();
       if (history.length === 0) return;
       const prev = history[history.length - 1];
       const current: HistoryEntry = {
+        layoutMode: get().activeLayoutMode,
         nodes: nodes.map(cloneNode),
         edges: edges.map((e) => ({ ...e })),
         relations: relations.map((r) => ({ ...r })),
       };
       set((s) => ({
         nodes: prev.nodes,
+        activeLayoutMode: prev.layoutMode ?? "right-tree",
         edges: prev.edges,
         relations: prev.relations ?? [],
         history: history.slice(0, -1),
         future: [current, ...s.future].slice(0, HISTORY_LIMIT),
       }));
       syncActiveDocument(prev.nodes, prev.edges);
+      layoutRuntime.cancel(true);
+      layoutRuntime.queue({ routingOnly: true });
     },
 
     redo: () => {
+      layoutRuntime.cancel(true);
       const { future, nodes, edges, relations } = get();
       if (future.length === 0) return;
       const nextEntry = future[0];
       const current: HistoryEntry = {
+        layoutMode: get().activeLayoutMode,
         nodes: nodes.map(cloneNode),
         edges: edges.map((e) => ({ ...e })),
         relations: relations.map((r) => ({ ...r })),
       };
       set((s) => ({
         nodes: nextEntry.nodes,
+        activeLayoutMode: nextEntry.layoutMode ?? "right-tree",
         edges: nextEntry.edges,
         relations: nextEntry.relations ?? [],
         history: [...s.history, current].slice(-HISTORY_LIMIT),
         future: future.slice(1),
       }));
       syncActiveDocument(nextEntry.nodes, nextEntry.edges);
+      layoutRuntime.cancel(true);
+      layoutRuntime.queue({ routingOnly: true });
     },
 
     // ── IO ──
@@ -1758,9 +1885,10 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         result.document.nodes,
         result.document.edges.length
           ? result.document.edges
-          : buildEdgesFromNodes(result.document.nodes)
+          : buildEdgesFromNodes(result.document.nodes),
       );
       doc.viewport = result.document.viewport;
+      doc.layoutMode = result.document.layoutMode;
       doc.relations = result.document.relations ?? [];
       set((s) => ({
         documents: [doc, ...s.documents],
@@ -1769,6 +1897,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         edges: doc.edges,
         relations: doc.relations ?? [],
         selectedRelationId: null,
+        activeLayoutMode: doc.layoutMode ?? "right-tree",
         ...selectionFor(getRootNode(doc.nodes)?.id ?? null),
         history: [],
         future: [],
@@ -1794,7 +1923,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         result.document.nodes,
         result.document.edges.length
           ? result.document.edges
-          : buildEdgesFromNodes(result.document.nodes)
+          : buildEdgesFromNodes(result.document.nodes),
       );
       doc.relations = result.document.relations ?? [];
       // Preserve the sharer's layout so edge-face routing matches immediately.
@@ -1840,9 +1969,15 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       }));
       get().addToast(
         `아웃라인을 가져왔습니다 (노드 ${result.nodes.length}개)`,
-        "success"
+        "success",
       );
-      get().fitToView();
+      if (doc.nodes.length > 200)
+        layoutRuntime.queue({
+          strategy: "full",
+          mode: "right-tree",
+          routingOnly: false,
+        });
+      else get().fitToView();
       return true;
     },
 
@@ -1863,7 +1998,12 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const { documents, activeDocumentId } = get();
       const doc = documents.find((d) => d.id === activeDocumentId);
       try {
-        const url = await renderCanvasImage(get().nodes, format);
+        await get().settleLayout();
+        const url = await renderCanvasImage(
+          get().nodes,
+          format,
+          Object.values(get().layoutRoutes),
+        );
         const name = `${safeFileName(doc?.title ?? "mindforge")}.${format}`;
         const a = document.createElement("a");
         a.href = url;
@@ -1875,7 +2015,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       } catch (e) {
         get().addToast(
           e instanceof Error ? e.message : "이미지 저장에 실패했습니다",
-          "error"
+          "error",
         );
       }
     },
@@ -1934,7 +2074,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         presetId === "neon" && !isDark
           ? "프리셋: 네온 — 다크 테마에서 가장 멋져요"
           : `프리셋: ${preset.label}`,
-        "success"
+        "success",
       );
     },
 
@@ -2038,7 +2178,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
 
 // Selector helpers used across components.
 export function selectActiveDocument(
-  s: MindMapState
+  s: MindMapState,
 ): MindMapDocument | undefined {
   return s.documents.find((d) => d.id === s.activeDocumentId);
 }
@@ -2048,3 +2188,11 @@ export function selectSelectedNode(s: MindMapState): MindMapNode | undefined {
 }
 
 export { getChildrenMap, getDescendantIds };
+
+layoutRuntime = new LayoutRuntime(
+  () => useMindMapStore.getState(),
+  (patch) => useMindMapStore.setState(patch),
+);
+useMindMapStore.subscribe((state, before) =>
+  layoutRuntime.observe(state, before),
+);

@@ -39,6 +39,7 @@ export type MindMapNodeData = {
   icon?: string;
   emoji?: string;
   side?: BranchSide; // explicit branch direction (bidirectional layout)
+  layoutMode?: LayoutMode; // optional subtree mode; inherited by descendants
   tags?: string[];
   link?: string;
   checklist?: ChecklistItem[];
@@ -50,6 +51,7 @@ export type MindMapNodeData = {
   // Transient UI flags (not strictly persisted but harmless if stored)
   searchMatch?: boolean;
   hidden?: boolean;
+  _childCount?: number; // transient canvas index
   _depth?: number; // computed depth, injected at render for per-level sizing
   _dimmed?: boolean; // presentation spotlight: fade non-current nodes
   _autoColor?: string; // rainbow-branch inherited color (explicit color wins)
@@ -80,6 +82,7 @@ export type MindMapSnapshot = {
   nodes: MindMapNode[];
   edges: Edge[];
   relations?: MindMapRelation[];
+  layoutMode?: LayoutMode;
 };
 
 export type MindMapDocument = {
