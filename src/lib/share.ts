@@ -181,6 +181,7 @@ type CompactNodeExtras = {
   i?: string; // icon
   e?: string; // emoji
   b?: number; // branch side index
+  m?: number; // optional subtree layout mode index
   g?: string[]; // tags
   h?: string; // safe href
   k?: CompactChecklistItem[];
@@ -257,6 +258,7 @@ function encodeCompactPayload(doc: MindMapDocument): CompactSharePayload {
       const index = BRANCH_SIDES.indexOf(data.side);
       if (index >= 0) extras.b = index;
     }
+    if (data.layoutMode && safeLayoutMode(data.layoutMode)) extras.m = LAYOUT_MODES.indexOf(data.layoutMode);
     if (data.tags?.length) extras.g = [...data.tags];
     if (data.link) extras.h = data.link;
     if (data.checklist?.length) {
@@ -388,6 +390,7 @@ function expandCompactPayload(
     ) {
       data.style = NODE_STYLES[extras.o];
     }
+    if (typeof extras.m === "number" && Number.isInteger(extras.m) && extras.m >= 0 && extras.m < LAYOUT_MODES.length) data.layoutMode = LAYOUT_MODES[extras.m];
     if (typeof extras.i === "string") data.icon = extras.i;
     if (typeof extras.e === "string") data.emoji = extras.e;
     if (

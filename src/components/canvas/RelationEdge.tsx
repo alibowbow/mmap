@@ -9,6 +9,8 @@ import {
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { pathData, polygonData, distance } from "@/lib/layout-engine/geometry";
+import type { EdgeRoute } from "@/lib/layout-engine/types";
 import { cn } from "@/lib/cn";
 import { useMindMapStore } from "@/store/mindMapStore";
 
@@ -35,6 +37,29 @@ export function RelationEdge({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(label);
   const inputRef = useRef<HTMLInputElement>(null);
+  const labelRef = useRef<HTMLButtonElement>(null);
+  const measure = useMindMapStore((s) => s.updateLayoutMeasurements);
+  useEffect(() => {
+    const el = labelRef.current;
+    if (!el || !label) return;
+    const report = () =>
+      measure(
+        new Map(),
+        new Map([
+          [
+            id,
+            {
+              width: Math.ceil(el.offsetWidth),
+              height: Math.ceil(el.offsetHeight),
+            },
+          ],
+        ]),
+      );
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [id, label, editing, measure]);
 
   useEffect(() => {
     if (editing) {
@@ -43,7 +68,7 @@ export function RelationEdge({
     }
   }, [editing, label]);
 
-  const [path, labelX, labelY] = getBezierPath({
+  const [temporaryPath, temporaryX, temporaryY] = getBezierPath({
     sourceX,
     sourceY,
     targetX,
@@ -53,6 +78,19 @@ export function RelationEdge({
     curvature: 0.4,
   });
 
+  const raw = data?.route as EdgeRoute | undefined;
+  const first = raw?.segments[0],
+    last = raw?.segments[raw.segments.length - 1];
+  const route =
+    first &&
+    last &&
+    distance(first.from, { x: sourceX, y: sourceY }) < 1 &&
+    distance(last.to, { x: targetX, y: targetY }) < 1
+      ? raw
+      : undefined;
+  const path = route ? pathData(route.segments) : temporaryPath;
+  const labelX = route?.labelAnchor?.x ?? temporaryX,
+    labelY = route?.labelAnchor?.y ?? temporaryY;
   const commit = () => {
     updateRelationLabel(id, draft);
     setEditing(false);
@@ -60,12 +98,20 @@ export function RelationEdge({
 
   return (
     <>
-      <BaseEdge
-        path={path}
-        markerEnd={markerEnd}
-        className="mf-relation-edge"
-        style={isSelected ? { strokeWidth: 2.5 } : undefined}
-      />
+      <g
+        data-route-state={route?.status ?? "unverified"}
+        opacity={route?.status === "ok" ? 1 : 0.5}
+      >
+        <BaseEdge
+          path={path}
+          markerEnd={markerEnd}
+          className="mf-relation-edge"
+          style={isSelected ? { strokeWidth: 2.5 } : undefined}
+        />
+        {route?.arrow && (
+          <path d={polygonData(route.arrow)} fill="rgb(var(--brand))" />
+        )}
+      </g>
       <EdgeLabelRenderer>
         <div
           style={{
@@ -80,7 +126,12 @@ export function RelationEdge({
               onChange={(e) => setDraft(e.target.value)}
               onBlur={commit}
               onKeyDown={(e) => {
-                if (e.key === "Enter") commit();
+                if (
+                  e.key === "Enter" &&
+                  !e.nativeEvent.isComposing &&
+                  e.keyCode !== 229
+                )
+                  commit();
                 if (e.key === "Escape") setEditing(false);
                 e.stopPropagation();
               }}
@@ -90,6 +141,7 @@ export function RelationEdge({
           ) : (
             (label || isSelected) && (
               <button
+                ref={labelRef}
                 onClick={(e) => {
                   e.stopPropagation();
                   selectRelation(id);
@@ -103,7 +155,7 @@ export function RelationEdge({
                   isSelected
                     ? "border-brand bg-brand text-brand-contrast"
                     : "border-line bg-surface-raised text-ink-soft hover:border-brand/50",
-                  !label && "italic text-white/80"
+                  !label && "italic text-white/80",
                 )}
               >
                 {label || "이름 입력"}

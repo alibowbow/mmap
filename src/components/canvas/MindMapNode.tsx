@@ -27,7 +27,6 @@ import {
 } from "@/lib/constants";
 import { renderInlineMarkdown } from "@/lib/inlineMarkdown";
 import { sanitizeHref } from "@/lib/share";
-import { countChildren } from "@/lib/tree";
 import { subtreeDrag } from "@/lib/dragState";
 import { useMindMapStore } from "@/store/mindMapStore";
 import type { MindMapNodeData } from "@/types/mindmap";
@@ -42,13 +41,12 @@ function hexToRgba(hex: string, alpha: number): string {
 
 function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
   const d = data as MindMapNodeData;
-  const editingNodeId = useMindMapStore((s) => s.editingNodeId);
+  const isEditing = useMindMapStore((s) => s.editingNodeId === id);
   const searchQuery = useMindMapStore((s) => s.searchQuery);
   const updateNodeLabel = useMindMapStore((s) => s.updateNodeLabel);
   const setEditingNode = useMindMapStore((s) => s.setEditingNode);
-  const pushHistory = useMindMapStore((s) => s.pushHistory);
   const toggleCollapse = useMindMapStore((s) => s.toggleCollapse);
-  const childCount = useMindMapStore((s) => countChildren(s.nodes, id));
+  const childCount = d._childCount ?? 0;
   const nodeStyle = useMindMapStore((s) => s.nodeStyle);
   const openContextMenu = useMindMapStore((s) => s.openContextMenu);
   const openLinkedDoc = useMindMapStore((s) => s.openLinkedDoc);
@@ -73,7 +71,6 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
   // Label size depends on the node's depth (per-level sizing).
   const labelSize = fontSizeForDepth(levelFontSizes, d._depth ?? 0);
 
-  const isEditing = editingNodeId === id;
   const typeConf = NODE_TYPE_CONFIG[d.type] ?? NODE_TYPE_CONFIG.idea;
   const color = d.color ?? d._autoColor ?? typeConf.color;
   const isRoot = d.isRoot || d.type === "root";
@@ -167,7 +164,6 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
     // single undoable step (and an open-then-cancel adds no history noise).
     const next = draft.trim();
     if (next !== d.label) {
-      pushHistory();
       updateNodeLabel(id, next);
     }
     setEditingNode(null);
@@ -280,7 +276,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
         rotate: stickyTilt ? `${stickyTilt}deg` : undefined,
       }}
       className={cn(
-        "group relative animate-scale-in",
+        "group relative",
         // Root node centers its text vertically → make it a flex column so the
         // content wrapper can stretch to the node's min-height.
         isRoot && !isLine && "flex flex-col",
@@ -528,6 +524,10 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
               if (useMindMapStore.getState().editingNodeId === id) commitLabel();
             }}
             onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) {
+                e.stopPropagation();
+                return;
+              }
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 commitLabel();
