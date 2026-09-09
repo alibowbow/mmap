@@ -1,0 +1,175 @@
+{
+  "browserVersion": "138.0.7204.0",
+  "executable": "/tmp/mmap-chromium",
+  "notes": "Desktop headless Chromium, emulated mobile viewports; no real-phone measurements. Main JS heap excludes worker heap and is not a peak-memory bound.",
+  "results": [
+    {
+      "width": 360,
+      "errors": [],
+      "routes": {
+        "ok": 13
+      },
+      "workerToPaintMs": [
+        46.100000001490116,
+        404,
+        30.600000001490116,
+        32.20000000298023,
+        28.300000000745058
+      ]
+    },
+    {
+      "width": 390,
+      "errors": [],
+      "routes": {
+        "ok": 13
+      },
+      "workerToPaintMs": [
+        41.399999998509884,
+        317.30000000074506,
+        29,
+        69,
+        28.299999997019768
+      ]
+    },
+    {
+      "width": 768,
+      "errors": [],
+      "routes": {
+        "ok": 13
+      },
+      "workerToPaintMs": [
+        46.400000002235174,
+        470.29999999701977,
+        29,
+        76.89999999850988,
+        122.30000000074506,
+        18.5,
+        24.899999998509884,
+        29.800000000745058
+      ]
+    },
+    {
+      "width": 1024,
+      "errors": [],
+      "routes": {
+        "ok": 13
+      },
+      "workerToPaintMs": [
+        40,
+        383.30000000074506,
+        18,
+        102.80000000074506,
+        196.30000000074506,
+        50.100000001490116,
+        27.5
+      ]
+    },
+    {
+      "width": 1440,
+      "errors": [],
+      "routes": {
+        "ok": 13
+      },
+      "workerToPaintMs": [
+        30.399999998509884,
+        86.5
+      ]
+    },
+    {
+      "count": 200,
+      "scenario": "full layout button; polling/stability waits included",
+      "endToEndMs": [
+        616.0395149999968,
+        659.0224099999978,
+        450.39754900000116
+      ],
+      "workerToPaintMs": [
+        67.89999999850988,
+        834,
+        716,
+        154.30000000074506,
+        361.3999999985099,
+        184,
+        99.80000000074506,
+        170.40000000223517,
+        129.5,
+        136.10000000149012,
+        119.19999999925494,
+        66.19999999925494,
+        110.80000000074506,
+        101.5,
+        85.30000000074506,
+        151.60000000149012,
+        199.39999999850988,
+        139.19999999925494,
+        131.30000000074506
+      ],
+      "localEditEnterToPaintMs": [
+        289.0999999977648,
+        369.4000000022352,
+        312.1000000014901,
+        316.19999999925494,
+        318.5,
+        309.69999999925494,
+        319.5,
+        353.30000000074506,
+        315.6000000014901,
+        313.80000000074506
+      ]
+    },
+    {
+      "scenario": "relation line/arrow/label, select without reroute, IME, cancel, delete and undo",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "count": 3000,
+      "scenario": "cancel running radial worker with undo; no stale mode/label application",
+      "cancelToTerminateMs": 0.5,
+      "longTasks": [
+        {
+          "start": 21331.699999999255,
+          "duration": 101
+        },
+        {
+          "start": 21433.099999997765,
+          "duration": 51
+        },
+        {
+          "start": 21851.79999999702,
+          "duration": 294
+        },
+        {
+          "start": 22146.199999999255,
+          "duration": 151
+        },
+        {
+          "start": 22392.89999999851,
+          "duration": 1003
+        },
+        {
+          "start": 23396.599999997765,
+          "duration": 746
+        },
+        {
+          "start": 24143.79999999702,
+          "duration": 52
+        },
+        {
+          "start": 24197,
+          "duration": 84
+        },
+        {
+          "start": 24657.5,
+          "duration": 367
+        },
+        {
+          "start": 25024.699999999255,
+          "duration": 354
+        }
+      ],
+      "mainJSHeapUsedBytes": 295468044,
+      "errors": []
+    }
+  ]
+}

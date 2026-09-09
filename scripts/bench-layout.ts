@@ -8,6 +8,78 @@ import {
 } from "../src/lib/layout-engine/adapter";
 import { solveLayout, solveLayoutSteps } from "../src/lib/layout-engine";
 import type { LayoutMode } from "../src/types/mindmap";
+import { buildGraph } from "../src/lib/layout-engine/graph";
+import {
+  solvePositions,
+  countCollisions,
+} from "../src/lib/layout-engine/incremental";
+import { SpatialIndex } from "../src/lib/layout-engine/spatial-index";
+import { RouteCache } from "../src/lib/layout-engine/route-cache";
+import { routeEdge } from "../src/lib/layout-engine/route-edges";
+import { measureSteps } from "../src/lib/layout-engine/metrics";
+import {
+  Budget,
+  drain,
+  type EngineNode,
+  type LayoutInput,
+} from "../src/lib/layout-engine/types";
+import { validateLayoutPatch } from "../src/lib/layoutTransactions";
+// A separate cold-cache pass exposes the core stages. It is not added to the
+// end-to-end samples and structuredClone is not claimed as Worker transfer time.
+function profileStages(input: LayoutInput) {
+  const times: Record<string, number> = {};
+  const timed = <T>(name: string, fn: () => T): T => {
+    const t = performance.now();
+    const result = fn();
+    times[name] = performance.now() - t;
+    return result;
+  };
+  timed("structuredCloneMs", () => structuredClone(input));
+  const { graph } = timed("graphValidationMs", () => drain(buildGraph(input)));
+  const budget = new Budget(input.options);
+  const { nodes } = timed("placementMs", () =>
+    drain(solvePositions(input, graph, budget)),
+  );
+  const visible = nodes.filter((_, i) => !graph.hidden.has(i));
+  const index = new SpatialIndex<EngineNode>();
+  const cache = new RouteCache();
+  timed("spatialIndexAndCacheMs", () => {
+    for (const n of visible) index.set(n.id, n);
+    drain(cache.prepare(input, visible));
+  });
+  const routes = timed("routingMs", () =>
+    input.edges
+      .filter(
+        (e) =>
+          !graph.hidden.has(graph.byId.get(e.source)!) &&
+          !graph.hidden.has(graph.byId.get(e.target)!),
+      )
+      .map((e) =>
+        drain(
+          routeEdge(
+            input,
+            e,
+            nodes[graph.byId.get(e.source)!],
+            nodes[graph.byId.get(e.target)!],
+            index,
+            budget,
+          ),
+        ),
+      ),
+  );
+  timed("geometryMetricsMs", () => {
+    drain(
+      measureSteps(
+        input.nodes.filter((_, i) => !graph.hidden.has(i)),
+        visible,
+        routes,
+        input.changedNodeIds,
+      ),
+    );
+    drain(countCollisions(nodes, graph));
+  });
+  return times;
+}
 const modes: LayoutMode[] = [
   "right-tree",
   "bidirectional",
@@ -27,8 +99,10 @@ for (const count of [14, 200, 500, 1000, 3000])
       oldMaxX = Math.max(...old.map((n) => n.position.x + n.measured!.width!));
     const oldMinY = Math.min(...old.map((n) => n.position.y)),
       oldMaxY = Math.max(...old.map((n) => n.position.y + n.measured!.height!));
+    const adapterStart = performance.now();
     const input = adaptInput(nodes, { mode }),
       times: number[] = [];
+    const adapterMs = performance.now() - adapterStart;
     let r = solveLayout(input);
     for (let i = 0; i < 3; i++) {
       const start = performance.now();
@@ -77,15 +151,34 @@ for (const count of [14, 200, 500, 1000, 3000])
       incrementalStatus: inc.status,
       beforeArea: (oldMaxX - oldMinX) * (oldMaxY - oldMinY),
       afterArea: r.metrics.area,
+      renderBoundsArea: r.bounds ? r.bounds.width * r.bounds.height : 0,
+      aspectRatio: r.metrics.aspectRatio,
+      routeLength: r.metrics.routeLength,
+      bends: r.metrics.bends,
+      labelOverlaps: r.metrics.labelOverlaps,
       nodeOverlaps: r.metrics.nodeOverlaps,
       blockedRoutes: r.metrics.blockedRoutes,
       movedRatio: inc.metrics.movedRatio,
+      unchangedMedian: inc.metrics.displacementMedian,
       unchangedP95: inc.metrics.displacementP95,
       unchangedMax: inc.metrics.displacementMax,
       maxChunkMs: maxChunk,
       chunks,
       candidateChecks: r.metrics.candidateChecks,
       routeExpansions: r.metrics.routeExpansions,
+      stages: {
+        adapterMs,
+        ...profileStages(input),
+        ...(() => {
+          let t = performance.now();
+          validateLayoutPatch(input, r, input.stamp);
+          const finalPatchValidationMs = performance.now() - t;
+          t = performance.now();
+          applyPositionPatch(nodes, r);
+          const applyNodePatchMs = performance.now() - t;
+          return { finalPatchValidationMs, applyNodePatchMs };
+        })(),
+      },
     };
     rows.push(row);
     console.log(JSON.stringify(row));
