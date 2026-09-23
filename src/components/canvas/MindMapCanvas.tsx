@@ -637,7 +637,12 @@ function CanvasInner() {
             pannable
             zoomable
             position="bottom-right"
-            className={cn("!mb-5 !mr-5", isMobile && "!h-24 !w-32")}
+            className={cn(
+              "!mb-5 !mr-5",
+              isMobile ? "!h-24 !w-32" : "!h-[116px] !w-[172px]"
+            )}
+            nodeBorderRadius={5}
+            ariaLabel="미니맵"
             nodeColor={(n) => {
               const data = n.data as MindMapNodeData;
               return (
@@ -647,7 +652,6 @@ function CanvasInner() {
                 "#94a3b8"
               );
             }}
-            maskColor="rgb(15 23 42 / 0.06)"
           />
         )}
       </ReactFlow>

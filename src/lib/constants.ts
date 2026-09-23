@@ -344,7 +344,7 @@ export type FontOption = {
 };
 
 export const FONT_OPTIONS: FontOption[] = [
-  { id: "inter", label: "기본 (Inter)", family: "var(--font-inter)" },
+  { id: "inter", label: "Pretendard", family: "var(--font-inter)" },
   { id: "noto", label: "본고딕", family: "var(--font-noto)" },
   { id: "myeongjo", label: "명조체", family: "var(--font-myeongjo)" },
   { id: "jua", label: "둥근체 (Jua)", family: "var(--font-jua)" },

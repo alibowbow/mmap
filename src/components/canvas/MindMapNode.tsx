@@ -225,11 +225,11 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
     style === "card" &&
       (selected
         ? `rounded-[18px] border border-brand bg-surface-raised ${SEL}`
-        : "rounded-[18px] border border-line/90 bg-surface-raised shadow-node hover:border-ink-faint/60 hover:shadow-float"),
+        : "rounded-[18px] border border-line/90 bg-surface-raised shadow-node hover:border-ink-faint/50 hover:shadow-node-hover"),
     style === "soft" &&
       (selected
         ? `rounded-[26px] border border-brand bg-surface-raised ${SEL}`
-        : "rounded-[26px] border border-line bg-surface-raised shadow-node hover:border-ink-faint/60 hover:shadow-float"),
+        : "rounded-[26px] border border-line bg-surface-raised shadow-node hover:border-ink-faint/50 hover:shadow-node-hover"),
     isOutline &&
       (selected
         ? `rounded-2xl border-2 bg-surface-base/30 ${SEL}`
@@ -243,13 +243,13 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
     isPill &&
       (selected
         ? `rounded-[38px] border border-brand bg-surface-raised ${SEL}`
-        : "rounded-[38px] border border-line bg-surface-raised shadow-node hover:border-ink-faint/60 hover:shadow-float"),
+        : "rounded-[38px] border border-line bg-surface-raised shadow-node hover:border-ink-faint/50 hover:shadow-node-hover"),
     // Post-it: no border, paper shadow. No hover-lift — a levitating pinned
     // note fights the metaphor; the shadow deepens instead.
     isSticky &&
       (selected
         ? `rounded-md border-0 bg-surface-raised ${SEL}`
-        : "rounded-md border-0 bg-surface-raised shadow-node hover:shadow-float"),
+        : "rounded-md border-0 bg-surface-raised shadow-node hover:shadow-node-hover"),
     // Neon: colored 2px border; the glow is painted on the fill overlay so it
     // never clobbers the ring-based selection/search/drop states.
     isNeon &&
@@ -450,8 +450,8 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
               ? hexToRgba(color, 0.22)
               : `linear-gradient(135deg, ${hexToRgba(
                   color,
-                  0.14
-                )}, ${hexToRgba(color, 0.035)})`,
+                  0.11
+                )}, ${hexToRgba(color, 0.015)} 70%)`,
             ...(isNeon
               ? { boxShadow: `0 0 10px 1px ${hexToRgba(color, 0.35)}` }
               : {}),
@@ -462,7 +462,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
       {/* Left color rail (filled card/soft styles only) */}
       {showRail && (
         <div
-          className="absolute left-0 top-3 bottom-3 w-1 rounded-full"
+          className="absolute left-[3px] top-3 bottom-3 w-[3px] rounded-full"
           style={{ background: color }}
         />
       )}
@@ -484,19 +484,19 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
             {!hideTypeHeader && (
               <>
                 <span
-                  className="flex h-5 w-5 items-center justify-center rounded-md"
-                  style={{ background: hexToRgba(color, 0.16), color }}
+                  className="flex h-[18px] w-[18px] items-center justify-center rounded-[5px]"
+                  style={{ background: hexToRgba(color, 0.14), color }}
                 >
-                  <Icon name={typeConf.icon} size={13} />
+                  <Icon name={typeConf.icon} size={12} />
                 </span>
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+                <span className="text-[11px] font-medium text-ink-faint">
                   {typeConf.label}
                 </span>
               </>
             )}
             {statusConf && (
               <span
-                className="ml-auto inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
+                className="ml-auto inline-flex items-center gap-1 rounded-full px-1.5 py-[3px] text-[10.5px] font-medium leading-none"
                 style={{
                   background: hexToRgba(statusConf.color, 0.14),
                   color: "rgb(var(--ink-soft))",
@@ -609,13 +609,13 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
         {/* Checklist progress (tasks) */}
         {checklistTotal > 0 && (
           <div className="mt-2">
-            <div className="flex items-center justify-between text-[9px] text-ink-faint mb-1">
+            <div className="mb-1 flex items-center justify-between text-[10.5px] text-ink-faint">
               <span>체크리스트</span>
-              <span>
+              <span className="mf-num font-medium text-ink-soft">
                 {checklistDone}/{checklistTotal}
               </span>
             </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-sunken">
+            <div className="h-1 w-full overflow-hidden rounded-full bg-surface-sunken">
               <div
                 className="h-full rounded-full transition-all"
                 style={{
@@ -633,7 +633,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
             {d.tags.slice(0, 4).map((tag) => (
               <span
                 key={tag}
-                className="rounded-full bg-surface-overlay px-1.5 py-0.5 text-[9px] font-medium text-ink-soft border border-line/60"
+                className="rounded-md bg-surface-sunken/80 px-1.5 py-[3px] text-[10.5px] font-medium leading-none text-ink-soft"
               >
                 #{tag}
               </span>

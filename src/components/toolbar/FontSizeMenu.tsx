@@ -46,7 +46,7 @@ export function FontSizeMenu({ trigger }: { trigger: React.ReactNode }) {
             transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
             className="absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl border border-line bg-surface-overlay/95 p-3 shadow-float backdrop-blur-xl"
           >
-            <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+            <p className="mb-2.5 mf-eyebrow">
               레벨별 글자 크기
             </p>
             <div className="space-y-1.5">

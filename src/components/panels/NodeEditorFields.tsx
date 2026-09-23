@@ -43,7 +43,7 @@ function Section({
 }) {
   return (
     <div className="space-y-2">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+      <p className="mf-eyebrow">
         {label}
       </p>
       {children}

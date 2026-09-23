@@ -330,7 +330,7 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
           <div className="mf-scroll min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-3">
             {pinned.length > 0 && (
               <>
-                <p className="px-1 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+                <p className="px-1 pb-1 pt-1 mf-eyebrow">
                   고정됨
                 </p>
                 {pinned.map((doc) => (

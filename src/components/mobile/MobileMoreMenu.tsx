@@ -74,7 +74,7 @@ function Tile({
 
 function Section({ title }: { title: string }) {
   return (
-    <p className="px-1 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+    <p className="px-1 pb-0.5 pt-2 mf-eyebrow">
       {title}
     </p>
   );

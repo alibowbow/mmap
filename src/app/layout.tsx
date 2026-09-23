@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 
 import "@xyflow/react/dist/style.css";
+import "./pretendard.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -36,6 +37,23 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko" suppressHydrationWarning>
+      <head>
+        {/* Optional faces for the font picker. Linked (not @import-ed from
+            globals.css) so they load in parallel instead of blocking render. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        {/* no-page-custom-font targets pages/_document; in the App Router the
+            root layout already applies to every page. */}
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=JetBrains+Mono:wght@400;500;700&family=Jua&family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Sans+KR:wght@400;500;700&display=swap"
+        />
+      </head>
       <body className="font-sans antialiased">{children}</body>
     </html>
   );

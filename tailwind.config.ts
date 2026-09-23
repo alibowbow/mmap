@@ -43,7 +43,11 @@ const config: Config = {
         soft: "0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.08)",
         float:
           "0 8px 24px rgba(15, 23, 42, 0.10), 0 24px 60px rgba(15, 23, 42, 0.13)",
-        node: "0 1px 2px rgba(15, 23, 42, 0.07), 0 8px 24px rgba(15, 23, 42, 0.08)",
+        // Content cards get a crisp, tight shadow; big soft blurs are reserved
+        // for things that genuinely float above the canvas (menus, dialogs).
+        node: "0 1px 2px rgba(15, 23, 42, 0.06), 0 2px 8px -2px rgba(15, 23, 42, 0.07)",
+        "node-hover":
+          "0 2px 4px rgba(15, 23, 42, 0.06), 0 10px 24px -6px rgba(15, 23, 42, 0.14)",
         ring: "0 0 0 4px rgb(var(--brand) / 0.18)",
       },
       borderRadius: {

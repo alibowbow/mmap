@@ -1,15 +1,16 @@
-/* Selectable fonts are fetched by the browser at runtime (kept out of the
-   build so it never needs network access). */
-@import url("https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Jua&family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Sans+KR:wght@400;500;700&display=swap");
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* Font family tokens (switchable via the font picker). */
 :root {
-  --font-inter: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-    Roboto, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  /* Default face. The token keeps its historical name ("inter") so stored
+     workspaces still resolve; Pretendard's Latin is Inter-derived and it adds
+     matching Hangul, so Korean no longer falls back to a mismatched system
+     font. */
+  --font-inter: "Pretendard Variable", Pretendard, -apple-system,
+    BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR",
+    "Malgun Gothic", "Segoe UI", Roboto, sans-serif;
   --font-noto: "Noto Sans KR", var(--font-inter);
   --font-myeongjo: "Nanum Myeongjo", "Apple SD Gothic Neo", serif;
   --font-gaegu: "Gaegu", "Apple SD Gothic Neo", cursive;
@@ -127,8 +128,30 @@ body {
   background: rgb(var(--surface-base));
   color: rgb(var(--ink));
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   overscroll-behavior: none;
+  /* Pretendard is drawn slightly loose for print; a hair of negative tracking
+     is the standard setting for Korean UI text. */
+  letter-spacing: -0.01em;
+  word-break: keep-all; /* never split a Korean word across lines */
+  overflow-wrap: break-word; /* long URLs still wrap; min-content untouched */
+}
+
+/* Section label for menus/panels. Korean has no case, so the Latin eyebrow
+   recipe (uppercase + wide tracking) just pries syllables apart — use weight
+   and color for hierarchy instead. */
+.mf-eyebrow {
+  font-size: 11.5px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: rgb(var(--ink-faint));
+}
+
+/* Counts, sizes and times line up column-to-column. */
+.mf-num {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Quiet drafting surface. React Flow paints the selected grid pattern above
@@ -319,10 +342,21 @@ body {
 }
 
 .react-flow__minimap {
-  border-radius: 16px;
+  border-radius: 14px;
   overflow: hidden;
-  border: 1px solid rgb(var(--line));
-  background: rgb(var(--surface-raised) / 0.96) !important;
+  border: 1px solid rgb(var(--line) / 0.9);
+  background: rgb(var(--surface-raised)) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 6px 18px -8px rgba(15, 23, 42, 0.18);
+  /* Themed via React Flow's variables (SVG fill attributes can't resolve our
+     var()-based tokens, CSS custom properties can). The area outside the
+     viewport is softly recessed; the viewport itself gets a brand outline. */
+  --xy-minimap-background-color: rgb(var(--surface-raised));
+  --xy-minimap-mask-background-color: rgb(var(--surface-sunken) / 0.78);
+  --xy-minimap-mask-stroke-color: rgb(var(--brand) / 0.55);
+  --xy-minimap-mask-stroke-width: 3;
+}
+.react-flow__minimap svg {
+  display: block;
 }
 
 .react-flow__edge-path {

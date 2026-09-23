@@ -112,7 +112,7 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
             transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
             className="absolute right-0 top-full z-50 mt-2 max-h-[min(76vh,680px)] w-72 overflow-y-auto mf-scroll rounded-[20px] border border-line bg-surface-raised p-3.5 shadow-float"
           >
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+            <p className="mb-2 mf-eyebrow">
               테마 프리셋
             </p>
             <div className="mb-3 grid grid-cols-3 gap-1.5">
@@ -136,7 +136,7 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
 
             <div className="my-2 h-px bg-line" />
 
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+            <p className="mb-2 mf-eyebrow">
               타이포그래피
             </p>
             <div className="mb-3 grid grid-cols-2 gap-1.5">
@@ -199,7 +199,7 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
 
             <div className="my-2 h-px bg-line" />
 
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+            <p className="mb-2 mf-eyebrow">
               노드 스타일
             </p>
             <div className="mb-3 grid grid-cols-4 gap-1.5">
@@ -229,7 +229,7 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
 
             <div className="my-2 h-px bg-line" />
 
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+            <p className="mb-2 mf-eyebrow">
               엣지 모양
             </p>
             <div className="mb-2 flex gap-1.5">
@@ -317,7 +317,7 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
 
             <div className="my-2 h-px bg-line" />
 
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+            <p className="mb-2 mf-eyebrow">
               캔버스 배경
             </p>
             <div className="mb-3 flex gap-1.5">
@@ -338,7 +338,7 @@ export function DesignMenu({ trigger }: { trigger: React.ReactNode }) {
               ))}
             </div>
 
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+            <p className="mb-2 mf-eyebrow">
               테마 색상
             </p>
             <div className="flex items-center justify-between px-0.5">

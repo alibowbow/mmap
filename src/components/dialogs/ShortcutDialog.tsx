@@ -27,7 +27,7 @@ export function ShortcutDialog() {
       <div className="space-y-5">
         {SHORTCUT_GROUPS.map((group) => (
           <div key={group.title}>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+            <p className="mb-2 mf-eyebrow">
               {group.title}
             </p>
             <div className="space-y-1.5">
