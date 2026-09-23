@@ -43,10 +43,26 @@ export function choosePorts(
     dx = b.x - a.x,
     dy = b.y - a.y;
   const effective = source.effectiveMode ?? mode;
-  const vertical =
-    edge.kind === "relation" || effective === "radial"
+  // Radial/relations: pick the axis along which the two boxes are actually
+  // SEPARATED. Comparing center deltas fails for wide cards: a child up and
+  // to the right of the root can have the larger horizontal center delta yet
+  // overlap it horizontally, so a right→left pairing would hook backwards
+  // around the target (7-bend loops). The larger positive gap is the clear
+  // corridor; center deltas only break ties when neither axis is clear.
+  const free = edge.kind === "relation" || effective === "radial";
+  const gapX = Math.max(
+      target.x - (source.x + source.width),
+      source.x - (target.x + target.width),
+    ),
+    gapY = Math.max(
+      target.y - (source.y + source.height),
+      source.y - (target.y + target.height),
+    );
+  const vertical = free
+    ? gapX < 0 && gapY < 0
       ? Math.abs(dy) > Math.abs(dx)
-      : effective === "vertical";
+      : gapY > gapX
+    : effective === "vertical";
   const sf: Face = vertical
     ? dy < 0
       ? "top"

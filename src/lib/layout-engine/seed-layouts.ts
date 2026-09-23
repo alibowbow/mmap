@@ -192,7 +192,11 @@ function interval(
 // so the no-overlap guarantee does not depend on the allocation heuristics.
 const RING_GAP = 40; // radial breathing room between consecutive rings
 const ARC_GAP = 18; // tangential gap between neighbours on a ring
-const PAIR_CLEARANCE = 12.25; // hard clearance enforced by the collision pass
+const PAIR_CLEARANCE = 12.25; // hard clearance between nodes on the same ring
+// Clearance to the adjacent INNER ring, where parent→child edges run: the
+// router needs a corridor to leave one box and turn into the other, or it
+// detours around neighbours in rectangular loops.
+const LINK_CLEARANCE = 36;
 const FILL = Math.PI * 2 * 0.94; // max share of a ring the allocation may use
 function* radial(
   ns: readonly EngineNode[],
@@ -377,15 +381,16 @@ function* radial(
     for (const i of group)
       for (const [j, p] of centers) {
         if (!budget.check()) return new Map();
+        const gap = depth(j) === d - 1 ? LINK_CLEARANCE : PAIR_CLEARANCE;
         const x = interval(
             bx * Math.cos(angle.get(i)!),
             p.x,
-            (ns[i].width + ns[j].width) / 2 + PAIR_CLEARANCE,
+            (ns[i].width + ns[j].width) / 2 + gap,
           ),
           y = interval(
             by * Math.sin(angle.get(i)!),
             p.y,
-            (ns[i].height + ns[j].height) / 2 + PAIR_CLEARANCE,
+            (ns[i].height + ns[j].height) / 2 + gap,
           );
         if (x && y) {
           const start = Math.max(x[0], y[0], 0),
