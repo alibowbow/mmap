@@ -39,7 +39,7 @@ import {
 } from "@/lib/tree";
 import { useLayoutMeasurements } from "@/hooks/useLayoutMeasurements";
 import { nodeRect } from "@/lib/layout-engine/adapter";
-import { useIsMobile } from "@/hooks/useIsMobile";
+import { useIsMobile, useIsTouchPrimary } from "@/hooks/useIsMobile";
 import { useMindMapStore } from "@/store/mindMapStore";
 import type { MindMapNodeData } from "@/types/mindmap";
 
@@ -47,11 +47,14 @@ const nodeTypes = { mindmap: MindMapNode };
 const edgeTypes = { mindmap: MindMapEdge, relation: RelationEdge };
 
 // How long a dragged node must rest over another before releasing re-parents.
+// One-time hint key: shown the first time a touch pan starts on a node.
+const TOUCH_MOVE_HINT_KEY = "mindforge-touch-move-hint-v1";
 const DROP_DWELL_MS = 420;
 
 function CanvasInner() {
   useLayoutMeasurements();
   const isMobile = useIsMobile();
+  const touchPrimary = useIsTouchPrimary();
   const nodes = useMindMapStore((s) => s.nodes);
   const edges = useMindMapStore((s) => s.edges);
   const selectedNodeIds = useMindMapStore((s) => s.selectedNodeIds);
@@ -325,21 +328,37 @@ function CanvasInner() {
     rainbowBranches,
     focusModeNodeId,
   ]);
+  // Stable "locked for pan" copies keyed by the base node object: unselected
+  // nodes must keep their identity across selection changes, or React Flow
+  // re-processes every node and a mere tap would trigger a re-layout.
+  const panLocked = useRef(new WeakMap<Node, Node>());
   const displayNodes = useMemo(() => {
     const selected = new Set(selectedNodeIds);
-    return baseNodes.map((n) =>
-      selected.has(n.id) || menuBlockedNodeId === n.id
-        ? {
-            ...n,
-            selected: selected.has(n.id),
-            data:
-              menuBlockedNodeId === n.id
-                ? { ...n.data, _suppressMenu: true }
-                : n.data,
-          }
-        : n,
-    );
-  }, [baseNodes, selectedNodeIds, menuBlockedNodeId]);
+    return baseNodes.map((n) => {
+      // Touch: a finger that lands on an UNSELECTED node pans the canvas
+      // instead of grabbing the node — otherwise every pan that happens to
+      // start on a node drags it. Tap to select, then drag to move. (React
+      // Flow only marks draggable nodes `nopan`, so panning passes through.)
+      const lockForPan = touchPrimary && !selected.has(n.id) && n.draggable;
+      if (selected.has(n.id) || menuBlockedNodeId === n.id)
+        return {
+          ...n,
+          selected: selected.has(n.id),
+          ...(lockForPan ? { draggable: false } : {}),
+          data:
+            menuBlockedNodeId === n.id
+              ? { ...n.data, _suppressMenu: true }
+              : n.data,
+        };
+      if (!lockForPan) return n;
+      let locked = panLocked.current.get(n);
+      if (!locked) {
+        locked = { ...n, draggable: false };
+        panLocked.current.set(n, locked);
+      }
+      return locked;
+    });
+  }, [baseNodes, selectedNodeIds, menuBlockedNodeId, touchPrimary]);
   const displayEdges = useMemo(
     () =>
       baseEdges.map((e) => {
@@ -620,6 +639,21 @@ function CanvasInner() {
         onInit={registerFlow}
         onMoveStart={(event) => {
           if (event) noteCameraIntent();
+          // First time a touch pan starts on a node, say how to move nodes —
+          // the user may have meant to drag it.
+          const target = (event as Event | null)?.target as Element | null;
+          if (touchPrimary && target?.closest?.(".react-flow__node")) {
+            try {
+              if (!localStorage.getItem(TOUCH_MOVE_HINT_KEY)) {
+                localStorage.setItem(TOUCH_MOVE_HINT_KEY, "1");
+                useMindMapStore
+                  .getState()
+                  .addToast("노드를 옮기려면 탭해서 선택한 뒤 드래그하세요", "info");
+              }
+            } catch {
+              /* storage unavailable — skip the hint */
+            }
+          }
         }}
         onMoveEnd={(_, vp) => updateViewport(vp)}
         minZoom={0.15}

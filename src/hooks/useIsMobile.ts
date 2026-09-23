@@ -16,3 +16,9 @@ export function useIsTablet(): boolean {
 export function useIsDesktop(): boolean {
   return useMediaQuery("(min-width: 1536px)");
 }
+
+// Touch-first device (phones, tablets): the primary pointer is a finger. Used
+// for gesture policy, not layout — a tablet can be wide yet still touch-first.
+export function useIsTouchPrimary(): boolean {
+  return useMediaQuery("(pointer: coarse)");
+}

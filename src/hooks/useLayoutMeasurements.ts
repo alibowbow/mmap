@@ -50,7 +50,15 @@ export function useLayoutMeasurements() {
                 : face === "top"
                   ? 0
                   : h.height / 2);
-            ps.push({ handleId: h.id, face, offset: { x, y } });
+            // Snap to half pixels (like node dimensions in the store). Handle
+            // bounds are re-derived from screen rects ÷ zoom, so every zoom
+            // step yields float noise (0.5000012 → 0.4999997) that would
+            // otherwise look like a geometry change and re-route every edge.
+            ps.push({
+              handleId: h.id,
+              face,
+              offset: { x: Math.round(x * 2) / 2, y: Math.round(y * 2) / 2 },
+            });
           }
         ports.set(n.id, ps);
       }
