@@ -1,8 +1,6 @@
-import { useId } from "react";
-
-// MindBranch brand mark: a sprout of thought — branches with leaves growing
-// from a single node (the seed idea). Same geometry as src/app/icon.svg so
-// the favicon and in-app mark match.
+// MindBranch brand mark: a sprout of thought rising from an open book — the
+// branch grows two leaves and ends in a node. Same geometry as
+// src/app/icon.svg so the favicon and in-app mark match.
 export function BrandMark({
   size = 28,
   className,
@@ -10,33 +8,24 @@ export function BrandMark({
   size?: number;
   className?: string;
 }) {
-  const id = `mb-mark-${useId().replace(/:/g, "")}`;
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 32 32"
+      viewBox="0 0 64 64"
       className={className}
       aria-hidden
     >
-      <defs>
-        <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#2a55c4" />
-          <stop offset="1" stopColor="#17378f" />
-        </linearGradient>
-      </defs>
-      <rect width="32" height="32" rx="8" fill={`url(#${id})`} />
-      <g fill="none" stroke="#fbf6ea" strokeWidth="1.8" strokeLinecap="round">
-        <path d="M16 22.5V11.5" />
-        <path d="M16 20C16 15.5 12 15 10 12.5" />
-        <path d="M16 18C16 14.8 19.8 14.2 21.8 12" />
-      </g>
-      <g fill="#9fd89a">
-        <path d="M16 12.2Q13.2 8.6 16 4.6Q18.8 8.6 16 12.2Z" />
-        <path d="M10.6 13.2Q6.4 12.2 5.6 7.8Q9.8 8.6 10.6 13.2Z" />
-        <path d="M21.2 12.8Q22.2 8.4 26.6 7.8Q25.6 12 21.2 12.8Z" />
-      </g>
-      <circle cx="16" cy="23.6" r="3.3" fill="#fbf6ea" />
+      <rect width="64" height="64" rx="16" fill="#1d3f9e" />
+      <path
+        d="M32 47C26 43 18 42 11 43.5V36C18 34.5 26 35.5 32 39.5C38 35.5 46 34.5 53 36V43.5C46 42 38 43 32 47Z"
+        fill="#f7f1e3"
+      />
+      <path d="M32 47V39.5" stroke="#1d3f9e" strokeWidth="1.6" />
+      <path d="M32 38V22" stroke="#f7f1e3" strokeWidth="2.6" strokeLinecap="round" />
+      <path d="M32 30C31 23 25 19.5 18.5 20.5C19.5 27 25 30.5 32 30Z" fill="#8fd49a" />
+      <path d="M32 26C33 19.5 38.5 15.5 45.5 16C44.5 23 39 26.5 32 26Z" fill="#8fd49a" />
+      <circle cx="32" cy="16.5" r="3.3" fill="#f7f1e3" />
     </svg>
   );
 }
