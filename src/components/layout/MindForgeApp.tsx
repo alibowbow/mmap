@@ -236,8 +236,8 @@ export function MindForgeApp() {
         {view === "booting" || !hydrated ? (
           <div className="flex h-[100dvh] flex-col items-center justify-center gap-2.5 bg-surface-base">
             <BrandMark size={46} className="rounded-xl shadow-float" />
-            <span className="mf-brand-text text-lg font-bold tracking-tight">MindForge</span>
-            <span className="text-[11px] tracking-wide text-ink-faint">생각을 벼리다</span>
+            <span className="mf-brand-text text-lg font-bold tracking-tight">MindBranch</span>
+            <span className="text-[11px] tracking-wide text-ink-faint">생각의 가지를 뻗다</span>
           </div>
         ) : view === "home" ? (
           <>

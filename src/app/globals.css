@@ -210,7 +210,7 @@ body {
 }
 .mf-home-frame { width: 100%; max-width: 1240px; margin-inline: auto; padding-inline: clamp(20px, 4.5vw, 64px); }
 .mf-home-header { position: relative; z-index: 2; }
-.mf-wordmark { font-family: "MF Masthead", var(--font-myeongjo); font-weight: 800; font-size: 22px; letter-spacing: -0.02em; color: rgb(var(--ink)); }
+.mf-wordmark { display: inline-flex; align-items: center; gap: 10px; font-family: "MF Masthead", var(--font-myeongjo); font-weight: 800; font-size: 22px; letter-spacing: -0.02em; color: rgb(var(--ink)); }
 .mf-home-nav { display: inline-flex; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; padding-inline: 12px; font-size: 13.5px; color: rgb(var(--ink-soft)); transition: color 120ms; }
 .mf-home-nav:hover { color: rgb(var(--ink)); }
 
@@ -345,16 +345,19 @@ body {
 }
 
 /* ── Brand ──────────────────────────────────────────────────────────────────
-   The MindForge signature gradient. Fixed (not accent-driven): the brand keeps
-   its identity even when the workspace accent changes. */
+   The MindBranch signature: book-cover blue. Fixed (not accent-driven): the
+   brand keeps its identity even when the workspace accent changes. */
 .mf-brand-bg {
-  background-image: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background-image: linear-gradient(135deg, #2a55c4, #17378f);
 }
 .mf-brand-text {
-  background-image: linear-gradient(120deg, #6366f1, #8b5cf6 60%, #a78bfa);
+  background-image: linear-gradient(120deg, #2a55c4, #1d44a6 60%, #17378f);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+.dark .mf-brand-text {
+  background-image: linear-gradient(120deg, #9db7ff, #7c9cf2);
 }
 
 /* Glassmorphism helper */

@@ -77,6 +77,6 @@ export function safeFileName(title: string): string {
       .trim()
       .replace(/[^\p{L}\p{N}\-_ ]/gu, "")
       .replace(/\s+/g, "-")
-      .toLowerCase() || "mindforge"
+      .toLowerCase() || "mindbranch"
   );
 }

@@ -1,4 +1,4 @@
-# MindForge
+# MindBranch
 
 브라우저에서 동작하는 고급 마인드맵 생산성 웹앱. 아이디어 · 리서치 · 기획 · 공부 · 투자 아이디어 · 회의 내용을 마인드맵으로 정리합니다. XMind / Miro / Obsidian Canvas / Notion / Linear / Raycast의 장점을 섞은 느낌을 목표로 합니다.
 
@@ -10,7 +10,7 @@
 - Tailwind CSS — 스타일 / 라이트·다크 테마
 - lucide-react — 아이콘
 - framer-motion — 애니메이션
-- localStorage — 영구 저장 (`mindforge-workspace-v1`)
+- localStorage — 영구 저장 (`mindforge-workspace-v1`, 이전 이름 MindForge 시절의 키를 호환을 위해 유지)
 
 ## 실행 방법
 

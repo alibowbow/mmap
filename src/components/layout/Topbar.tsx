@@ -170,7 +170,7 @@ export function Topbar({
             className="min-w-0 truncate text-left text-sm font-semibold text-ink transition-colors hover:text-brand"
             title="제목을 클릭해 수정"
           >
-            {doc?.title ?? "MindForge"}
+            {doc?.title ?? "MindBranch"}
           </button>
         )}
         <SaveIndicator />

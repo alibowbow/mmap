@@ -216,10 +216,10 @@ export function Sidebar({ inDrawer = false }: { inDrawer?: boolean }) {
           <BrandMark size={27} className="shrink-0 rounded-lg" />
           <div className="flex flex-col justify-center leading-none">
             <span className="mf-brand-text text-[15px] font-bold tracking-tight">
-              MindForge
+              MindBranch
             </span>
             <span className="mt-0.5 text-[9px] font-medium tracking-wide text-ink-faint">
-              생각을 벼리다
+              생각의 가지를 뻗다
             </span>
           </div>
         </div>

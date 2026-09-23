@@ -638,7 +638,7 @@ function CanvasInner() {
     <div
       data-mindmap-canvas="true"
       role="region"
-      aria-label="MindForge 마인드맵 캔버스"
+      aria-label="MindBranch 마인드맵 캔버스"
       aria-busy={layoutBusy}
       onPointerDownCapture={onCanvasPointerDown}
       onFocusCapture={onCanvasFocus}

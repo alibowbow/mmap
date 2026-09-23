@@ -3,6 +3,7 @@
 import { ArrowRight, FileUp, Monitor, Moon, ShieldCheck, Sun } from "lucide-react";
 import { useMemo, useRef } from "react";
 import { DocumentLibrary } from "@/components/home/DocumentLibrary";
+import { BrandMark } from "@/components/ui/BrandMark";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { TEMPLATES } from "@/lib/templates";
@@ -17,7 +18,7 @@ type HomeScreenProps = {
 
 // Hand-drawn vignettes (cut from the hero illustration) that give each
 // document and template a small picture of its own.
-const DOC_ART = ["bird", "flowers", "mountain", "village", "boat", "globe", "compass", "sun", "bulb", "cat", "cloud", "leaf"];
+const DOC_ART = ["bird", "flowers", "mountain", "village", "boat", "globe", "compass", "sun", "bulb", "cat", "leaf"];
 const TEMPLATE_ART: Partial<Record<TemplateType, string>> = {
   blank: "sprout",
   "project-plan": "mountain",
@@ -68,7 +69,7 @@ export function HomeScreen({ onCreate, onOpenDocument, onImport }: HomeScreenPro
     <div className="mf-home min-h-[100dvh] text-ink">
       <header className="mf-home-header pt-[env(safe-area-inset-top)]">
         <div className="mf-home-frame flex h-16 items-center justify-between gap-3">
-          <span className="mf-wordmark" aria-label="MindForge 홈">MindForge</span>
+          <span className="mf-wordmark" aria-label="MindBranch 홈"><BrandMark size={28} className="rounded-[7px]" />MindBranch</span>
           <nav aria-label="홈 탐색" className="flex items-center">
             <button type="button" onClick={showDocuments} className="mf-home-nav">문서</button>
             <button type="button" onClick={showTemplates} className="mf-home-nav">템플릿</button>

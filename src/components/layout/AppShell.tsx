@@ -84,7 +84,7 @@ function MobileTopbar({ onHome }: { onHome: () => void }) {
         aria-label="문서 목록 열기"
         className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1 truncate px-1 text-center text-sm font-semibold text-ink"
       >
-        <span className="truncate">{doc?.title ?? "MindForge"}</span>
+        <span className="truncate">{doc?.title ?? "MindBranch"}</span>
         <ChevronDown size={13} className="shrink-0 text-ink-faint" />
       </button>
       <button
@@ -162,7 +162,7 @@ function PresentationControls() {
       <div className="pointer-events-none absolute bottom-7 left-4 flex items-center gap-1.5 opacity-60">
         <BrandMark size={14} className="rounded" />
         <span className="text-[11px] font-semibold tracking-tight text-ink-faint">
-          MindForge
+          MindBranch
         </span>
       </div>
 
@@ -254,7 +254,7 @@ function OnboardingHint({
             <BrandMark size={24} className="shrink-0 rounded-lg" />
             <div className="flex flex-col leading-tight">
               <span className="text-sm font-semibold text-ink">
-                <span className="mf-brand-text font-bold">MindForge</span>에 오신
+                <span className="mf-brand-text font-bold">MindBranch</span>에 오신
                 걸 환영해요
               </span>
               {!mobile && (

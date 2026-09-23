@@ -104,7 +104,7 @@ export function ExportDialog() {
   };
 
   const handleDownload = () => {
-    const name = `${safeFileName(doc?.title ?? "mindforge")}.${tabMeta.ext}`;
+    const name = `${safeFileName(doc?.title ?? "mindbranch")}.${tabMeta.ext}`;
     if (isImage) {
       if (!imageUrl) return;
       downloadDataUrl(name, imageUrl);

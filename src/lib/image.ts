@@ -84,7 +84,7 @@ export async function renderCanvasImage(
   // A quiet brand credit in the exported image's bottom-right corner. Sized
   // against the zoom so it stays ~11px in the OUTPUT regardless of map scale.
   const watermark = document.createElement("div");
-  watermark.textContent = "Made with MindForge";
+  watermark.textContent = "Made with MindBranch";
   Object.assign(watermark.style, {
     position: "absolute",
     left: `${bounds.x + bounds.width}px`,

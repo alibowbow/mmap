@@ -386,7 +386,7 @@ function blankRootDocument(title = "새 마인드맵"): MindMapDocument {
 
 function sampleDocument(): MindMapDocument {
   const { nodes, edges } = buildTemplate("project-plan");
-  return makeDocument("MindForge 시작하기", nodes, edges);
+  return makeDocument("MindBranch 시작하기", nodes, edges);
 }
 
 // Deep-clone a node with fresh checklist ids preserved (ids kept stable).
@@ -2065,7 +2065,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           format,
           Object.values(get().layoutRoutes),
         );
-        const name = `${safeFileName(doc?.title ?? "mindforge")}.${format}`;
+        const name = `${safeFileName(doc?.title ?? "mindbranch")}.${format}`;
         const a = document.createElement("a");
         a.href = url;
         a.download = name;

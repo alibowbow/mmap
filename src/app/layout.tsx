@@ -5,16 +5,16 @@ import "./pretendard.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MindForge — 생각을 벼리다",
+  title: "MindBranch — 생각의 가지를 뻗다",
   description:
-    "아이디어를 잇고, 다듬고, 벼려내는 마인드맵. 서버 없이 링크 하나로 공유되는 나만의 생각 대장간, MindForge.",
-  applicationName: "MindForge",
-  appleWebApp: { title: "MindForge", capable: true, statusBarStyle: "default" },
+    "흩어진 아이디어를 가지로 잇고 펼치는 마인드맵, MindBranch. 설치 없이 브라우저에서, 서버 없이 링크 하나로 공유하세요.",
+  applicationName: "MindBranch",
+  appleWebApp: { title: "MindBranch", capable: true, statusBarStyle: "default" },
   openGraph: {
-    title: "MindForge — 생각을 벼리다",
+    title: "MindBranch — 생각의 가지를 뻗다",
     description:
-      "아이디어를 잇고, 다듬고, 벼려내는 마인드맵. 링크 하나로 공유하세요.",
-    siteName: "MindForge",
+      "흩어진 아이디어를 가지로 잇고 펼치는 마인드맵. 링크 하나로 공유하세요.",
+    siteName: "MindBranch",
     type: "website",
     locale: "ko_KR",
   },
