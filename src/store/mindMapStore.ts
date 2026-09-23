@@ -208,7 +208,11 @@ export type MindMapState = {
   dismissToast: (id: string) => void;
 
   // ── Document actions ──
+  // The document just created with createDocument, until it is first edited.
+  freshDocumentId: string | null;
   createDocument: (templateType?: TemplateType) => void;
+  // Drop the fresh document if it was never edited (see createDocument).
+  discardFreshDocument: () => void;
   duplicateDocument: (documentId: string) => void;
   deleteDocument: (documentId: string) => void;
   renameDocument: (documentId: string, title: string) => void;
@@ -552,6 +556,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     lastSavedAt: null,
     revision: 0,
     hydrated: false,
+    freshDocumentId: null,
 
     tutorialStep: null,
     // The tutorial starts on a fresh document so every step matches what the
@@ -600,6 +605,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       set((s) => ({
         documents: [doc, ...s.documents],
         activeDocumentId: doc.id,
+        freshDocumentId: doc.id,
         nodes: doc.nodes,
         edges: doc.edges,
         relations: [],
@@ -616,6 +622,38 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       }));
       get().addToast("새 문서를 만들었습니다", "success");
       get().fitToView();
+    },
+
+    // A new map is a draft until its first edit: leaving it untouched (home,
+    // another document, another new map) discards it, so trying templates
+    // doesn't pile up identical copies. Edits bump updatedAt, which ends the
+    // draft state for good.
+    discardFreshDocument: () => {
+      const { freshDocumentId, documents, activeDocumentId } = get();
+      if (!freshDocumentId) return;
+      set({ freshDocumentId: null });
+      const doc = documents.find((d) => d.id === freshDocumentId);
+      if (!doc || doc.updatedAt !== doc.createdAt || documents.length < 2) return;
+      const rest = documents.filter((d) => d.id !== doc.id);
+      if (activeDocumentId !== doc.id) {
+        set((s) => ({ documents: rest, revision: s.revision + 1 }));
+        return;
+      }
+      const next = rest[0];
+      set((s) => ({
+        documents: rest,
+        activeDocumentId: next.id,
+        nodes: next.nodes,
+        edges: next.edges,
+        relations: next.relations ?? [],
+        selectedRelationId: null,
+        activeLayoutMode: next.layoutMode ?? "right-tree",
+        ...selectionFor(getRootNode(next.nodes)?.id ?? null),
+        editingNodeId: null,
+        history: [],
+        future: [],
+        revision: s.revision + 1,
+      }));
     },
 
     duplicateDocument: (documentId) => {
@@ -688,6 +726,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     },
 
     setActiveDocument: (documentId) => {
+      if (get().freshDocumentId !== documentId) get().discardFreshDocument();
       const { documents } = get();
       const doc = documents.find((d) => d.id === documentId);
       if (!doc) return;

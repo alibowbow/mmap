@@ -186,6 +186,7 @@ export function MindForgeApp() {
   const createAndOpen = useCallback(
     (template: TemplateType = "blank") => {
       const state = useMindMapStore.getState();
+      state.discardFreshDocument();
       state.createDocument(template);
       const documentId = useMindMapStore.getState().activeDocumentId;
       useMindMapStore.getState().saveWorkspace();
@@ -197,6 +198,7 @@ export function MindForgeApp() {
   const openDocument = useCallback(
     (documentId: string) => {
       const state = useMindMapStore.getState();
+      if (state.freshDocumentId !== documentId) state.discardFreshDocument();
       if (state.activeDocumentId !== documentId) state.setActiveDocument(documentId);
       state.saveWorkspace();
       showEditor(documentId);
@@ -215,6 +217,7 @@ export function MindForgeApp() {
   }, [showEditor]);
 
   const goHome = useCallback(() => {
+    useMindMapStore.getState().discardFreshDocument();
     useMindMapStore.getState().saveWorkspace();
     closeEditorSurfaces();
     writeDocumentUrl(null, "push");
