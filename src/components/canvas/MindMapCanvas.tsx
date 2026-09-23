@@ -104,10 +104,27 @@ function CanvasInner() {
   const [menuBlockedNodeId, setMenuBlockedNodeId] = useState<string | null>(
     null,
   );
-  const dragMenuGuard = useRef<{ nodeId: string; until: number } | null>(null);
+  // `presses` counts fresh pointer presses since the drag was released: the
+  // stray events a release produces involve at most one, while a deliberate
+  // double-click needs two — so a real double-click right after a drag still
+  // opens the editor instead of being swallowed by the guard.
+  const dragMenuGuard = useRef<{
+    nodeId: string;
+    until: number;
+    presses: number;
+  } | null>(null);
   const dragMenuIsSuppressed = useCallback((nodeId: string) => {
     const guard = dragMenuGuard.current;
     return !!guard && guard.nodeId === nodeId && Date.now() < guard.until;
+  }, []);
+  useEffect(() => {
+    const count = () => {
+      const guard = dragMenuGuard.current;
+      if (guard && Number.isFinite(guard.until) && Date.now() < guard.until)
+        guard.presses++;
+    };
+    document.addEventListener("pointerdown", count, true);
+    return () => document.removeEventListener("pointerdown", count, true);
   }, []);
   // Tracks an in-progress subtree drag (descendants follow the dragged node).
   const subtreeDrag = useRef<{
@@ -396,7 +413,12 @@ function CanvasInner() {
 
   const onNodeDoubleClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
-      if (dragMenuIsSuppressed(node.id)) return;
+      // Two fresh presses since the drag ended = a deliberate double-click.
+      if (
+        dragMenuIsSuppressed(node.id) &&
+        (dragMenuGuard.current?.presses ?? 0) < 2
+      )
+        return;
       if (menuBlockedNodeId === node.id) setMenuBlockedNodeId(null);
       if (isMobile) {
         setEditingNode(node.id);
@@ -480,6 +502,7 @@ function CanvasInner() {
       dragMenuGuard.current = {
         nodeId: node.id,
         until: Number.POSITIVE_INFINITY,
+        presses: 0,
       };
       setMenuBlockedNodeId(node.id);
       closeContextMenu();
@@ -587,7 +610,11 @@ function CanvasInner() {
     (_: MouseEvent | TouchEvent, node: Node) => {
       // Some browsers dispatch contextmenu/click after pointerup. Keep those
       // synthetic events out, while allowing a later deliberate tap.
-      dragMenuGuard.current = { nodeId: node.id, until: Date.now() + 450 };
+      dragMenuGuard.current = {
+        nodeId: node.id,
+        until: Date.now() + 450,
+        presses: 0,
+      };
       setMenuBlockedNodeId(node.id);
       // Only an ARMED target re-parents; releasing mid-dwell just moves.
       const targetId = useMindMapStore.getState().dropTargetId;
