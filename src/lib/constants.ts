@@ -369,7 +369,7 @@ export const LAYOUT_OPTIONS: LayoutOption[] = [
     id: "bidirectional",
     label: "양방향 트리",
     description: "좌우로 균형 있게 펼치는 트리",
-    icon: "GitFork",
+    icon: "LayoutBidirectional",
   },
   {
     id: "vertical",
