@@ -5,6 +5,11 @@ import type {
 } from "@/types/mindmap";
 
 export const STORAGE_KEY = "mindforge-workspace-v1";
+
+// Layout for newly created maps: branches balanced on both sides of the
+// central topic. Existing documents keep their own layoutMode (and fall back
+// to "right-tree", the mode their saved positions were computed in).
+export const DEFAULT_LAYOUT_MODE = "bidirectional" as const;
 export const WORKSPACE_VERSION = 1;
 
 // New nodes start empty so the user can type immediately.

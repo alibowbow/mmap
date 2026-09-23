@@ -12,6 +12,7 @@ import { create } from "zustand";
 import { COMMANDS, type CommandId } from "@/lib/commands";
 import {
   DEFAULT_ACCENT,
+  DEFAULT_LAYOUT_MODE,
   DEFAULT_CANVAS_BG,
   DEFAULT_EDGE_LINE,
   DEFAULT_FONT,
@@ -374,6 +375,7 @@ function makeDocument(
     title,
     nodes,
     edges,
+    layoutMode: DEFAULT_LAYOUT_MODE,
     createdAt: ts,
     updatedAt: ts,
   };
@@ -577,7 +579,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     presentationIndex: 0,
     presentationReveal: true,
     setPresentationReveal: (presentationReveal) => set({ presentationReveal }),
-    activeLayoutMode: "right-tree",
+    activeLayoutMode: DEFAULT_LAYOUT_MODE,
 
     flow: null,
     registerFlow: (instance) => set({ flow: instance }),
@@ -610,7 +612,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         edges: doc.edges,
         relations: [],
         selectedRelationId: null,
-        activeLayoutMode: "right-tree",
+        activeLayoutMode: DEFAULT_LAYOUT_MODE,
         ...selectionFor(getRootNode(doc.nodes)?.id ?? null),
         editingNodeId: null,
         history: [],
@@ -901,12 +903,22 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         id,
         type: "mindmap",
         position: (() => {
-          const siblings = nodes.filter((n) => n.data.parentId === parentId);
-          const last = siblings[siblings.length - 1];
+          let siblings = nodes.filter((n) => n.data.parentId === parentId);
           const size = nodeSize(parent);
-          const left =
+          let left =
             parent.data.side === "left" ||
-            (last && last.position.x < parent.position.x);
+            (siblings.length > 0 &&
+              siblings[siblings.length - 1].position.x < parent.position.x);
+          // Bidirectional maps grow first-level branches on the lighter side
+          // of the central topic, so the map stays balanced as it grows.
+          if (parent.data.isRoot && get().activeLayoutMode === "bidirectional") {
+            const onLeft = siblings.filter((n) => n.position.x < parent.position.x);
+            left = onLeft.length < siblings.length - onLeft.length;
+            siblings = left
+              ? onLeft
+              : siblings.filter((n) => n.position.x >= parent.position.x);
+          }
+          const last = siblings[siblings.length - 1];
           if (get().activeLayoutMode === "vertical")
             return {
               x: last
@@ -1187,7 +1199,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           },
         };
       });
-      const laid = runLayout(newNodes, "right-tree");
+      const laid = runLayout(newNodes, DEFAULT_LAYOUT_MODE);
       const newDoc = makeDocument(
         node.data.label || "새 맵",
         laid,
@@ -2022,6 +2034,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         edges: doc.edges,
         relations: [],
         selectedRelationId: null,
+        activeLayoutMode: DEFAULT_LAYOUT_MODE,
         ...selectionFor(getRootNode(doc.nodes)?.id ?? null),
         history: [],
         future: [],
@@ -2035,7 +2048,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       if (doc.nodes.length > 200)
         layoutRuntime.queue({
           strategy: "full",
-          mode: "right-tree",
+          mode: DEFAULT_LAYOUT_MODE,
           routingOnly: false,
         });
       else get().fitToView();

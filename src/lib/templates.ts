@@ -1,5 +1,5 @@
 import { createId } from "@/lib/id";
-import { layoutRightTree } from "@/lib/layout";
+import { layoutBidirectionalTree } from "@/lib/layout";
 import { buildEdgesFromNodes } from "@/lib/tree";
 import { NODE_TYPE_CONFIG } from "@/lib/constants";
 import type {
@@ -58,7 +58,7 @@ function buildFromSpec(root: Spec): { nodes: MindMapNode[]; edges: Edge[] } {
   };
 
   walk(root, null, true);
-  const laidOut = layoutRightTree(nodes);
+  const laidOut = layoutBidirectionalTree(nodes);
   return { nodes: laidOut, edges: buildEdgesFromNodes(laidOut) };
 }
 

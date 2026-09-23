@@ -1,6 +1,6 @@
 import { NODE_TYPE_CONFIG } from "@/lib/constants";
 import { createId } from "@/lib/id";
-import { layoutRightTree } from "@/lib/layout";
+import { layoutBidirectionalTree } from "@/lib/layout";
 import { buildEdgesFromNodes } from "@/lib/tree";
 import type { Edge, MindMapNode } from "@/types/mindmap";
 
@@ -90,7 +90,7 @@ export function parseOutlineToTree(
     stack.push({ level: it.level, id });
   }
 
-  const laid = nodes.length > 200 ? nodes : layoutRightTree(nodes);
+  const laid = nodes.length > 200 ? nodes : layoutBidirectionalTree(nodes);
   const title = nodes.find((n) => n.data.isRoot)?.data.label || "가져온 아웃라인";
   return { nodes: laid, edges: buildEdgesFromNodes(laid), title };
 }
