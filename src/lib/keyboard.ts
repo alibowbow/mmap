@@ -40,6 +40,13 @@ export const SHORTCUT_GROUPS: {
     ],
   },
   {
+    title: "드래그로 옮기기",
+    items: [
+      { keys: ["드래그"], label: "다른 노드 위에 잠시 멈추면 그 아래로 이동" },
+      { keys: ["Alt", "드래그"], label: "부모는 그대로, 위치만 이동" },
+    ],
+  },
+  {
     title: "탐색 & 명령",
     items: [
       { keys: ["Mod", "K"], label: "커맨드 팔레트" },

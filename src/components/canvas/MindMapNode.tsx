@@ -51,6 +51,16 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
   const openContextMenu = useMindMapStore((s) => s.openContextMenu);
   const openLinkedDoc = useMindMapStore((s) => s.openLinkedDoc);
   const isDropTarget = useMindMapStore((s) => s.dropTargetId === id);
+  const isDropPending = useMindMapStore((s) => s.dropPendingId === id);
+  // While THIS node is being dragged onto an armed target, name the target on
+  // the dragged node itself — it renders above everything, so the hint is
+  // never hidden behind the node it's describing.
+  const armedTargetLabel = useMindMapStore((s) => {
+    if (!dragging || !s.dropTargetId) return null;
+    const t = s.nodes.find((n) => n.id === s.dropTargetId);
+    const label = t?.data.label.trim() || "빈 노드";
+    return label.length > 14 ? `${label.slice(0, 14)}…` : label;
+  });
   const nodeTint = useMindMapStore((s) => s.nodeTint);
   const levelFontSizes = useMindMapStore((s) => s.levelFontSizes);
   const addChildNode = useMindMapStore((s) => s.addChildNode);
@@ -285,11 +295,19 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
         // Presentation spotlight: fade every node except the current one.
         d._dimmed && "opacity-35 transition-opacity duration-300",
         isMatch && !selected && "ring-2 ring-amber-400/80",
-        // Highlight when this node is the drop target for a re-parent drag.
+        // Re-parent drag: a dashed outline while the pointer dwells (not yet
+        // armed), then a solid ring once releasing will re-parent.
+        isDropPending &&
+          "outline-dashed outline-2 outline-offset-4 outline-emerald-500/60",
         isDropTarget &&
           "ring-2 ring-emerald-500 ring-offset-2 ring-offset-surface-base"
       )}
     >
+      {armedTargetLabel && (
+        <div className="pointer-events-none absolute -top-9 left-1/2 z-20 -translate-x-1/2 animate-scale-in whitespace-nowrap rounded-full bg-emerald-600 px-2.5 py-1 text-[12px] font-semibold text-white shadow-float">
+          놓으면 ‘{armedTargetLabel}’ 아래로 이동
+        </div>
+      )}
       {/* Hidden handles on all four faces. The edge picks the face that points
           toward its child (left/right for trees, top/bottom for org/radial). */}
       <Handle id="left-target" type="target" position={Position.Left} />

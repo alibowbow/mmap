@@ -46,6 +46,9 @@ import type { MindMapNodeData } from "@/types/mindmap";
 const nodeTypes = { mindmap: MindMapNode };
 const edgeTypes = { mindmap: MindMapEdge, relation: RelationEdge };
 
+// How long a dragged node must rest over another before releasing re-parents.
+const DROP_DWELL_MS = 420;
+
 function CanvasInner() {
   useLayoutMeasurements();
   const isMobile = useIsMobile();
@@ -84,6 +87,7 @@ function CanvasInner() {
   const layoutBusy = useMindMapStore((s) => s.layoutBusy);
   const noteCameraIntent = useMindMapStore((s) => s.noteCameraIntent);
   const setDropTargetId = useMindMapStore((s) => s.setDropTargetId);
+  const setDropPendingId = useMindMapStore((s) => s.setDropPendingId);
   const reparentNode = useMindMapStore((s) => s.reparentNode);
 
   useEffect(() => {
@@ -109,6 +113,18 @@ function CanvasInner() {
     last: { x: number; y: number };
   } | null>(null);
   // Tracks a single-node drag for re-parent detection.
+  // Re-parent intent: a hovered target only ARMS after the pointer rests on
+  // it for DROP_DWELL_MS. Merely passing over a node on the way elsewhere —
+  // the usual cause of accidental re-parenting — never arms anything.
+  const dropDwell = useRef<{
+    id: string | null;
+    timer: ReturnType<typeof setTimeout> | null;
+  }>({ id: null, timer: null });
+  const clearDropDwell = useCallback(() => {
+    if (dropDwell.current.timer) clearTimeout(dropDwell.current.timer);
+    dropDwell.current = { id: null, timer: null };
+  }, []);
+  useEffect(() => clearDropDwell, [clearDropDwell]);
   const reparent = useRef<{ id: string; descendants: Set<string> } | null>(
     null,
   );
@@ -467,7 +483,7 @@ function CanvasInner() {
   );
 
   const onNodeDrag = useCallback(
-    (_: MouseEvent | TouchEvent, node: Node) => {
+    (event: MouseEvent | TouchEvent, node: Node) => {
       const ds = subtreeDrag.current;
       if (ds && ds.id === node.id) {
         const dx = node.position.x - ds.last.x;
@@ -491,39 +507,61 @@ function CanvasInner() {
       const rp = reparent.current;
       if (!rp || rp.id !== node.id) return;
       const state = useMindMapStore.getState();
-      const dragged = nodeRect(node as import("@/types/mindmap").MindMapNode);
-      const cx = dragged.x + dragged.width / 2;
-      const cy = dragged.y + dragged.height / 2;
-      const hidden = getHiddenNodeIds(state.nodes);
-      const focus = state.focusModeNodeId
-        ? new Set(getSubtreeIds(state.nodes, state.focusModeNodeId))
-        : null;
       let targetId: string | null = null;
-      // Reverse render order is the stable tie-break for overlapping targets.
-      for (const n of [...state.nodes].reverse()) {
-        if (
-          n.id === node.id ||
-          rp.descendants.has(n.id) ||
-          hidden.has(n.id) ||
-          (focus && !focus.has(n.id))
-        )
-          continue;
-        const { width: w, height: h } = nodeRect(n);
-        if (
-          cx >= n.position.x &&
-          cx <= n.position.x + w &&
-          cy >= n.position.y &&
-          cy <= n.position.y + h
-        ) {
-          targetId = n.id;
-          break;
+      // Holding Alt/Option = "just move it": never re-parent.
+      if (!event.altKey) {
+        const dragged = nodeRect(node as import("@/types/mindmap").MindMapNode);
+        const cx = dragged.x + dragged.width / 2;
+        const cy = dragged.y + dragged.height / 2;
+        const hidden = getHiddenNodeIds(state.nodes);
+        const focus = state.focusModeNodeId
+          ? new Set(getSubtreeIds(state.nodes, state.focusModeNodeId))
+          : null;
+        const currentParent = state.nodes.find((n) => n.id === node.id)?.data
+          .parentId;
+        // Reverse render order is the stable tie-break for overlapping targets.
+        for (const n of [...state.nodes].reverse()) {
+          if (
+            n.id === node.id ||
+            n.id === currentParent || // already its parent: nothing to do
+            rp.descendants.has(n.id) ||
+            hidden.has(n.id) ||
+            (focus && !focus.has(n.id))
+          )
+            continue;
+          const { width: w, height: h } = nodeRect(n);
+          // Only the inner part of a node counts, so grazing its edge while
+          // dragging past doesn't select it.
+          const ix = Math.min(24, w * 0.14);
+          const iy = Math.min(14, h * 0.18);
+          if (
+            cx >= n.position.x + ix &&
+            cx <= n.position.x + w - ix &&
+            cy >= n.position.y + iy &&
+            cy <= n.position.y + h - iy
+          ) {
+            targetId = n.id;
+            break;
+          }
         }
       }
-      if (useMindMapStore.getState().dropTargetId !== targetId) {
-        setDropTargetId(targetId);
-      }
+      if (targetId === dropDwell.current.id) return; // still dwelling/armed
+      // Candidate changed: disarm, then start dwelling on the new one.
+      clearDropDwell();
+      if (state.dropTargetId) setDropTargetId(null);
+      setDropPendingId(targetId);
+      if (!targetId) return;
+      dropDwell.current = {
+        id: targetId,
+        timer: setTimeout(() => {
+          if (dropDwell.current.id !== targetId) return;
+          dropDwell.current.timer = null;
+          setDropPendingId(null);
+          setDropTargetId(targetId);
+        }, DROP_DWELL_MS),
+      };
     },
-    [moveNodesBy, setDropTargetId],
+    [moveNodesBy, setDropTargetId, setDropPendingId, clearDropDwell],
   );
 
   const onNodeDragStop = useCallback(
@@ -532,17 +570,20 @@ function CanvasInner() {
       // synthetic events out, while allowing a later deliberate tap.
       dragMenuGuard.current = { nodeId: node.id, until: Date.now() + 450 };
       setMenuBlockedNodeId(node.id);
+      // Only an ARMED target re-parents; releasing mid-dwell just moves.
       const targetId = useMindMapStore.getState().dropTargetId;
       if (targetId && !subtreeDrag.current) {
         reparentNode(node.id, targetId);
       }
+      clearDropDwell();
       setDropTargetId(null);
+      setDropPendingId(null);
       subtreeDrag.current = null;
       reparent.current = null;
       armedDrag.armedId = null;
       endNodeDrag();
     },
-    [reparentNode, setDropTargetId, endNodeDrag],
+    [reparentNode, setDropTargetId, setDropPendingId, clearDropDwell, endNodeDrag],
   );
 
   const isEmpty = nodes.length === 0;

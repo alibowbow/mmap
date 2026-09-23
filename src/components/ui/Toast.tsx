@@ -18,9 +18,10 @@ function ToastItem({ toast }: { toast: ToastModel }) {
   const Icon = ICONS[toast.type];
 
   useEffect(() => {
-    const t = setTimeout(() => dismiss(toast.id), 3200);
+    // Toasts with an action (e.g. 되돌리기) linger so there's time to use it.
+    const t = setTimeout(() => dismiss(toast.id), toast.action ? 6000 : 3200);
     return () => clearTimeout(t);
-  }, [toast.id, dismiss]);
+  }, [toast.id, toast.action, dismiss]);
 
   return (
     <motion.div
@@ -43,6 +44,17 @@ function ToastItem({ toast }: { toast: ToastModel }) {
         )}
       />
       <span className="flex-1 text-sm text-ink">{toast.message}</span>
+      {toast.action && (
+        <button
+          onClick={() => {
+            toast.action!.onClick();
+            dismiss(toast.id);
+          }}
+          className="shrink-0 rounded-lg px-2 py-1 text-sm font-semibold text-brand transition-colors hover:bg-brand/10"
+        >
+          {toast.action.label}
+        </button>
+      )}
       <button
         onClick={() => dismiss(toast.id)}
         aria-label="알림 닫기"

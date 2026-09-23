@@ -78,7 +78,13 @@ import type {
 } from "@/types/mindmap";
 
 export type ToastType = "success" | "error" | "info";
-export type Toast = { id: string; message: string; type: ToastType };
+export type ToastAction = { label: string; onClick: () => void };
+export type Toast = {
+  id: string;
+  message: string;
+  type: ToastType;
+  action?: ToastAction; // e.g. "되돌리기" right after a destructive change
+};
 export type DialogType =
   | "template"
   | "export"
@@ -131,7 +137,8 @@ export type MindMapState = {
   selectedNodeIds: string[]; // full multi-selection set
   editingNodeId: string | null;
   editSeed: string | null; // initial text for type-to-edit (typed char seeds it)
-  dropTargetId: string | null; // node currently hovered as a re-parent target
+  dropTargetId: string | null; // armed re-parent target: releasing re-parents
+  dropPendingId: string | null; // hovered, still dwelling before it arms
   selectedRelationId: string | null; // selected free-form relation edge
   connectMode: boolean; // when on, node handles become connectable
   clipboard: MindMapNode[] | null; // copied subtree (first entry = sub-root)
@@ -197,7 +204,7 @@ export type MindMapState = {
 
   // ── Toasts ──
   toasts: Toast[];
-  addToast: (message: string, type?: ToastType) => void;
+  addToast: (message: string, type?: ToastType, action?: ToastAction) => void;
   dismissToast: (id: string) => void;
 
   // ── Document actions ──
@@ -232,6 +239,7 @@ export type MindMapState = {
   bulkUpdateData: (ids: string[], partial: Partial<MindMapNodeData>) => void;
   bulkDelete: (ids: string[]) => void;
   setDropTargetId: (id: string | null) => void;
+  setDropPendingId: (id: string | null) => void;
   reparentNode: (nodeId: string, newParentId: string) => void;
 
   // ── Focus mode (isolate one branch) ──
@@ -503,6 +511,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     editingNodeId: null,
     editSeed: null,
     dropTargetId: null,
+    dropPendingId: null,
     selectedRelationId: null,
     connectMode: false,
     clipboard: null,
@@ -569,9 +578,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     registerFlow: (instance) => set({ flow: instance }),
 
     toasts: [],
-    addToast: (message, type = "info") =>
+    addToast: (message, type = "info", action) =>
       set((s) => ({
-        toasts: [...s.toasts, { id: createId("t"), message, type }],
+        toasts: [...s.toasts, { id: createId("t"), message, type, action }],
       })),
     dismissToast: (id) =>
       set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
@@ -1310,6 +1319,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     },
 
     setDropTargetId: (id) => set({ dropTargetId: id }),
+    setDropPendingId: (id) => set({ dropPendingId: id }),
 
     // Re-parent a node onto a new parent (drag & drop). History is captured by
     // the drag start, so this mutation doesn't push its own history entry.
@@ -1336,8 +1346,20 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         () => ({ nodes: updated, edges: reconcileEdges(updated, get().edges) }),
         !layoutRuntime.isDragging,
       );
-      set({ dropTargetId: null });
-      get().addToast("부모를 변경했습니다", "success");
+      set({ dropTargetId: null, dropPendingId: null });
+      // Say exactly what moved where, with a one-tap undo — a mis-drop should
+      // cost one tap to fix, not a hunt through the undo history. The drag
+      // start captured a single history entry, so undo restores both the
+      // old parent and the old position.
+      const clip = (t: string) =>
+        (t.trim() || "빈 노드").length > 12
+          ? `${(t.trim() || "빈 노드").slice(0, 12)}…`
+          : t.trim() || "빈 노드";
+      get().addToast(
+        `‘${clip(node.data.label)}’ → ‘${clip(target.data.label)}’ 아래로 이동`,
+        "success",
+        { label: "되돌리기", onClick: () => get().undo() },
+      );
     },
 
     // ── Focus mode ──

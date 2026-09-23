@@ -5,7 +5,14 @@ import { isMac, SHORTCUT_GROUPS } from "@/lib/keyboard";
 import { useMindMapStore } from "@/store/mindMapStore";
 
 function Key({ k }: { k: string }) {
-  const label = k === "Mod" ? (isMac() ? "⌘" : "Ctrl") : k;
+  const label =
+    k === "Mod"
+      ? isMac()
+        ? "⌘"
+        : "Ctrl"
+      : k === "Alt" && isMac()
+        ? "⌥"
+        : k;
   return (
     <kbd className="inline-flex min-w-[24px] items-center justify-center rounded-md border border-line bg-surface-base px-1.5 py-1 text-[11px] font-medium text-ink-soft shadow-sm">
       {label}
