@@ -122,7 +122,7 @@ export function DocumentLibrary({ documents, onOpen }: {
 
   return (
     <section aria-labelledby="documents-heading" className="min-w-0">
-      <h2 id="documents-heading" tabIndex={-1} className="sr-only">문서</h2>
+      <h2 id="documents-heading" tabIndex={-1} className="mf-library-heading scroll-mt-6 outline-none">모든 문서</h2>
       <div className="mf-doc-toolbar">
         <div className="flex" role="group" aria-label="문서 필터">
           {FILTERS.map(([id, label]) => (
