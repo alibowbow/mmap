@@ -12,7 +12,8 @@ import { downloadFile, exportDocumentJson, safeFileName } from "@/lib/export";
 import { useMindMapStore } from "@/store/mindMapStore";
 import type { MindMapDocument } from "@/types/mindmap";
 
-const COLORS = ["#4385f5", "#16a394", "#8b5cf6", "#f05c4f"];
+// Central-topic colours cycle so neighbouring cards are easy to tell apart.
+const COLORS = ["#6366f1", "#0f9f8f", "#8b5cf6", "#e0685c"];
 
 export function DocumentLibrary({ documents, onOpen }: {
   documents: MindMapDocument[]; onOpen: (id: string) => void;

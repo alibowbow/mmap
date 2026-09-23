@@ -82,7 +82,7 @@ export function HomeScreen({ onCreate, onOpenDocument, onImport }: HomeScreenPro
                 <span className="shrink-0 rounded-md border border-line/70 bg-surface-raised/70 px-2 py-1 text-[11px] text-ink-soft">{recent.nodes.length} 노드</span>
               </div>
               <button type="button" className="mf-featured-preview" onClick={() => onOpenDocument(recent.id)} aria-label={`${recent.title} 미리보기에서 열기`}>
-                <DocumentPreview document={recent} color="#4385f5" />
+                <DocumentPreview document={recent} color="#6366f1" width={1000} height={216} />
               </button>
               <div className="flex items-center justify-between gap-3 border-t border-line/60 pt-3">
                 <span className="text-[11px] text-ink-soft">핵심 가지 미리보기</span>

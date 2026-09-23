@@ -179,7 +179,7 @@ body {
 .dark .mf-home-blueprint { background-color: #1a2736; }
 .mf-recent-map { display: flex; flex-direction: column; min-width: 0; border: 1px solid rgb(127 174 212 / 0.4); border-radius: 14px; padding: 20px 22px 14px; }
 .mf-featured-preview { display: flex; width: 100%; height: 216px; align-items: center; justify-content: center; border-radius: 10px; }
-.mf-map-preview { display: block; width: 100%; height: 100%; max-width: 640px; font-family: inherit; }
+.mf-map-preview { display: block; width: 100%; height: 100%; font-family: inherit; }
 .mf-template-shelf { min-width: 0; border: 1px solid #eae0c7; border-radius: 14px; padding: 8px 12px 12px; background: #faf5e8; }
 .dark .mf-template-shelf { border-color: #494231; background: #29271f; }
 .mf-template-title { display: flex; min-height: 48px; align-items: center; justify-content: space-between; padding-inline: 4px; font-size: 15px; font-weight: 700; }
