@@ -43,9 +43,12 @@ export function getDescendantIds(
 ): string[] {
   const childrenMap = getChildrenMap(nodes);
   const result: string[] = [];
+  const seen = new Set<string>([nodeId]);
   const stack = [...(childrenMap.get(nodeId) ?? [])];
   while (stack.length) {
     const current = stack.pop()!;
+    if (seen.has(current.id)) continue;
+    seen.add(current.id);
     result.push(current.id);
     const kids = childrenMap.get(current.id);
     if (kids) stack.push(...kids);
@@ -60,31 +63,23 @@ export function getSubtreeIds(nodes: MindMapNode[], nodeId: string): string[] {
 
 // Depth of every node in one pass (root = 0). Used for per-level sizing.
 export function computeDepths(nodes: MindMapNode[]): Map<string, number> {
-  const map = getNodeMap(nodes);
-  const depths = new Map<string, number>();
-  const depthOf = (id: string): number => {
-    const cached = depths.get(id);
-    if (cached !== undefined) return cached;
-    const node = map.get(id);
-    const parentId = node?.data.parentId;
-    const d = parentId && map.has(parentId) ? depthOf(parentId) + 1 : 0;
-    depths.set(id, d);
-    return d;
-  };
-  for (const n of nodes) depthOf(n.id);
+  const byId = getNodeMap(nodes), depths = new Map<string, number>();
+  for (const n of nodes) {
+    if (depths.has(n.id)) continue;
+    const path: string[] = [], seen = new Set<string>();
+    let current: MindMapNode | undefined = n;
+    while (current && !depths.has(current.id) && !seen.has(current.id)) {
+      path.push(current.id); seen.add(current.id);
+      current = current.data.parentId ? byId.get(current.data.parentId) : undefined;
+    }
+    let d = current && depths.has(current.id) ? depths.get(current.id)! + 1 : 0;
+    for (let i = path.length - 1; i >= 0; i--) depths.set(path[i], d++);
+  }
   return depths;
 }
 
 export function getDepth(nodes: MindMapNode[], nodeId: string): number {
-  const map = getNodeMap(nodes);
-  let depth = 0;
-  let current = map.get(nodeId);
-  while (current?.data.parentId) {
-    current = map.get(current.data.parentId);
-    depth += 1;
-    if (depth > 1000) break; // cycle guard
-  }
-  return depth;
+  return computeDepths(nodes).get(nodeId) ?? 0;
 }
 
 // Build edges from the parentId relationships.
@@ -105,29 +100,16 @@ export function buildEdgesFromNodes(nodes: MindMapNode[]): Edge[] {
 
 // Determine which nodes are hidden because an ancestor is collapsed.
 export function getHiddenNodeIds(nodes: MindMapNode[]): Set<string> {
-  const childrenMap = getChildrenMap(nodes);
-  const hidden = new Set<string>();
-  for (const n of nodes) {
-    if (n.data.collapsed) {
-      for (const id of collectDescendants(childrenMap, n.id)) hidden.add(id);
-    }
+  const children = getChildrenMap(nodes), hidden = new Set<string>(), seen = new Set<string>();
+  const stack = nodes.filter(n => !n.data.parentId).map(n => ({ n, hide: false }));
+  while (stack.length) {
+    const { n, hide } = stack.pop()!;
+    if (seen.has(n.id)) continue;
+    seen.add(n.id);
+    if (hide) hidden.add(n.id);
+    for (const child of children.get(n.id) ?? []) stack.push({ n: child, hide: hide || !!n.data.collapsed });
   }
   return hidden;
-}
-
-function collectDescendants(
-  childrenMap: Map<string, MindMapNode[]>,
-  nodeId: string
-): string[] {
-  const out: string[] = [];
-  const stack = [...(childrenMap.get(nodeId) ?? [])];
-  while (stack.length) {
-    const current = stack.pop()!;
-    out.push(current.id);
-    const kids = childrenMap.get(current.id);
-    if (kids) stack.push(...kids);
-  }
-  return out;
 }
 
 // DFS order of currently-visible nodes (presentation navigation/reveal).
@@ -156,14 +138,14 @@ export function walkTree(
   const childrenMap = getChildrenMap(nodes);
   const root = getRootNode(nodes);
   if (!root) return;
-  const visit = (node: MindMapNode, depth: number) => {
-    visitor(node, depth);
+  const seen = new Set<string>();
+  const stack = [root, ...nodes.filter(n => n.id !== root.id && !n.data.parentId)]
+    .reverse().map(node => ({ node, depth: 0 }));
+  while (stack.length) {
+    const { node, depth } = stack.pop()!;
+    if (seen.has(node.id)) continue;
+    seen.add(node.id); visitor(node, depth);
     const kids = childrenMap.get(node.id) ?? [];
-    for (const k of kids) visit(k, depth + 1);
-  };
-  visit(root, 0);
-  // Include orphan roots (defensive) that are not under main root.
-  for (const n of nodes) {
-    if (n.id !== root.id && !n.data.parentId) visit(n, 0);
+    for (let i = kids.length - 1; i >= 0; i--) stack.push({ node: kids[i], depth: depth + 1 });
   }
 }

@@ -1,3 +1,8 @@
+import { adaptInput } from "./layout-engine/adapter";
+import { buildGraph } from "./layout-engine/graph";
+import { drain } from "./layout-engine/types";
+import type { LayoutMode } from "@/types/mindmap";
+const modes: LayoutMode[] = ["right-tree", "bidirectional", "vertical", "radial"];
 import type {
   Edge,
   MindMapDocument,
@@ -41,7 +46,9 @@ export function validateImportedDocument(raw: unknown): ImportResult {
   }
 
   const nodes = c.nodes as MindMapNode[];
+  for (const n of nodes) if (n.data.layoutMode && !modes.includes(n.data.layoutMode)) return { ok: false, error: "유효하지 않은 가지 배치 모드입니다." };
   const edges = (Array.isArray(c.edges) ? c.edges : []) as Edge[];
+  if (edges.some(e => !isObject(e) || typeof e.id !== "string" || typeof e.source !== "string" || typeof e.target !== "string")) return { ok: false, error: "연결선 형식이 올바르지 않습니다." };
   const nodeIds = new Set(nodes.map((n) => n.id));
   const relations = (Array.isArray(c.relations) ? c.relations : []).filter(
     (r): r is MindMapRelation =>
@@ -50,6 +57,8 @@ export function validateImportedDocument(raw: unknown): ImportResult {
       nodeIds.has((r as any).source) &&
       nodeIds.has((r as any).target)
   );
+  const graph = drain(buildGraph(adaptInput(nodes, { mode: "right-tree", edges, relations })));
+  if (graph.diagnostics.length) return { ok: false, error: `트리 구조 또는 좌표 오류: ${graph.diagnostics[0].message}` };
   const now = new Date().toISOString();
 
   const doc: MindMapDocument = {
@@ -58,6 +67,7 @@ export function validateImportedDocument(raw: unknown): ImportResult {
     nodes,
     edges,
     relations,
+    layoutMode: modes.includes(c.layoutMode as LayoutMode) ? c.layoutMode as LayoutMode : undefined,
     viewport: isObject(c.viewport)
       ? (c.viewport as MindMapDocument["viewport"])
       : undefined,

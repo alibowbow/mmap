@@ -184,7 +184,7 @@ export function TutorialCoach() {
             {done ? (
               <button
                 onClick={end}
-                className="rounded-full bg-brand px-3.5 py-1.5 text-xs font-semibold text-white transition hover:opacity-90"
+                className="rounded-full bg-brand px-3.5 py-1.5 text-xs font-semibold text-brand-contrast transition hover:opacity-90"
               >
                 완료
               </button>

@@ -103,7 +103,7 @@ export function ShareDialog() {
           readOnly
           value={tooLong ? "해시 공유 한도 초과" : url}
           onFocus={(e) => e.currentTarget.select()}
-          className="min-w-0 flex-1 rounded-xl border border-line bg-surface-sunken px-3 py-2 text-xs text-ink-soft focus:outline-none focus:ring-2 focus:ring-brand/40"
+          className="min-w-0 flex-1 rounded-xl border border-line bg-surface-sunken px-3 py-2 text-xs text-ink-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-soft"
         />
         <Button
           size="icon"

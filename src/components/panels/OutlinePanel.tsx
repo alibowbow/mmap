@@ -95,7 +95,7 @@ function OutlineRow({
               if (e.key === "Escape") setEditing(false);
               e.stopPropagation();
             }}
-            className="min-w-0 flex-1 rounded border border-brand/50 bg-surface-base px-1.5 py-0.5 text-sm text-ink focus:outline-none focus:ring-1 focus:ring-brand/40"
+            className="min-w-0 flex-1 rounded border border-brand/50 bg-surface-base px-1.5 py-0.5 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-soft"
           />
         ) : (
           <span

@@ -5,6 +5,9 @@
 
 # testing
 /coverage
+/verification/*.png
+/verification/*.svg
+/verification/*.log
 
 # next.js
 /.next/

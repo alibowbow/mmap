@@ -2,13 +2,13 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Search } from "lucide-react";
-import { useEffect, useRef } from "react";
 
 import {
   FilterChips,
   SearchResultRow,
   useSearchResults,
 } from "@/components/panels/SearchPanel";
+import { useDialogFocus } from "@/hooks/useDialogFocus";
 import { useMindMapStore } from "@/store/mindMapStore";
 
 // Full-screen search overlay for mobile.
@@ -21,11 +21,9 @@ export function MobileSearchOverlay() {
   const focusNode = useMindMapStore((s) => s.focusNode);
 
   const results = useSearchResults();
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (open) requestAnimationFrame(() => inputRef.current?.focus());
-  }, [open]);
+  const dialogRef = useDialogFocus<HTMLDivElement>(open, () =>
+    setSearchOpen(false)
+  );
 
   const pick = (id: string) => {
     selectNode(id);
@@ -37,28 +35,33 @@ export function MobileSearchOverlay() {
     <AnimatePresence>
       {open && (
         <motion.div
+          ref={dialogRef}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 12 }}
           transition={{ duration: 0.18 }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="노드 검색"
+          tabIndex={-1}
           className="fixed inset-0 z-[120] flex flex-col bg-surface-base"
         >
-          <div className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-2 pt-[env(safe-area-inset-top)]">
+          <div className="flex min-h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-end gap-2 border-b border-line px-2 pb-1.5 pt-[env(safe-area-inset-top)]">
             <button
               onClick={() => setSearchOpen(false)}
               aria-label="뒤로"
-              className="flex h-10 w-10 items-center justify-center rounded-xl text-ink-soft active:bg-surface-overlay"
+              className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-soft active:bg-surface-overlay"
             >
               <ArrowLeft size={20} />
             </button>
             <div className="flex flex-1 items-center gap-2 rounded-xl bg-surface-overlay px-3">
               <Search size={18} className="text-ink-faint" />
               <input
-                ref={inputRef}
+                data-dialog-autofocus
                 value={query}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="노드 검색…"
-                className="h-10 flex-1 bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none"
+                className="h-11 flex-1 bg-transparent text-sm text-ink placeholder:text-ink-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ink-soft"
               />
             </div>
           </div>

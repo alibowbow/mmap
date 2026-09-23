@@ -24,6 +24,7 @@ function ToastItem({ toast }: { toast: ToastModel }) {
 
   return (
     <motion.div
+      role={toast.type === "error" ? "alert" : "status"}
       layout
       initial={{ opacity: 0, y: 16, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -56,7 +57,11 @@ function ToastItem({ toast }: { toast: ToastModel }) {
 export function ToastViewport() {
   const toasts = useMindMapStore((s) => s.toasts);
   return (
-    <div className="pointer-events-none fixed bottom-4 left-1/2 -translate-x-1/2 z-[200] flex flex-col items-center gap-2 px-3 pb-[env(safe-area-inset-bottom)]">
+    <div
+      aria-live="polite"
+      aria-relevant="additions"
+      className="pointer-events-none fixed bottom-[5.75rem] left-1/2 z-[200] flex -translate-x-1/2 flex-col items-center gap-2 px-3 pb-[env(safe-area-inset-bottom)] md:bottom-4"
+    >
       <AnimatePresence>
         {toasts.map((t) => (
           <ToastItem key={t.id} toast={t} />

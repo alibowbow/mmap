@@ -1,6 +1,8 @@
 import { getNodesBounds, getViewportForBounds } from "@xyflow/react";
 import { toPng, toSvg } from "html-to-image";
 
+import { union } from "@/lib/layout-engine/geometry";
+import type { EdgeRoute } from "@/lib/layout-engine/types";
 import { getHiddenNodeIds } from "@/lib/tree";
 import type { MindMapNode } from "@/types/mindmap";
 
@@ -27,7 +29,8 @@ function themeBackground(): string {
 // viewport DOM node and re-projecting it to fit the whole map.
 export async function renderCanvasImage(
   nodes: MindMapNode[],
-  format: ImageFormat
+  format: ImageFormat,
+  routes: readonly EdgeRoute[] = []
 ): Promise<string> {
   const viewportEl = document.querySelector<HTMLElement>(
     ".react-flow__viewport"
@@ -39,7 +42,8 @@ export async function renderCanvasImage(
   const visible = nodes.filter((n) => !hidden.has(n.id));
   if (visible.length === 0) throw new Error("내보낼 노드가 없습니다.");
 
-  const bounds = getNodesBounds(visible);
+  let bounds = getNodesBounds(visible);
+  for (const route of routes) bounds = union(bounds, route.bounds);
   const imageWidth = Math.min(
     MAX_DIM,
     Math.max(MIN_DIM, Math.round(bounds.width + MARGIN * 2))
@@ -52,7 +56,7 @@ export async function renderCanvasImage(
     bounds,
     imageWidth,
     imageHeight,
-    0.2,
+    0.001,
     2,
     0.1
   );

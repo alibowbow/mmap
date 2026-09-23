@@ -2,13 +2,12 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Command,
   Eye,
   EyeOff,
   LayoutGrid,
-  Menu,
   Redo2,
   Search,
   Undo2,
@@ -41,8 +40,6 @@ import { NodeContextMenu } from "@/components/toolbar/NodeContextMenu";
 import { TutorialCoach } from "@/components/tutorial/TutorialCoach";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { Button } from "@/components/ui/Button";
-import { ToastViewport } from "@/components/ui/Toast";
-import { useDebouncedEffect } from "@/hooks/useDebouncedEffect";
 import {
   useIsDesktop,
   useIsMobile,
@@ -50,8 +47,6 @@ import {
 } from "@/hooks/useIsMobile";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { cn } from "@/lib/cn";
-import { fontFamilyFor } from "@/lib/constants";
-import { readShareCodeFromHash } from "@/lib/share";
 import { getVisibleDfsOrder } from "@/lib/tree";
 import {
   selectActiveDocument,
@@ -62,11 +57,10 @@ import {
 const ONBOARD_KEY = "mindforge-onboarded-v1";
 
 // ── Mobile top bar ───────────────────────────────────────────────────────────
-function MobileTopbar() {
+function MobileTopbar({ onHome }: { onHome: () => void }) {
   const doc = useMindMapStore(selectActiveDocument);
   const setMobileDrawerOpen = useMindMapStore((s) => s.setMobileDrawerOpen);
   const setSearchOpen = useMindMapStore((s) => s.setSearchOpen);
-  const openCommandPalette = useMindMapStore((s) => s.openCommandPalette);
   const undo = useMindMapStore((s) => s.undo);
   const redo = useMindMapStore((s) => s.redo);
   const autoLayout = useMindMapStore((s) => s.autoLayout);
@@ -74,22 +68,24 @@ function MobileTopbar() {
   const canRedo = useMindMapStore((s) => s.future.length > 0);
 
   const iconBtn =
-    "flex h-10 w-9 items-center justify-center rounded-xl text-ink-soft active:bg-surface-overlay disabled:opacity-30 disabled:active:bg-transparent";
+    "flex h-11 w-11 items-center justify-center rounded-xl text-ink-soft active:bg-surface-sunken disabled:opacity-30 disabled:active:bg-transparent";
 
   return (
-    <header className="relative z-30 flex h-14 shrink-0 items-center gap-0.5 border-b border-line px-1.5 pt-[env(safe-area-inset-top)] mf-glass">
+    <header className="relative z-30 flex min-h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-end gap-0.5 border-b border-line bg-surface-raised px-1.5 pb-1.5 pt-[env(safe-area-inset-top)]">
       <button
-        onClick={() => setMobileDrawerOpen(true)}
-        aria-label="문서 목록"
-        className="flex h-10 w-10 items-center justify-center rounded-xl text-ink-soft active:bg-surface-overlay"
+        onClick={onHome}
+        aria-label="메인으로"
+        className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-soft active:bg-surface-sunken"
       >
-        <Menu size={20} />
+        <BrandMark size={27} className="rounded-lg" />
       </button>
       <button
         onClick={() => setMobileDrawerOpen(true)}
-        className="flex-1 truncate px-1 text-center text-sm font-semibold text-ink"
+        aria-label="문서 목록 열기"
+        className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1 truncate px-1 text-center text-sm font-semibold text-ink"
       >
-        {doc?.title ?? "MindForge"}
+        <span className="truncate">{doc?.title ?? "MindForge"}</span>
+        <ChevronDown size={13} className="shrink-0 text-ink-faint" />
       </button>
       <button
         onClick={undo}
@@ -121,9 +117,6 @@ function MobileTopbar() {
         className={iconBtn}
       >
         <Search size={19} />
-      </button>
-      <button onClick={openCommandPalette} aria-label="명령" className={iconBtn}>
-        <Command size={19} />
       </button>
     </header>
   );
@@ -212,7 +205,13 @@ function PresentationControls() {
 }
 
 // ── Onboarding hint card ─────────────────────────────────────────────────────
-function OnboardingHint({ mobile }: { mobile: boolean }) {
+function OnboardingHint({
+  mobile,
+  align = "left",
+}: {
+  mobile: boolean;
+  align?: "left" | "right";
+}) {
   const [show, setShow] = useState(false);
   const setDialog = useMindMapStore((s) => s.setDialog);
   const startTutorial = useMindMapStore((s) => s.startTutorial);
@@ -238,52 +237,69 @@ function OnboardingHint({ mobile }: { mobile: boolean }) {
     <AnimatePresence>
       {show && (
         <motion.div
+          data-onboarding-hint
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 16 }}
           className={cn(
-            "pointer-events-auto absolute z-30 max-w-[300px] rounded-2xl border border-line mf-glass p-4 shadow-float",
-            mobile ? "left-3 right-3 top-3 max-w-none" : "left-4 top-4"
+            "pointer-events-auto absolute z-30 max-w-[300px] rounded-[20px] border border-line bg-surface-raised p-3.5 shadow-float",
+            mobile
+              ? "left-3 right-3 top-3 max-w-none"
+              : align === "right"
+                ? "right-4 top-4"
+                : "left-4 top-4"
           )}
         >
           <div className="mb-1.5 flex items-center gap-2">
-            <BrandMark size={26} className="shrink-0 rounded-lg" />
+            <BrandMark size={24} className="shrink-0 rounded-lg" />
             <div className="flex flex-col leading-tight">
               <span className="text-sm font-semibold text-ink">
                 <span className="mf-brand-text font-bold">MindForge</span>에 오신
                 걸 환영해요
               </span>
-              <span className="text-[10px] text-ink-faint">생각을 벼리다</span>
+              {!mobile && (
+                <span className="text-[11px] text-ink-faint">
+                  첫 지도를 가볍게 시작해 보세요
+                </span>
+              )}
             </div>
           </div>
           <p className="text-xs leading-relaxed text-ink-soft">
             {mobile
-              ? "노드를 탭해서 선택하고 하단 버튼으로 자식을 추가하세요. 노드를 더블탭하면 제목을 편집할 수 있어요."
-              : "노드를 더블클릭해 편집하고, Tab으로 자식을, Enter로 형제를 추가하세요. ⌘K로 모든 명령을 열 수 있어요."}
+              ? "노드를 탭해 선택한 뒤 아래 도구로 가지를 이어보세요."
+              : "노드를 선택하면 아래 도구가 나타납니다. Tab은 자식, Enter는 형제 노드를 추가해요."}
           </p>
-          <div className="mt-3 flex gap-2">
+          <div className="mt-2.5 flex items-center gap-2">
             <Button
               size="sm"
               variant="primary"
+              className={mobile ? "!h-11" : undefined}
               onClick={() => {
                 dismiss();
                 startTutorial();
               }}
             >
-              튜토리얼 시작
+              빠른 둘러보기
             </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                dismiss();
-                setDialog("shortcuts");
-              }}
+            {!mobile && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  dismiss();
+                  setDialog("shortcuts");
+                }}
+              >
+                단축키 보기
+              </Button>
+            )}
+            <button
+              onClick={dismiss}
+              aria-label="시작 안내 닫기"
+              className="ml-auto flex h-11 min-w-11 items-center justify-center rounded-xl px-2 text-xs font-medium text-ink-faint transition-colors hover:bg-surface-sunken hover:text-ink"
             >
-              단축키
-            </Button>
-            <Button size="sm" variant="ghost" onClick={dismiss}>
-              건너뛰기
-            </Button>
+              {mobile ? <X size={17} /> : "닫기"}
+            </button>
           </div>
         </motion.div>
       )}
@@ -295,12 +311,10 @@ function OnboardingHint({ mobile }: { mobile: boolean }) {
 function SlideOver({
   open,
   side,
-  onClose,
   children,
 }: {
   open: boolean;
   side: "left" | "right";
-  onClose: () => void;
   children: React.ReactNode;
 }) {
   return (
@@ -308,20 +322,14 @@ function SlideOver({
       {open && (
         <>
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] bg-slate-950/30"
-            onClick={onClose}
-          />
-          <motion.div
-            initial={{ x: side === "left" ? "-100%" : "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: side === "left" ? "-100%" : "100%" }}
-            transition={{ type: "spring", damping: 34, stiffness: 320 }}
+            data-floating-panel={side}
+            initial={{ opacity: 0, x: side === "left" ? -24 : 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: side === "left" ? -24 : 24 }}
+            transition={{ type: "spring", damping: 30, stiffness: 360 }}
             className={cn(
-              "fixed top-0 z-[61] h-full",
-              side === "left" ? "left-0" : "right-0"
+              "fixed bottom-3 top-[4.25rem] z-[51] overflow-hidden rounded-[22px] border border-line bg-surface-raised shadow-float",
+              side === "left" ? "left-3" : "right-3"
             )}
           >
             {children}
@@ -333,112 +341,55 @@ function SlideOver({
 }
 
 // ── App shell ────────────────────────────────────────────────────────────────
-export function AppShell() {
+export function AppShell({ onHome }: { onHome: () => void }) {
   const isMobile = useIsMobile();
   const isTablet = useIsTablet();
   const isDesktop = useIsDesktop();
 
-  const loadWorkspace = useMindMapStore((s) => s.loadWorkspace);
-  const saveWorkspace = useMindMapStore((s) => s.saveWorkspace);
-  const revision = useMindMapStore((s) => s.revision);
   const hydrated = useMindMapStore((s) => s.hydrated);
-  const theme = useMindMapStore((s) => s.theme);
-  const setTheme = useMindMapStore((s) => s.setTheme);
-  const font = useMindMapStore((s) => s.font);
 
   const sidebarCollapsed = useMindMapStore((s) => s.sidebarCollapsed);
-  const toggleSidebar = useMindMapStore((s) => s.toggleSidebar);
   const inspectorOpen = useMindMapStore((s) => s.inspectorOpen);
   const setInspectorOpen = useMindMapStore((s) => s.setInspectorOpen);
+  const fitToView = useMindMapStore((s) => s.fitToView);
   const presentationMode = useMindMapStore((s) => s.presentationMode);
-
-  useKeyboardShortcuts();
-
-  // Load once on mount.
-  useEffect(() => {
-    loadWorkspace();
-  }, [loadWorkspace]);
-
-  // If the page was opened via a share link (#m=…), decode it into a NEW copy
-  // (after the workspace has loaded), then strip the fragment so a refresh
-  // doesn't re-import it. Runs once; the cleared hash makes any re-run a no-op.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const code = readShareCodeFromHash(window.location.hash);
-    if (!code) return;
-    try {
-      useMindMapStore.getState().importSharedDocument(code);
-    } finally {
-      // Always strip the fragment — even if import throws — so a refresh never
-      // re-imports and a poisoned link doesn't linger in the address bar.
-      const { pathname, search } = window.location;
-      window.history.replaceState(null, "", pathname + search);
-    }
-  }, []);
-
-  // Debounced auto-save whenever the workspace changes.
-  useDebouncedEffect(
-    () => {
-      if (hydrated) saveWorkspace();
-    },
-    [revision, hydrated],
-    700
-  );
-
-  // Flush the pending autosave immediately when the tab is backgrounded or
-  // closed. The debounce has a 700ms trailing delay, so on mobile a quick
-  // edit-then-switch-away could otherwise lose the last change.
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    const flush = () => {
-      if (useMindMapStore.getState().hydrated) saveWorkspace();
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === "hidden") flush();
-    };
-    window.addEventListener("pagehide", flush);
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      window.removeEventListener("pagehide", flush);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [saveWorkspace]);
-
-  // React to OS theme changes when in "system" mode.
-  useEffect(() => {
-    if (theme !== "system" || typeof window === "undefined") return;
-    const mql = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = () => setTheme("system");
-    mql.addEventListener("change", handler);
-    return () => mql.removeEventListener("change", handler);
-  }, [theme, setTheme]);
-
+  const compactPanelsNormalised = useRef(false);
   const showDesktopChrome = isDesktop && !presentationMode;
   const showTablet = isTablet && !presentationMode;
 
+  useKeyboardShortcuts();
+
+  // Existing workspaces may have both desktop panels persisted as open. On
+  // laptop/tablet widths that would cover the map from both sides, so start
+  // with the document panel and let the top bar switch panels explicitly.
+  useEffect(() => {
+    if (!showTablet) {
+      compactPanelsNormalised.current = false;
+      return;
+    }
+    if (compactPanelsNormalised.current) return;
+    compactPanelsNormalised.current = true;
+    if (!sidebarCollapsed && inspectorOpen) setInspectorOpen(false);
+  }, [showTablet, sidebarCollapsed, inspectorOpen, setInspectorOpen]);
+
+  // Panel changes alter the visible canvas area. Wait for inline layout or a
+  // floating panel animation to settle, then fit against the unobscured area.
+  useEffect(() => {
+    if (presentationMode || !hydrated) return;
+    const timer = window.setTimeout(() => fitToView(), showTablet ? 340 : 180);
+    return () => window.clearTimeout(timer);
+  }, [
+    fitToView,
+    hydrated,
+    inspectorOpen,
+    isMobile,
+    presentationMode,
+    sidebarCollapsed,
+    showTablet,
+  ]);
+
   return (
-    <div
-      className="flex h-[100dvh] w-full overflow-hidden bg-surface-base text-ink"
-      style={{ fontFamily: fontFamilyFor(font) }}
-    >
-      {/* Brand splash while the workspace hydrates from storage. */}
-      <AnimatePresence>
-        {!hydrated && (
-          <motion.div
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.35 }}
-            className="fixed inset-0 z-[200] flex flex-col items-center justify-center gap-2.5 bg-surface-base"
-          >
-            <BrandMark size={46} className="rounded-xl shadow-float" />
-            <span className="mf-brand-text text-lg font-bold tracking-tight">
-              MindForge
-            </span>
-            <span className="text-[11px] tracking-wide text-ink-faint">
-              생각을 벼리다
-            </span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div className="flex h-[100dvh] w-full overflow-hidden bg-surface-base text-ink">
 
       {/* Desktop sidebar (inline) */}
       {showDesktopChrome && !sidebarCollapsed && <Sidebar />}
@@ -447,9 +398,9 @@ export function AppShell() {
       <main className="relative flex min-w-0 flex-1 flex-col">
         {!presentationMode &&
           (isMobile ? (
-            <MobileTopbar />
+            <MobileTopbar onHome={onHome} />
           ) : (
-            <Topbar compact={isTablet} />
+            <Topbar compact={isTablet} onHome={onHome} />
           ))}
 
         <div className="relative min-h-0 flex-1">
@@ -462,7 +413,12 @@ export function AppShell() {
           {!isMobile && !presentationMode && <FloatingToolbar />}
 
           {/* Onboarding */}
-          {!presentationMode && <OnboardingHint mobile={isMobile} />}
+          {!presentationMode && (
+            <OnboardingHint
+              mobile={isMobile}
+              align={showTablet && !sidebarCollapsed ? "right" : "left"}
+            />
+          )}
         </div>
 
         {/* Mobile bottom action bar */}
@@ -478,14 +434,12 @@ export function AppShell() {
           <SlideOver
             open={!sidebarCollapsed}
             side="left"
-            onClose={toggleSidebar}
           >
             <Sidebar />
           </SlideOver>
           <SlideOver
             open={inspectorOpen}
             side="right"
-            onClose={() => setInspectorOpen(false)}
           >
             <InspectorPanel asDrawer />
           </SlideOver>
@@ -513,8 +467,6 @@ export function AppShell() {
       {presentationMode && <PresentationControls />}
 
       <TutorialCoach />
-
-      <ToastViewport />
     </div>
   );
 }

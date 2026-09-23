@@ -72,7 +72,7 @@ export function SearchResultRow({
           className="rounded-full px-2 py-0.5 text-[10px] font-medium"
           style={{
             background: `${NODE_STATUS_CONFIG[node.data.status].color}22`,
-            color: NODE_STATUS_CONFIG[node.data.status].color,
+            color: "rgb(var(--ink-soft))",
           }}
         >
           {NODE_STATUS_CONFIG[node.data.status].label}
@@ -96,7 +96,7 @@ export function FilterChips() {
             key={t}
             onClick={() => toggleType(t)}
             className={cn(
-              "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition",
+              "inline-flex min-h-11 items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition",
               types.includes(t)
                 ? "border-brand bg-brand/10 text-ink"
                 : "border-line text-ink-soft hover:bg-surface-overlay"
@@ -113,7 +113,7 @@ export function FilterChips() {
             key={st}
             onClick={() => toggleStatus(st)}
             className={cn(
-              "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition",
+              "inline-flex min-h-11 items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition",
               statuses.includes(st)
                 ? "border-brand bg-brand/10 text-ink"
                 : "border-line text-ink-soft hover:bg-surface-overlay"
@@ -178,7 +178,7 @@ export function SearchPanel() {
                 value={query}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="노드 제목, 설명, 태그 검색…"
-                className="h-12 flex-1 bg-transparent text-sm text-ink placeholder:text-ink-faint focus:outline-none"
+                className="h-12 flex-1 bg-transparent text-sm text-ink placeholder:text-ink-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ink-soft"
               />
               <button
                 onClick={() => setSearchOpen(false)}

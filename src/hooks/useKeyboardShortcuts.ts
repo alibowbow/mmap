@@ -52,6 +52,7 @@ function nearestInDirection(
 export function useKeyboardShortcuts(): void {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
       const store = useMindMapStore.getState();
       const editable = isEditableTarget(e.target);
 
@@ -69,6 +70,8 @@ export function useKeyboardShortcuts(): void {
         if (store.commandPaletteOpen) return store.closeCommandPalette();
         if (store.dialog) return store.setDialog(null);
         if (store.searchOpen) return store.setSearchOpen(false);
+        if (store.mobileMoreOpen) return store.setMobileMoreOpen(false);
+        if (store.mobileDrawerOpen) return store.setMobileDrawerOpen(false);
         if (store.mobileSheetOpen) return store.setMobileSheetOpen(false);
         if (store.editingNodeId) return store.setEditingNode(null);
         if (store.presentationMode) return store.closePresentationMode();
@@ -76,7 +79,11 @@ export function useKeyboardShortcuts(): void {
         return;
       }
 
-      // Command palette / search / save use the mod key everywhere.
+      // Preserve native undo, clipboard and text-navigation shortcuts while
+      // editing instead of mutating the map behind the input.
+      if (editable && modPressed(e)) return;
+
+      // Command palette / search / save use the mod key everywhere else.
       if (modPressed(e)) {
         const key = e.key.toLowerCase();
         if (key === "k") {
@@ -125,16 +132,38 @@ export function useKeyboardShortcuts(): void {
       // The rest only apply when not typing in a field.
       if (editable) return;
 
-      const selected = store.selectedNodeId;
+      // Presentation navigation is intentionally global while that mode owns
+      // the screen. Editing shortcuts, however, only run when focus is inside
+      // the canvas; Tab on a toolbar or panel must remain normal focus travel.
+      if (store.presentationMode) {
+        if (e.key === "Enter" || e.key === "ArrowRight") {
+          e.preventDefault();
+          return store.presentationNext();
+        }
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          return store.presentationPrev();
+        }
+        return;
+      }
 
+      const target = e.target instanceof Element ? e.target : null;
+      const canvas = target?.closest('[data-mindmap-canvas="true"]');
+      const nodeSurfaceFocused = target?.classList.contains("react-flow__node");
+      const paneFocused = target?.classList.contains("react-flow__pane");
+      if (!canvas || (!nodeSurfaceFocused && !paneFocused && target !== canvas)) {
+        return;
+      }
+
+      const selected = store.selectedNodeId;
       if (e.key === "Tab") {
+        if (e.shiftKey || !selected) return;
         e.preventDefault();
-        if (selected) store.addChildNode(selected);
+        store.addChildNode(selected);
         return;
       }
       if (e.key === "Enter") {
         e.preventDefault();
-        if (store.presentationMode) return store.presentationNext();
         if (selected) store.addSiblingNode(selected);
         return;
       }
@@ -154,12 +183,6 @@ export function useKeyboardShortcuts(): void {
         }
         return;
       }
-      if (store.presentationMode) {
-        if (e.key === "ArrowRight") return store.presentationNext();
-        if (e.key === "ArrowLeft") return store.presentationPrev();
-        return;
-      }
-
       // Arrow keys move the selection to the nearest node in that direction.
       const dirMap: Record<string, Dir> = {
         ArrowUp: "up",
@@ -171,7 +194,14 @@ export function useKeyboardShortcuts(): void {
       if (dir && selected) {
         e.preventDefault();
         const next = nearestInDirection(store.nodes, selected, dir);
-        if (next) store.selectNode(next);
+        if (next) {
+          store.selectNode(next);
+          requestAnimationFrame(() => {
+            document
+              .querySelector<HTMLElement>(`.react-flow__node[data-id="${next}"]`)
+              ?.focus({ preventScroll: true });
+          });
+        }
         return;
       }
 

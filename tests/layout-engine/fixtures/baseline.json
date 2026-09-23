@@ -1,0 +1,477 @@
+{
+  "commit": "05bb470188168c3b0263eaee9d0b6190fa78cf04",
+  "nodes": [
+    {
+      "id": "n0",
+      "type": "mindmap",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "프로젝트 기획",
+        "parentId": null,
+        "isRoot": true,
+        "type": "root",
+        "status": "none",
+        "color": "#6366f1",
+        "collapsed": false
+      }
+    },
+    {
+      "id": "n1",
+      "type": "mindmap",
+      "position": {
+        "x": 288,
+        "y": -338
+      },
+      "data": {
+        "label": "목표",
+        "parentId": "n0",
+        "isRoot": false,
+        "type": "idea",
+        "status": "none",
+        "color": "#0ea5e9",
+        "collapsed": false
+      }
+    },
+    {
+      "id": "n2",
+      "type": "mindmap",
+      "position": {
+        "x": 576,
+        "y": -390
+      },
+      "data": {
+        "label": "성공 지표 정의",
+        "parentId": "n1",
+        "isRoot": false,
+        "type": "task",
+        "status": "todo",
+        "color": "#10b981",
+        "collapsed": false
+      }
+    },
+    {
+      "id": "n3",
+      "type": "mindmap",
+      "position": {
+        "x": 576,
+        "y": -286
+      },
+      "data": {
+        "label": "핵심 가치 제안",
+        "parentId": "n1",
+        "isRoot": false,
+        "type": "note",
+        "status": "none",
+        "color": "#64748b",
+        "collapsed": false
+      }
+    },
+    {
+      "id": "n4",
+      "type": "mindmap",
+      "position": {
+        "x": 288,
+        "y": -130
+      },
+      "data": {
+        "label": "범위",
+        "parentId": "n0",
+        "isRoot": false,
+        "type": "idea",
+        "status": "none",
+        "color": "#0ea5e9",
+        "collapsed": false
+      }
+    },
+    {
+      "id": "n5",
+      "type": "mindmap",
+      "position": {
+        "x": 576,
+        "y": -182
+      },
+      "data": {
+        "label": "포함 사항",
+        "parentId": "n4",
+        "isRoot": false,
+        "type": "note",
+        "status": "none",
+        "color": "#64748b",
+        "collapsed": false
+      }
+    },
+    {
+      "id": "n6",
+      "type": "mindmap",
+      "position": {
+        "x": 576,
+        "y": -78
+      },
+      "data": {
+        "label": "제외 사항",
+        "parentId": "n4",
+        "isRoot": false,
+        "type": "warning",
+        "status": "none",
+        "color": "#f59e0b",
+        "collapsed": false
+      }
+    },
+    {
+      "id": "n7",
+      "type": "mindmap",
+      "position": {
+        "x": 288,
+        "y": 78
+      },
+      "data": {
+        "label": "일정",
+        "parentId": "n0",
+        "isRoot": false,
+        "type": "task",
+        "status": "doing",
+        "color": "#10b981",
+        "collapsed": false
+      }
+    },
+    {
+      "id": "n8",
+      "type": "mindmap",
+      "position": {
+        "x": 576,
+        "y": 26
+      },
+      "data": {
+        "label": "마일스톤 1",
+        "parentId": "n7",
+        "isRoot": false,
+        "type": "task",
+        "status": "doing",
+        "color": "#10b981",
+        "collapsed": false
+      }
+    },
+    {
+      "id": "n9",
+      "type": "mindmap",
+      "position": {
+        "x": 576,
+        "y": 130
+      },
+      "data": {
+        "label": "마일스톤 2",
+        "parentId": "n7",
+        "isRoot": false,
+        "type": "task",
+        "status": "todo",
+        "color": "#10b981",
+        "collapsed": false
+      }
+    },
+    {
+      "id": "n10",
+      "type": "mindmap",
+      "position": {
+        "x": 288,
+        "y": 234
+      },
+      "data": {
+        "label": "리스크",
+        "parentId": "n0",
+        "isRoot": false,
+        "type": "warning",
+        "status": "none",
+        "color": "#f59e0b",
+        "collapsed": false
+      }
+    },
+    {
+      "id": "n11",
+      "type": "mindmap",
+      "position": {
+        "x": 576,
+        "y": 234
+      },
+      "data": {
+        "label": "주요 리스크 식별",
+        "parentId": "n10",
+        "isRoot": false,
+        "type": "question",
+        "status": "none",
+        "color": "#8b5cf6",
+        "collapsed": false
+      }
+    },
+    {
+      "id": "n12",
+      "type": "mindmap",
+      "position": {
+        "x": 288,
+        "y": 338
+      },
+      "data": {
+        "label": "팀 & 역할",
+        "parentId": "n0",
+        "isRoot": false,
+        "type": "note",
+        "status": "none",
+        "color": "#64748b",
+        "collapsed": false
+      }
+    },
+    {
+      "id": "n13",
+      "type": "mindmap",
+      "position": {
+        "x": 576,
+        "y": 338
+      },
+      "data": {
+        "label": "담당자 배정",
+        "parentId": "n12",
+        "isRoot": false,
+        "type": "task",
+        "status": "todo",
+        "color": "#10b981",
+        "collapsed": false
+      }
+    }
+  ],
+  "positions": {
+    "right-tree": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 288,
+        "y": -338
+      },
+      {
+        "x": 576,
+        "y": -390
+      },
+      {
+        "x": 576,
+        "y": -286
+      },
+      {
+        "x": 288,
+        "y": -130
+      },
+      {
+        "x": 576,
+        "y": -182
+      },
+      {
+        "x": 576,
+        "y": -78
+      },
+      {
+        "x": 288,
+        "y": 78
+      },
+      {
+        "x": 576,
+        "y": 26
+      },
+      {
+        "x": 576,
+        "y": 130
+      },
+      {
+        "x": 288,
+        "y": 234
+      },
+      {
+        "x": 576,
+        "y": 234
+      },
+      {
+        "x": 288,
+        "y": 338
+      },
+      {
+        "x": 576,
+        "y": 338
+      }
+    ],
+    "bidirectional": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 288,
+        "y": -104
+      },
+      {
+        "x": 576,
+        "y": -156
+      },
+      {
+        "x": 576,
+        "y": -52
+      },
+      {
+        "x": -288,
+        "y": -104
+      },
+      {
+        "x": -576,
+        "y": -156
+      },
+      {
+        "x": -576,
+        "y": -52
+      },
+      {
+        "x": 288,
+        "y": 104
+      },
+      {
+        "x": 576,
+        "y": 52
+      },
+      {
+        "x": 576,
+        "y": 156
+      },
+      {
+        "x": -288,
+        "y": 52
+      },
+      {
+        "x": -576,
+        "y": 52
+      },
+      {
+        "x": -288,
+        "y": 156
+      },
+      {
+        "x": -576,
+        "y": 156
+      }
+    ],
+    "vertical": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": -845,
+        "y": 132
+      },
+      {
+        "x": -975,
+        "y": 264
+      },
+      {
+        "x": -715,
+        "y": 264
+      },
+      {
+        "x": -325,
+        "y": 132
+      },
+      {
+        "x": -455,
+        "y": 264
+      },
+      {
+        "x": -195,
+        "y": 264
+      },
+      {
+        "x": 195,
+        "y": 132
+      },
+      {
+        "x": 65,
+        "y": 264
+      },
+      {
+        "x": 325,
+        "y": 264
+      },
+      {
+        "x": 585,
+        "y": 132
+      },
+      {
+        "x": 585,
+        "y": 264
+      },
+      {
+        "x": 845,
+        "y": 132
+      },
+      {
+        "x": 845,
+        "y": 264
+      }
+    ],
+    "radial": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 253.66919963074886,
+        "y": 115.30418165034038
+      },
+      {
+        "x": 575.6853421242745,
+        "y": 108.38939834875896
+      },
+      {
+        "x": 238.45667636726975,
+        "y": 261.67515551103384
+      },
+      {
+        "x": -253.66919963074884,
+        "y": 115.3041816503404
+      },
+      {
+        "x": -238.45667636726967,
+        "y": 261.67515551103384
+      },
+      {
+        "x": -575.6853421242745,
+        "y": 108.38939834875899
+      },
+      {
+        "x": -253.66919963074895,
+        "y": -115.30418165034038
+      },
+      {
+        "x": -575.6853421242745,
+        "y": -108.38939834875893
+      },
+      {
+        "x": -238.45667636727006,
+        "y": -261.6751555110338
+      },
+      {
+        "x": 137.28478156736847,
+        "y": -150.652173439713
+      },
+      {
+        "x": 238.45667636726986,
+        "y": -261.6751555110338
+      },
+      {
+        "x": 331.4347815673686,
+        "y": -62.40217343971301
+      },
+      {
+        "x": 575.6853421242743,
+        "y": -108.38939834875913
+      }
+    ]
+  }
+}

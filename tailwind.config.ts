@@ -36,13 +36,14 @@ const config: Config = {
         brand: {
           DEFAULT: "rgb(var(--brand) / <alpha-value>)",
           soft: "rgb(var(--brand-soft) / <alpha-value>)",
+          contrast: "rgb(var(--brand-contrast) / <alpha-value>)",
         },
       },
       boxShadow: {
         soft: "0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.08)",
         float:
-          "0 4px 12px rgba(15, 23, 42, 0.10), 0 16px 48px rgba(15, 23, 42, 0.16)",
-        node: "0 1px 2px rgba(15, 23, 42, 0.08), 0 6px 16px rgba(15, 23, 42, 0.10)",
+          "0 8px 24px rgba(15, 23, 42, 0.10), 0 24px 60px rgba(15, 23, 42, 0.13)",
+        node: "0 1px 2px rgba(15, 23, 42, 0.07), 0 8px 24px rgba(15, 23, 42, 0.08)",
         ring: "0 0 0 4px rgb(var(--brand) / 0.18)",
       },
       borderRadius: {

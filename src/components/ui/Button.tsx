@@ -14,7 +14,7 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const variants: Record<Variant, string> = {
   primary:
-    "bg-brand text-white hover:brightness-110 shadow-sm active:brightness-95",
+    "bg-brand text-brand-contrast hover:brightness-105 shadow-sm active:brightness-95",
   secondary:
     "bg-surface-raised text-ink border border-line hover:bg-surface-overlay",
   ghost: "text-ink-soft hover:bg-surface-overlay hover:text-ink",
@@ -23,10 +23,10 @@ const variants: Record<Variant, string> = {
 };
 
 const sizes: Record<Size, string> = {
-  sm: "h-8 px-3 text-xs gap-1.5 rounded-lg",
-  md: "h-9 px-3.5 text-sm gap-2 rounded-xl",
+  sm: "h-9 px-3 text-xs gap-1.5 rounded-lg",
+  md: "h-11 px-3.5 text-sm gap-2 rounded-xl",
   lg: "h-11 px-5 text-sm gap-2 rounded-xl",
-  icon: "h-9 w-9 rounded-xl",
+  icon: "h-11 w-11 rounded-xl",
   "icon-lg": "h-11 w-11 rounded-xl",
 };
 
@@ -39,8 +39,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         className={cn(
-          "inline-flex items-center justify-center font-medium transition",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 focus-visible:ring-offset-1 focus-visible:ring-offset-surface-base",
+          "inline-flex items-center justify-center font-medium transition-colors",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-soft focus-visible:ring-offset-1 focus-visible:ring-offset-surface-base",
           "disabled:opacity-50 disabled:pointer-events-none select-none",
           variants[variant],
           sizes[size],

@@ -4,7 +4,6 @@ import {
   Background,
   BackgroundVariant,
   Controls,
-  MarkerType,
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
@@ -14,19 +13,21 @@ import {
   type Node,
 } from "@xyflow/react";
 import { ChevronDown, Map as MapIcon } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FocusEvent,
+} from "react";
 
 import { CanvasEmptyState } from "@/components/canvas/CanvasEmptyState";
 import { MindMapEdge } from "@/components/canvas/MindMapEdge";
 import { MindMapNode } from "@/components/canvas/MindMapNode";
 import { RelationEdge } from "@/components/canvas/RelationEdge";
 import { cn } from "@/lib/cn";
-import {
-  BRANCH_AUTO_PALETTE,
-  NODE_HEIGHT,
-  NODE_TYPE_CONFIG,
-  NODE_WIDTH,
-} from "@/lib/constants";
+import { BRANCH_AUTO_PALETTE, NODE_TYPE_CONFIG } from "@/lib/constants";
 import { subtreeDrag as armedDrag } from "@/lib/dragState";
 import {
   computeDepths,
@@ -36,6 +37,8 @@ import {
   getSubtreeIds,
   getVisibleDfsOrder,
 } from "@/lib/tree";
+import { useLayoutMeasurements } from "@/hooks/useLayoutMeasurements";
+import { nodeRect } from "@/lib/layout-engine/adapter";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useMindMapStore } from "@/store/mindMapStore";
 import type { MindMapNodeData } from "@/types/mindmap";
@@ -44,6 +47,7 @@ const nodeTypes = { mindmap: MindMapNode };
 const edgeTypes = { mindmap: MindMapEdge, relation: RelationEdge };
 
 function CanvasInner() {
+  useLayoutMeasurements();
   const isMobile = useIsMobile();
   const nodes = useMindMapStore((s) => s.nodes);
   const edges = useMindMapStore((s) => s.edges);
@@ -67,7 +71,6 @@ function CanvasInner() {
   const onNodesChange = useMindMapStore((s) => s.onNodesChange);
   const onEdgesChange = useMindMapStore((s) => s.onEdgesChange);
   const selectNode = useMindMapStore((s) => s.selectNode);
-  const toggleNodeSelection = useMindMapStore((s) => s.toggleNodeSelection);
   const setEditingNode = useMindMapStore((s) => s.setEditingNode);
   const openContextMenu = useMindMapStore((s) => s.openContextMenu);
   const closeContextMenu = useMindMapStore((s) => s.closeContextMenu);
@@ -75,16 +78,24 @@ function CanvasInner() {
   const updateViewport = useMindMapStore((s) => s.updateViewport);
   const setMobileSheetOpen = useMindMapStore((s) => s.setMobileSheetOpen);
   const moveNodesBy = useMindMapStore((s) => s.moveNodesBy);
-  const pushHistory = useMindMapStore((s) => s.pushHistory);
+  const beginNodeDrag = useMindMapStore((s) => s.beginNodeDrag);
+  const endNodeDrag = useMindMapStore((s) => s.endNodeDrag);
+  const routes = useMindMapStore((s) => s.layoutRoutes);
+  const layoutBusy = useMindMapStore((s) => s.layoutBusy);
+  const noteCameraIntent = useMindMapStore((s) => s.noteCameraIntent);
   const setDropTargetId = useMindMapStore((s) => s.setDropTargetId);
   const reparentNode = useMindMapStore((s) => s.reparentNode);
+
+  useEffect(() => {
+    return () => registerFlow(null);
+  }, [registerFlow]);
 
   const [miniMapOpen, setMiniMapOpen] = useState(false);
   // React Flow can emit click/context-menu events immediately after a drag.
   // Keep the dragged node's menu blocked until the gesture is over and the
   // user deliberately clicks/taps it again.
   const [menuBlockedNodeId, setMenuBlockedNodeId] = useState<string | null>(
-    null
+    null,
   );
   const dragMenuGuard = useRef<{ nodeId: string; until: number } | null>(null);
   const dragMenuIsSuppressed = useCallback((nodeId: string) => {
@@ -98,12 +109,43 @@ function CanvasInner() {
     last: { x: number; y: number };
   } | null>(null);
   // Tracks a single-node drag for re-parent detection.
-  const reparent = useRef<{ id: string; descendants: Set<string> } | null>(null);
+  const reparent = useRef<{ id: string; descendants: Set<string> } | null>(
+    null,
+  );
+  const pointerFocus = useRef(false);
 
+  const onCanvasPointerDown = useCallback(() => {
+    pointerFocus.current = true;
+    window.setTimeout(() => {
+      pointerFocus.current = false;
+    }, 0);
+  }, []);
+
+  const onCanvasFocus = useCallback(
+    (event: FocusEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement;
+      const nodeElement = target.closest<HTMLElement>(".react-flow__node");
+      if (pointerFocus.current || target !== nodeElement) return;
+      const nodeId = nodeElement.dataset.id;
+      if (nodeId) selectNode(nodeId);
+    },
+    [selectNode],
+  );
+
+  const projectedData = useRef(
+    new Map<string, { raw: MindMapNodeData; data: MindMapNodeData }>(),
+  );
   // Compute visible nodes/edges (hide collapsed subtrees) and selection flag.
-  const { displayNodes, displayEdges } = useMemo(() => {
+  const { displayNodes: baseNodes, displayEdges: baseEdges } = useMemo(() => {
     const hidden = getHiddenNodeIds(nodes);
     const posMap = new Map(nodes.map((n) => [n.id, n.position]));
+    const childCounts = new Map<string, number>();
+    for (const n of nodes)
+      if (n.data.parentId)
+        childCounts.set(
+          n.data.parentId,
+          (childCounts.get(n.data.parentId) ?? 0) + 1,
+        );
     // Rainbow mode: each first-level branch gets a palette hue; descendants
     // inherit it (walking up parentId). Explicit node colors still win.
     const autoColorOf = new Map<string, string>();
@@ -126,7 +168,7 @@ function CanvasInner() {
           autoColorOf.get(n.id) ??
           NODE_TYPE_CONFIG[n.data.type]?.color ??
           "#94a3b8",
-      ])
+      ]),
     );
     // Focus mode: only the focused subtree stays visible.
     const focusSet =
@@ -134,7 +176,6 @@ function CanvasInner() {
         ? new Set(getSubtreeIds(nodes, focusModeNodeId))
         : null;
     const depths = computeDepths(nodes);
-    const selectedSet = new Set(selectedNodeIds);
     // Presentation: step-reveal hides nodes beyond the current step, and the
     // spotlight dims everything except the current node.
     let revealed: Set<string> | null = null;
@@ -150,20 +191,43 @@ function CanvasInner() {
       hidden.has(id) ||
       (revealed ? !revealed.has(id) : false) ||
       (focusSet ? !focusSet.has(id) : false);
-    const dn: Node<MindMapNodeData>[] = nodes.map((n) => ({
-      ...n,
-      type: "mindmap",
-      selected: selectedSet.has(n.id),
-      hidden: nodeHidden(n.id),
-      draggable: !presentationMode,
-      data: {
-        ...n.data,
-        _depth: depths.get(n.id) ?? 0,
-        _dimmed: presentationMode && currentId !== null && n.id !== currentId,
-        _autoColor: autoColorOf.get(n.id),
-        _suppressMenu: menuBlockedNodeId === n.id,
-      },
-    }));
+    const nextData = new Map<
+      string,
+      { raw: MindMapNodeData; data: MindMapNodeData }
+    >();
+    const dn: Node<MindMapNodeData>[] = nodes.map((n) => {
+      const prev = projectedData.current.get(n.id),
+        depth = depths.get(n.id) ?? 0,
+        count = childCounts.get(n.id) ?? 0,
+        dimmed = presentationMode && currentId !== null && n.id !== currentId,
+        autoColor = autoColorOf.get(n.id);
+      const data =
+        prev?.raw === n.data &&
+        prev.data._depth === depth &&
+        prev.data._childCount === count &&
+        prev.data._dimmed === dimmed &&
+        prev.data._autoColor === autoColor
+          ? prev.data
+          : {
+              ...n.data,
+              _depth: depth,
+              _childCount: count,
+              _dimmed: dimmed,
+              _autoColor: autoColor,
+              _suppressMenu: false,
+            };
+      nextData.set(n.id, { raw: n.data, data });
+      return {
+        ...n,
+        type: "mindmap",
+        ariaLabel: `노드: ${n.data.label || "내용 없음"}`,
+        selected: false,
+        hidden: nodeHidden(n.id),
+        draggable: !presentationMode,
+        data,
+      };
+    });
+    projectedData.current = nextData;
     const horizontalFaces = (dx: number) =>
       dx < 0
         ? { sourceHandle: "left-source", targetHandle: "right-target" }
@@ -226,8 +290,7 @@ function CanvasInner() {
         target: r.target,
         type: "relation",
         ...handlesFor(r.source, r.target),
-        markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
-        data: { label: r.label, relSelected: r.id === selectedRelationId },
+        data: { label: r.label, relSelected: false },
         hidden: nodeHidden(r.source) || nodeHidden(r.target),
         zIndex: 5,
       });
@@ -237,8 +300,6 @@ function CanvasInner() {
     nodes,
     edges,
     relations,
-    selectedNodeIds,
-    selectedRelationId,
     presentationMode,
     presentationIndex,
     presentationReveal,
@@ -247,8 +308,39 @@ function CanvasInner() {
     activeLayoutMode,
     rainbowBranches,
     focusModeNodeId,
-    menuBlockedNodeId,
   ]);
+  const displayNodes = useMemo(() => {
+    const selected = new Set(selectedNodeIds);
+    return baseNodes.map((n) =>
+      selected.has(n.id) || menuBlockedNodeId === n.id
+        ? {
+            ...n,
+            selected: selected.has(n.id),
+            data:
+              menuBlockedNodeId === n.id
+                ? { ...n.data, _suppressMenu: true }
+                : n.data,
+          }
+        : n,
+    );
+  }, [baseNodes, selectedNodeIds, menuBlockedNodeId]);
+  const displayEdges = useMemo(
+    () =>
+      baseEdges.map((e) => {
+        const route = routes[e.id];
+        return {
+          ...e,
+          ...(route
+            ? {
+                sourceHandle: route.sourcePort.handleId,
+                targetHandle: route.targetPort.handleId,
+              }
+            : {}),
+          data: { ...e.data, route, relSelected: e.id === selectedRelationId },
+        };
+      }),
+    [baseEdges, selectedRelationId, routes],
+  );
 
   const onNodeClick = useCallback(
     (e: React.MouseEvent, node: Node) => {
@@ -259,18 +351,12 @@ function CanvasInner() {
       }
       // This is a new, intentional click after the drag guard expired.
       if (menuBlockedNodeId === node.id) setMenuBlockedNodeId(null);
-      // Shift / Cmd / Ctrl + click toggles multi-selection.
-      if (e.shiftKey || e.metaKey || e.ctrlKey) toggleNodeSelection(node.id);
-      else selectNode(node.id);
+      // React Flow emits controlled selection changes through onNodesChange.
+      // Let that single path own plain and modifier clicks; toggling here as
+      // well would apply Shift/Cmd selection twice.
       closeContextMenu();
     },
-    [
-      selectNode,
-      toggleNodeSelection,
-      closeContextMenu,
-      dragMenuIsSuppressed,
-      menuBlockedNodeId,
-    ]
+    [closeContextMenu, dragMenuIsSuppressed, menuBlockedNodeId],
   );
 
   const onNodeDoubleClick = useCallback(
@@ -283,12 +369,7 @@ function CanvasInner() {
         setEditingNode(node.id);
       }
     },
-    [
-      setEditingNode,
-      isMobile,
-      dragMenuIsSuppressed,
-      menuBlockedNodeId,
-    ]
+    [setEditingNode, isMobile, dragMenuIsSuppressed, menuBlockedNodeId],
   );
 
   const onNodeContextMenu = useCallback(
@@ -318,7 +399,7 @@ function CanvasInner() {
       setMobileSheetOpen,
       dragMenuIsSuppressed,
       menuBlockedNodeId,
-    ]
+    ],
   );
 
   const onPaneClick = useCallback(() => {
@@ -333,7 +414,7 @@ function CanvasInner() {
     (conn: Connection) => {
       if (conn.source && conn.target) addRelation(conn.source, conn.target);
     },
-    [addRelation]
+    [addRelation],
   );
 
   const onEdgeClick = useCallback(
@@ -350,7 +431,7 @@ function CanvasInner() {
       setMenuBlockedNodeId(null);
       selectNode(edge.target);
     },
-    [selectRelation, selectNode]
+    [selectRelation, selectNode],
   );
 
   // Subtree drag: if the long-press armed this node, capture its descendants so
@@ -369,7 +450,7 @@ function CanvasInner() {
       closeContextMenu();
       setMobileSheetOpen(false);
       // Snapshot once so the whole drag (move / subtree / re-parent) is one undo.
-      pushHistory();
+      beginNodeDrag([...new Set([node.id, ...state.selectedNodeIds])]);
       const descIds = getDescendantIds(state.nodes, node.id);
       reparent.current = { id: node.id, descendants: new Set(descIds) };
       if (armedDrag.armedId === node.id) {
@@ -382,7 +463,7 @@ function CanvasInner() {
         subtreeDrag.current = null;
       }
     },
-    [pushHistory, closeContextMenu, setMobileSheetOpen]
+    [beginNodeDrag, closeContextMenu, setMobileSheetOpen],
   );
 
   const onNodeDrag = useCallback(
@@ -392,7 +473,16 @@ function CanvasInner() {
         const dx = node.position.x - ds.last.x;
         const dy = node.position.y - ds.last.y;
         if (dx || dy) {
-          moveNodesBy(ds.descIds, dx, dy);
+          const state = useMindMapStore.getState();
+          // React Flow already moved selected descendants; a collapsed node's
+          // hidden descendants were translated in onNodesChange.
+          const root = state.nodes.find((n) => n.id === node.id);
+          if (!root?.data.collapsed)
+            moveNodesBy(
+              ds.descIds.filter((id) => !state.selectedNodeIds.includes(id)),
+              dx,
+              dy,
+            );
           ds.last = { ...node.position };
         }
         return; // subtree drags don't re-parent
@@ -400,13 +490,25 @@ function CanvasInner() {
       // Re-parent detection: the dragged node's center over another node.
       const rp = reparent.current;
       if (!rp || rp.id !== node.id) return;
-      const cx = node.position.x + NODE_WIDTH / 2;
-      const cy = node.position.y + NODE_HEIGHT / 2;
+      const state = useMindMapStore.getState();
+      const dragged = nodeRect(node as import("@/types/mindmap").MindMapNode);
+      const cx = dragged.x + dragged.width / 2;
+      const cy = dragged.y + dragged.height / 2;
+      const hidden = getHiddenNodeIds(state.nodes);
+      const focus = state.focusModeNodeId
+        ? new Set(getSubtreeIds(state.nodes, state.focusModeNodeId))
+        : null;
       let targetId: string | null = null;
-      for (const n of useMindMapStore.getState().nodes) {
-        if (n.id === node.id || rp.descendants.has(n.id)) continue;
-        const w = n.measured?.width ?? NODE_WIDTH;
-        const h = n.measured?.height ?? NODE_HEIGHT;
+      // Reverse render order is the stable tie-break for overlapping targets.
+      for (const n of [...state.nodes].reverse()) {
+        if (
+          n.id === node.id ||
+          rp.descendants.has(n.id) ||
+          hidden.has(n.id) ||
+          (focus && !focus.has(n.id))
+        )
+          continue;
+        const { width: w, height: h } = nodeRect(n);
         if (
           cx >= n.position.x &&
           cx <= n.position.x + w &&
@@ -421,7 +523,7 @@ function CanvasInner() {
         setDropTargetId(targetId);
       }
     },
-    [moveNodesBy, setDropTargetId]
+    [moveNodesBy, setDropTargetId],
   );
 
   const onNodeDragStop = useCallback(
@@ -438,17 +540,24 @@ function CanvasInner() {
       subtreeDrag.current = null;
       reparent.current = null;
       armedDrag.armedId = null;
+      endNodeDrag();
     },
-    [reparentNode, setDropTargetId]
+    [reparentNode, setDropTargetId, endNodeDrag],
   );
 
   const isEmpty = nodes.length === 0;
 
   return (
     <div
+      data-mindmap-canvas="true"
+      role="region"
+      aria-label="MindForge 마인드맵 캔버스"
+      aria-busy={layoutBusy}
+      onPointerDownCapture={onCanvasPointerDown}
+      onFocusCapture={onCanvasFocus}
       className={cn(
         "relative h-full w-full mf-canvas-bg",
-        connectMode && "mf-connecting"
+        connectMode && "mf-connecting",
       )}
     >
       <ReactFlow
@@ -468,16 +577,21 @@ function CanvasInner() {
         onConnect={onConnect}
         onEdgeClick={onEdgeClick}
         onInit={registerFlow}
+        onMoveStart={(event) => {
+          if (event) noteCameraIntent();
+        }}
         onMoveEnd={(_, vp) => updateViewport(vp)}
         minZoom={0.15}
         maxZoom={2.5}
+        disableKeyboardA11y
+        deleteKeyCode={null}
         nodesDraggable={!presentationMode && !connectMode}
         nodesConnectable={connectMode && !presentationMode}
-        nodesFocusable={false}
+        nodesFocusable
         edgesFocusable={false}
         connectionRadius={40}
         elementsSelectable
-        multiSelectionKeyCode={null}
+        multiSelectionKeyCode={["Shift", "Meta", "Control"]}
         selectionKeyCode="Shift"
         selectionMode={SelectionMode.Partial}
         panOnScroll
@@ -487,7 +601,14 @@ function CanvasInner() {
         panOnDrag={presentationMode ? false : [0, 1, 2]}
         proOptions={{ hideAttribution: true }}
         fitView
-        fitViewOptions={{ padding: 0.25, maxZoom: 1.2 }}
+        fitViewOptions={{
+          padding: isMobile ? 0.1 : 0.25,
+          // Initial shared maps can be much larger than the starter map. The
+          // store's panel-aware fit pass raises compact maps to 0.35 after the
+          // bounds are known, while large maps must remain free to reach 0.15.
+          minZoom: 0.15,
+          maxZoom: 1.2,
+        }}
         className="touch-none"
       >
         {canvasBg !== "none" && (
@@ -501,14 +622,14 @@ function CanvasInner() {
             }
             gap={canvasBg === "dots" ? 22 : 30}
             size={canvasBg === "dots" ? 1.4 : canvasBg === "cross" ? 5 : 1}
-            className={canvasBg === "dots" ? "!opacity-70" : "!opacity-40"}
+            className={canvasBg === "dots" ? "!opacity-55" : "!opacity-35"}
           />
         )}
         {!presentationMode && !isMobile && (
           <Controls
             showInteractive={false}
             position="bottom-left"
-            className="!mb-4 !ml-4"
+            className="!mb-5 !ml-5"
           />
         )}
         {!presentationMode && (!isMobile || miniMapOpen) && (
@@ -516,7 +637,7 @@ function CanvasInner() {
             pannable
             zoomable
             position="bottom-right"
-            className={cn("!mb-4 !mr-4", isMobile && "!h-24 !w-32")}
+            className={cn("!mb-5 !mr-5", isMobile && "!h-24 !w-32")}
             nodeColor={(n) => {
               const data = n.data as MindMapNodeData;
               return (
@@ -536,7 +657,7 @@ function CanvasInner() {
         <button
           onClick={() => setMiniMapOpen((o) => !o)}
           aria-label="미니맵 토글"
-          className="absolute bottom-[5.5rem] right-3 z-10 flex h-10 w-10 items-center justify-center rounded-xl mf-glass border border-line text-ink-soft shadow-soft"
+          className="absolute bottom-[5.75rem] right-3 z-10 flex h-11 w-11 items-center justify-center rounded-xl border border-line bg-surface-raised/96 text-ink-soft shadow-soft backdrop-blur-md"
         >
           {miniMapOpen ? <ChevronDown size={18} /> : <MapIcon size={18} />}
         </button>
@@ -549,10 +670,8 @@ function CanvasInner() {
             <span className="h-2 w-2 animate-pulse rounded-full bg-brand" />
             노드 가장자리 점에서 드래그해 관계선을 연결하세요
             <button
-              onClick={() =>
-                useMindMapStore.getState().setConnectMode(false)
-              }
-              className="ml-1 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-white transition hover:opacity-90"
+              onClick={() => useMindMapStore.getState().setConnectMode(false)}
+              className="ml-1 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-brand-contrast transition hover:opacity-90"
             >
               완료
             </button>
@@ -568,7 +687,7 @@ function CanvasInner() {
             포커스 모드 — 이 가지만 표시 중
             <button
               onClick={exitFocusMode}
-              className="ml-1 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-white transition hover:opacity-90"
+              className="ml-1 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-brand-contrast transition hover:opacity-90"
             >
               전체 보기
             </button>
