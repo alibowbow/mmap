@@ -160,7 +160,7 @@ export function HomeScreen({ onCreate, onOpenDocument, onImport }: HomeScreenPro
               ))}
             </ul>
             <Button className="mt-5 w-full" onClick={onImport}><FileUp size={16} /> 파일 가져오기</Button>
-            <p className="mf-home-note"><ShieldCheck size={14} aria-hidden="true" />문서는 이 브라우저에만 저장되며 서버로 전송되지 않습니다.</p>
+            <p className="mf-home-note"><ShieldCheck size={14} aria-hidden="true" />문서는 이 브라우저에만 저장됩니다. AI 제안(Jev)을 켜면 편집한 노드 내용만 판단을 위해 전송됩니다.</p>
           </aside>
         </div>
       </main>

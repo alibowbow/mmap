@@ -167,6 +167,7 @@ export type MindMapState = {
   canvasBg: string;
   accent: string;
   rainbowBranches: boolean;
+  aiSuggest: boolean;
   dialog: DialogType;
   importTab: "json" | "outline";
   contextMenu: ContextMenuState;
@@ -313,6 +314,7 @@ export type MindMapState = {
   setCanvasBg: (bg: string) => void;
   setAccent: (accent: string) => void;
   setRainbowBranches: (on: boolean) => void;
+  setAiSuggest: (on: boolean) => void;
   setLevelFontSize: (level: number, size: number) => void;
   resetLevelFontSizes: () => void;
   toggleSidebar: () => void;
@@ -543,6 +545,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     canvasBg: DEFAULT_CANVAS_BG,
     accent: DEFAULT_ACCENT,
     rainbowBranches: false,
+    aiSuggest: false,
     dialog: null,
     importTab: "json",
     contextMenu: null,
@@ -791,6 +794,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           canvasBg: ws.canvasBg ?? DEFAULT_CANVAS_BG,
           accent: ws.accent ?? DEFAULT_ACCENT,
           rainbowBranches: ws.rainbowBranches ?? false,
+          aiSuggest: ws.aiSuggest ?? false,
           sidebarCollapsed: ws.sidebarCollapsed,
           inspectorOpen: ws.inspectorOpen,
           hydrated: true,
@@ -847,6 +851,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         canvasBg,
         accent,
         rainbowBranches,
+        aiSuggest,
         sidebarCollapsed,
         inspectorOpen,
         hydrated,
@@ -870,6 +875,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         canvasBg,
         accent,
         rainbowBranches,
+        aiSuggest,
         sidebarCollapsed,
         inspectorOpen,
       });
@@ -2158,6 +2164,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       set((s) => ({ canvasBg, revision: s.revision + 1 })),
     setRainbowBranches: (rainbowBranches) =>
       set((s) => ({ rainbowBranches, revision: s.revision + 1 })),
+    setAiSuggest: (aiSuggest) =>
+      set((s) => ({ aiSuggest, revision: s.revision + 1 })),
     setAccent: (accent) => {
       applyAccentAttr(accent);
       set((s) => ({ accent, revision: s.revision + 1 }));

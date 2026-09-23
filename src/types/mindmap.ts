@@ -120,6 +120,8 @@ export type MindMapWorkspace = {
   canvasBg: string;
   accent: string;
   rainbowBranches: boolean;
+  // Opt-in Jev (TypeSafe AI) suggestions; sends edited node text to the API.
+  aiSuggest?: boolean;
   sidebarCollapsed: boolean;
   inspectorOpen: boolean;
 };

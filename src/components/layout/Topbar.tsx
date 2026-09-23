@@ -17,6 +17,7 @@ import {
   Redo2,
   Shapes,
   Share2,
+  Sparkles,
   Sidebar as SidebarIcon,
   Sun,
   Undo2,
@@ -90,6 +91,18 @@ export function Topbar({
   const futureLen = useMindMapStore((s) => s.future.length);
   const theme = useMindMapStore((s) => s.theme);
   const toggleTheme = useMindMapStore((s) => s.toggleTheme);
+  const aiSuggest = useMindMapStore((s) => s.aiSuggest);
+  const setAiSuggest = useMindMapStore((s) => s.setAiSuggest);
+  const addToast = useMindMapStore((s) => s.addToast);
+  const toggleAiSuggest = () => {
+    setAiSuggest(!aiSuggest);
+    addToast(
+      aiSuggest
+        ? "AI 제안을 껐습니다"
+        : "AI 제안을 켰습니다. 편집한 노드 내용이 판단을 위해 Vercel AI Gateway(Jev)로 전송됩니다",
+      "info",
+    );
+  };
   const autoLayout = useMindMapStore((s) => s.autoLayout);
   const activeLayoutMode = useMindMapStore((s) => s.activeLayoutMode);
   const fitToView = useMindMapStore((s) => s.fitToView);
@@ -287,6 +300,13 @@ export function Topbar({
               icon: <Link2 size={16} />,
               active: connectMode,
               onSelect: () => setConnectMode(!connectMode),
+            },
+            {
+              id: "ai",
+              label: aiSuggest ? "AI 제안 끄기 (Jev)" : "AI 제안 켜기 (Jev)",
+              icon: <Sparkles size={16} />,
+              active: aiSuggest,
+              onSelect: toggleAiSuggest,
             },
             {
               id: "snapshots",

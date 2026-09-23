@@ -23,6 +23,7 @@ import {
   Ruler,
   Shapes,
   Share2,
+  Sparkles,
   Spline,
   SunMoon,
   Type,
@@ -115,6 +116,8 @@ export function MobileMoreMenu() {
   const applyThemePreset = useMindMapStore((s) => s.applyThemePreset);
   const addToast = useMindMapStore((s) => s.addToast);
   const openCommandPalette = useMindMapStore((s) => s.openCommandPalette);
+  const aiSuggest = useMindMapStore((s) => s.aiSuggest);
+  const setAiSuggest = useMindMapStore((s) => s.setAiSuggest);
 
   const close = () => setOpen(false);
   const dialogRef = useDialogFocus<HTMLDivElement>(open, close);
@@ -402,6 +405,19 @@ export function MobileMoreMenu() {
                   icon={<Rainbow size={18} />}
                   label="가지 색상"
                   onClick={toggleRainbow}
+                />
+                <Tile
+                  icon={<Sparkles size={18} />}
+                  label={aiSuggest ? "AI 제안 끄기" : "AI 제안 켜기"}
+                  onClick={() => {
+                    setAiSuggest(!aiSuggest);
+                    addToast(
+                      aiSuggest
+                        ? "AI 제안을 껐습니다"
+                        : "AI 제안을 켰습니다. 편집한 노드 내용이 판단을 위해 Vercel AI Gateway(Jev)로 전송됩니다",
+                      "info",
+                    );
+                  }}
                 />
                 <Tile
                   icon={<GraduationCap size={18} />}

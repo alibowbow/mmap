@@ -17,6 +17,7 @@ import { memo, useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
+import { suggestForNode } from "@/lib/jev";
 import {
   fontSizeForDepth,
   NODE_COLOR_PALETTE,
@@ -183,6 +184,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
     const next = draft.trim();
     if (next !== d.label) {
       updateNodeLabel(id, next);
+      if (next) void suggestForNode(id);
     }
     setEditingNode(null);
   };
