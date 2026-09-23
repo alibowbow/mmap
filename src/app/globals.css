@@ -228,11 +228,10 @@ body {
 .mf-textlink:hover svg { transform: translateX(3px); }
 .mf-hero-note { margin-top: 88px; font-family: "MF Pen", "Nanum Pen Script", var(--font-gaegu); font-size: 25px; line-height: 1.45; color: rgb(var(--ink-soft)); }
 .mf-hero-note::after { content: ""; display: block; width: 16px; height: 1.5px; margin-top: 18px; background: currentColor; }
-.mf-hero-art { position: relative; margin-right: calc(-1 * clamp(20px, 4.5vw, 64px)); }
-.mf-hero-art img { display: block; width: 100%; height: auto; -webkit-mask-image: radial-gradient(ellipse 62% 60% at 52% 50%, #000 70%, transparent 100%); mask-image: radial-gradient(ellipse 62% 60% at 52% 50%, #000 70%, transparent 100%); }
-/* On dark paper the illustration is shown as a mounted print. */
-.dark .mf-hero-art { margin: 24px 0; }
-.dark .mf-hero-art img { -webkit-mask-image: none; mask-image: none; border-radius: 6px; box-shadow: 0 30px 60px -30px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(255 255 255 / 0.06); }
+.mf-hero-art { position: relative; padding: 12px 0 24px; }
+.mf-hero-art img { display: block; width: 100%; height: auto; }
+/* On dark paper the illustration (transparent) sits on a mounted print. */
+.dark .mf-hero-art { margin-block: 24px; padding: 28px 32px; border-radius: 6px; background: #f3eee4; box-shadow: 0 30px 60px -30px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(255 255 255 / 0.06); }
 
 /* Shelf: recent work and suggested templates. */
 .mf-shelf { display: grid; grid-template-columns: minmax(0, 1.25fr) 1px minmax(0, 1fr); gap: 40px; padding-block: 26px 30px; border-top: 1px solid rgb(var(--line)); border-bottom: 1px solid rgb(var(--line)); }
@@ -251,7 +250,7 @@ body {
 .mf-shelf-picks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .mf-shelf-pick { display: flex; width: 100%; flex-direction: column; align-items: center; gap: 10px; padding: 4px 0; font-size: 13px; color: rgb(var(--ink)); }
 .mf-shelf-pick img { width: auto; height: 44px; max-width: 72px; object-fit: contain; mix-blend-mode: multiply; transition: transform 150ms; }
-.dark .mf-shelf-pick img { mix-blend-mode: normal; border-radius: 6px; }
+.dark .mf-shelf-pick img { mix-blend-mode: normal; padding: 3px; border-radius: 8px; background: #f3eee4; }
 .mf-shelf-pick:hover img { transform: translateY(-2px); }
 .mf-shelf-more { position: absolute; right: 0; top: 50%; display: flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 50%; color: rgb(var(--ink)); transition: background-color 120ms; }
 .mf-shelf-more:hover { background: rgb(var(--surface-sunken)); }
@@ -315,8 +314,7 @@ body {
   .mf-hero { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .mf-hero-copy { padding-block: 24px 0; }
   .mf-hero-note { display: none; }
-  .mf-hero-art { margin-inline: calc(-1 * clamp(20px, 4.5vw, 64px)); }
-  .dark .mf-hero-art { margin-inline: 0; }
+  .mf-hero-art { padding-top: 28px; }
   .mf-shelf { grid-template-columns: minmax(0, 1fr); gap: 28px; }
   .mf-shelf-rule { display: none; }
   .mf-library { grid-template-columns: minmax(0, 1fr); gap: 40px; }

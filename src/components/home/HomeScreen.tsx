@@ -17,7 +17,7 @@ type HomeScreenProps = {
 
 // Hand-drawn vignettes (cut from the hero illustration) that give each
 // document and template a small picture of its own.
-const DOC_ART = ["bird", "flowers", "mountain", "village", "boat", "globe", "compass", "sun", "bulb", "leaf", "people"];
+const DOC_ART = ["bird", "flowers", "mountain", "village", "boat", "globe", "compass", "sun", "bulb", "cat", "cloud", "leaf"];
 const TEMPLATE_ART: Partial<Record<TemplateType, string>> = {
   blank: "sprout",
   "project-plan": "mountain",
@@ -95,7 +95,7 @@ export function HomeScreen({ onCreate, onOpenDocument, onImport }: HomeScreenPro
           </div>
           <div className="mf-hero-art">
             {/* eslint-disable-next-line @next/next/no-img-element -- static art, sized by CSS */}
-            <img src={art("hero")} alt="" width={1017} height={865} fetchPriority="high" />
+            <img src={art("hero")} alt="" width={1125} height={918} fetchPriority="high" />
           </div>
         </section>
 
