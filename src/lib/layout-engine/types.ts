@@ -41,6 +41,8 @@ export interface EngineEdge {
   readonly target: string;
   readonly style: "curved" | "step" | "straight" | "taper";
   readonly halfWidth: number;
+  // Taper only: half-width at the target end (defaults to 20% of halfWidth).
+  readonly taperEnd?: number;
   readonly arrowLength: number;
   readonly arrowHalfWidth: number;
   readonly labelSize?: Readonly<{ width: number; height: number }>;

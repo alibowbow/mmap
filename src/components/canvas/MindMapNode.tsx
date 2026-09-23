@@ -27,6 +27,7 @@ import {
 } from "@/lib/constants";
 import { renderInlineMarkdown } from "@/lib/inlineMarkdown";
 import { sanitizeHref } from "@/lib/share";
+import { buzanWordPad } from "@/lib/buzanBranch";
 import { subtreeDrag } from "@/lib/dragState";
 import { useMindMapStore } from "@/store/mindMapStore";
 import type { MindMapNodeData } from "@/types/mindmap";
@@ -62,6 +63,8 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
     return label.length > 14 ? `${label.slice(0, 14)}…` : label;
   });
   const nodeTint = useMindMapStore((s) => s.nodeTint);
+  const organicBranches = useMindMapStore((s) => s.edgeStyle === "taper");
+  const edgeWidth = useMindMapStore((s) => s.edgeWidth);
   const levelFontSizes = useMindMapStore((s) => s.levelFontSizes);
   const addChildNode = useMindMapStore((s) => s.addChildNode);
   const addSiblingNode = useMindMapStore((s) => s.addSiblingNode);
@@ -100,7 +103,12 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
   const isNeon = style === "neon";
   // The type header (icon + label) is hidden for plain and root nodes, and on
   // capsule/post-it styles where a type chip fights the shape's silhouette.
-  const hideTypeHeader = isPlain || isRoot || isPill || isSticky;
+  const hideTypeHeader = isPlain || isRoot || isPill || isSticky || isLine;
+  // Buzan mode: "line" words over organic branches. The branch stroke itself
+  // (drawn by the edge) runs under the word, so the node draws no underline —
+  // it only reserves room so the word sits right on top of the stroke.
+  const buzan = isLine && organicBranches;
+  const buzanWord = buzan && !isRoot;
   // The left color rail appears on filled card/soft styles — including plain
   // nodes, so their color (and rainbow-branch color) is actually visible.
   // Without this, changing a plain child's color had no visible effect.
@@ -245,9 +253,16 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
         ? `rounded-2xl border-2 bg-surface-base/30 ${SEL}`
         : "rounded-2xl border-2 bg-surface-base/30"),
     isLine &&
+      !isRoot &&
       (selected
-        ? `rounded-md border-0 border-b-2 bg-transparent ${SEL}`
-        : "rounded-md border-0 border-b-2 bg-transparent"),
+        ? `rounded-md border-0 ${buzan ? "" : "border-b-2"} bg-transparent ${SEL}`
+        : `rounded-md border-0 ${buzan ? "" : "border-b-2"} bg-transparent`),
+    // Buzan's central image: a bold coloured bubble the branches grow from.
+    isLine &&
+      isRoot &&
+      (selected
+        ? `rounded-full border-[3px] bg-surface-raised ${SEL}`
+        : "rounded-full border-[3px] bg-surface-raised shadow-float"),
     // Capsule: fixed 38px radius (not rounded-full) so the geometry stays
     // stable when the node grows taller than its min-height.
     isPill &&
@@ -276,8 +291,9 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
       onPointerCancel={onPointerUpCancel}
       onPointerLeave={onPointerLeave}
       style={{
-        width: NODE_WIDTH,
-        minHeight: isLine ? undefined : NODE_HEIGHT,
+        // Line words hug their text (Buzan: the line is as long as the word).
+        width: isLine ? undefined : NODE_WIDTH,
+        minHeight: isLine ? (isRoot ? 64 : undefined) : NODE_HEIGHT,
         borderColor:
           isOutline || isLine || isNeon || (isPrimaryBranch && style === "card")
             ? color
@@ -287,9 +303,13 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
       }}
       className={cn(
         "group relative",
+        isLine &&
+          (isRoot
+            ? "w-max min-w-[150px] max-w-[300px]"
+            : "w-max min-w-[64px] max-w-[260px]"),
         // Root node centers its text vertically → make it a flex column so the
         // content wrapper can stretch to the node's min-height.
-        isRoot && !isLine && "flex flex-col",
+        isRoot && "flex flex-col",
         isRoot && !selected && "shadow-float",
         chrome,
         // Presentation spotlight: fade every node except the current one.
@@ -422,11 +442,11 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
       </NodeToolbar>
 
       {/* Root gradient sheen (skipped on the borderless line style) */}
-      {isRoot && !isLine && (
+      {isRoot && (
         <div
           className={cn(
             "pointer-events-none absolute inset-0 opacity-90",
-            isPill ? "rounded-[38px]" : "rounded-2xl"
+            isLine ? "rounded-full" : isPill ? "rounded-[38px]" : "rounded-2xl"
           )}
           style={{
             background: `linear-gradient(135deg, ${hexToRgba(
@@ -488,16 +508,22 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
       <div
         className={cn(
           "relative px-3.5",
-          isLine ? "py-2" : "py-3",
+          buzanWord ? "px-1.5 pt-1" : isLine && !isRoot ? "py-2" : "py-3",
           // Capsule needs extra side padding so content clears the 38px curve.
           showRail ? "pl-4" : isPill ? "pl-6 pr-6" : "pl-3.5",
           // Root: fill the node height and center its label both axes.
-          isRoot && !isLine &&
-            "flex flex-1 flex-col items-center justify-center text-center"
+          isRoot &&
+            "flex flex-1 flex-col items-center justify-center text-center",
+          isLine && isRoot && "px-6"
         )}
+        style={
+          buzanWord
+            ? { paddingBottom: buzanWordPad(d._depth ?? 1, edgeWidth) }
+            : undefined
+        }
       >
         {/* Header: icon + type + status (root/plain hide the type label) */}
-        {(!hideTypeHeader || statusConf) && (
+        {(!hideTypeHeader || (statusConf && !isLine)) && (
           <div className="flex items-center gap-1.5 mb-1.5">
             {!hideTypeHeader && (
               <>
@@ -585,6 +611,14 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
               d.label ? "text-ink" : "text-ink-faint font-normal italic"
             )}
           >
+            {isLine && statusConf && (
+              <span
+                aria-label={statusConf.label}
+                title={statusConf.label}
+                className="mr-1.5 inline-block h-2 w-2 -translate-y-px rounded-full align-middle"
+                style={{ background: statusConf.dot }}
+              />
+            )}
             {d.emoji && <span className="mr-1">{d.emoji}</span>}
             {d.label ? renderInlineMarkdown(d.label) : "내용 입력…"}
           </div>
@@ -693,7 +727,13 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
             isPill ? "-right-1" : "-right-2.5",
             "hidden h-7 w-7 items-center justify-center rounded-full transition-colors md:flex",
             "text-ink-faint hover:bg-surface-raised hover:text-brand hover:shadow-sm",
-            d.collapsed ? "opacity-100" : "opacity-45 group-hover:opacity-90"
+            d.collapsed
+              ? "opacity-100"
+              : buzan
+                ? // Over organic branches (and on the central bubble) the
+                  // chevron sits on the artwork; reveal it only on hover.
+                  "opacity-0 group-hover:opacity-90"
+                : "opacity-45 group-hover:opacity-90"
           )}
         >
           <ChevronRight

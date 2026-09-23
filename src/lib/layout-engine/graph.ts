@@ -162,7 +162,7 @@ export function* buildGraph(
         severity: "error",
       });
     if (
-      ![e.halfWidth, e.arrowLength, e.arrowHalfWidth].every(
+      ![e.halfWidth, e.arrowLength, e.arrowHalfWidth, e.taperEnd ?? 0].every(
         (v) => finite(v) && v >= 0 && v <= o.maxCoordinateAbs,
       )
     )

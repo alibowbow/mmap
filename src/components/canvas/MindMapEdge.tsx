@@ -4,9 +4,28 @@ import {
   getBezierPath,
   getSmoothStepPath,
   getStraightPath,
+  useInternalNode,
   type EdgeProps,
+  type InternalNode,
 } from "@xyflow/react";
 import { useMindMapStore } from "@/store/mindMapStore";
+import { buzanBranch, type BranchBox } from "@/lib/buzanBranch";
+import type { MindMapNodeData } from "@/types/mindmap";
+
+function branchBox(n: InternalNode | undefined): BranchBox | null {
+  const w = n?.measured?.width,
+    h = n?.measured?.height;
+  if (!n || !w || !h) return null;
+  const d = n.data as MindMapNodeData;
+  return {
+    x: n.internals.positionAbsolute.x,
+    y: n.internals.positionAbsolute.y,
+    width: w,
+    height: h,
+    depth: d._depth ?? 0,
+    isRoot: !!d.isRoot || d.type === "root",
+  };
+}
 import { pathData, polygonData, distance } from "@/lib/layout-engine/geometry";
 import type { EdgeRoute } from "@/lib/layout-engine/types";
 
@@ -22,10 +41,15 @@ export function MindMapEdge(props: EdgeProps) {
     style,
     selected,
     data,
+    source,
+    target,
   } = props;
   const edgeStyle = useMindMapStore((s) => s.edgeStyle),
     animated = useMindMapStore((s) => s.edgeAnimated),
-    line = useMindMapStore((s) => s.edgeLine);
+    line = useMindMapStore((s) => s.edgeLine),
+    nodeStyle = useMindMapStore((s) => s.nodeStyle),
+    edgeWidth = useMindMapStore((s) => s.edgeWidth);
+
   const raw = data?.route as EdgeRoute | undefined;
   const first = raw?.segments[0],
     last = raw?.segments[raw.segments.length - 1];
@@ -74,6 +98,23 @@ export function MindMapEdge(props: EdgeProps) {
     ? "rgb(var(--brand))"
     : ((style?.stroke as string) ?? "rgb(var(--ink-faint))");
   const taper = edgeStyle === "taper" && route?.ribbon?.length;
+  // Buzan: words sit ON organic branches. With the "line" node style and the
+  // tapered edge style, each tree edge is drawn as one continuous brush
+  // stroke — parent tip → curve → under the child's word → tip — instead of
+  // a connector plus a separate underline. Rendered by a child component so
+  // only Buzan maps pay for subscribing to both endpoints' geometry.
+  if (edgeStyle === "taper" && nodeStyle === "line")
+    return (
+      <BuzanEdge
+        source={source}
+        target={target}
+        edgeWidth={edgeWidth}
+        fill={fill}
+        state={state}
+        markerEnd={markerEnd}
+        style={style}
+      />
+    );
   return (
     <g data-route-state={state} opacity={state === "ok" ? 1 : 0.5}>
       {state !== "ok" && (
@@ -123,6 +164,49 @@ export function MindMapEdge(props: EdgeProps) {
           }}
         />
       )}
+    </g>
+  );
+}
+
+function BuzanEdge({
+  source,
+  target,
+  edgeWidth,
+  fill,
+  state,
+  markerEnd,
+  style,
+}: {
+  source: string;
+  target: string;
+  edgeWidth: number;
+  fill: string;
+  state: string;
+  markerEnd?: string;
+  style?: React.CSSProperties;
+}) {
+  const sourceNode = useInternalNode(source),
+    targetNode = useInternalNode(target);
+  const sBox = branchBox(sourceNode),
+    tBox = branchBox(targetNode);
+  if (!sBox || !tBox) return <g data-route-state={state} />;
+  const leaf =
+    ((targetNode?.data as MindMapNodeData | undefined)?._childCount ?? 0) === 0;
+  const br = buzanBranch(sBox, tBox, edgeWidth, leaf);
+  return (
+    <g data-route-state={state}>
+      {br.outlines.map((d, i) => (
+        <path
+          key={i}
+          d={d}
+          style={{ fill, stroke: fill, strokeWidth: 0.75, strokeLinejoin: "round" }}
+        />
+      ))}
+      <BaseEdge
+        path={br.center}
+        markerEnd={markerEnd}
+        style={{ ...style, stroke: "transparent" }}
+      />
     </g>
   );
 }

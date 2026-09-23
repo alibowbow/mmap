@@ -225,14 +225,15 @@ export type ThemePreset = {
 
 export const THEME_PRESETS: ThemePreset[] = [
   {
+    // Id kept as "classic" so existing references keep working.
     id: "classic",
-    label: "클래식",
-    description: "손그림 마인드맵 — 라인 노드 + 붓 가지",
+    label: "부잔",
+    description: "토니 부잔식 — 가지 위에 단어, 굵게 시작해 가늘어지는 곡선 가지",
     swatch: ["#f59e0b", "#10b981"],
     settings: {
       nodeStyle: "line",
       edgeStyle: "taper",
-      edgeWidth: 3,
+      edgeWidth: 2,
       edgeColorMode: "node",
       edgeLine: "solid",
       edgeAnimated: false,

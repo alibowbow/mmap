@@ -1,4 +1,5 @@
 import type { Edge, MindMapNode, MindMapRelation } from "@/types/mindmap";
+import { branchHalfWidth } from "../branchWidth";
 import { defaultPorts } from "./ports";
 import {
   DEFAULT_OPTIONS,
@@ -113,6 +114,26 @@ export function adaptInput(
     ? (options.edgeStyle as EngineEdge["style"])
     : "curved";
   const width = options.edgeWidth ?? 2;
+  // Depth per node, for depth-graded organic branches (see branchWidth.ts).
+  const parentOf = new Map(nodes.map((n) => [n.id, n.data.parentId ?? null]));
+  const depthMemo = new Map<string, number>();
+  const depthOf = (id: string): number => {
+    let d = 0,
+      cur = parentOf.get(id) ?? null;
+    const seen = new Set<string>([id]);
+    while (cur && !seen.has(cur)) {
+      const known = depthMemo.get(cur);
+      if (known !== undefined) {
+        d += known + 1;
+        break;
+      }
+      seen.add(cur);
+      d++;
+      cur = parentOf.get(cur) ?? null;
+    }
+    depthMemo.set(id, d);
+    return d;
+  };
   const edges: EngineEdge[] = (
     options.edges ??
     nodes
@@ -128,10 +149,15 @@ export function adaptInput(
     target: e.target,
     kind: "tree",
     style,
+    // Taper: thick near the centre, thinning outward, and ending exactly at
+    // the thickness of the child's underline so the branch flows into it.
     halfWidth:
       style === "taper"
-        ? Math.min(11, Math.max(5, width * 2.8)) / 2
+        ? branchHalfWidth(depthOf(e.source), width)
         : width / 2,
+    ...(style === "taper"
+      ? { taperEnd: branchHalfWidth(depthOf(e.source) + 1, width) }
+      : {}),
     arrowLength: 0,
     arrowHalfWidth: 0,
   }));

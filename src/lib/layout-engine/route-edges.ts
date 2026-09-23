@@ -389,7 +389,11 @@ function* routeWithPorts(
     ps = flat.points;
   const rib =
     edge.style === "taper"
-      ? ribbon(ps, edge.halfWidth, Math.max(1, edge.halfWidth * 0.2))
+      ? ribbon(
+          ps,
+          edge.halfWidth,
+          edge.taperEnd ?? Math.max(1, edge.halfWidth * 0.2),
+        )
       : undefined;
   let arrow: Point[] | undefined;
   if (edge.arrowLength && ps.length > 1) {
