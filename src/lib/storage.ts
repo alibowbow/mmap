@@ -7,6 +7,7 @@ import {
   WORKSPACE_VERSION,
 } from "@/lib/constants";
 import type { MindMapWorkspace } from "@/types/mindmap";
+import { appearanceFrom } from "./appearance";
 
 const BACKUP_KEY = `${STORAGE_KEY}-corrupt-backup`;
 
@@ -65,7 +66,9 @@ function migrateWorkspace(
 ): MindMapWorkspace {
   return {
     version: WORKSPACE_VERSION,
-    documents: parsed.documents ?? [],
+    documents: (parsed.documents ?? []).map(doc => ({
+      ...doc, appearance: appearanceFrom(doc.appearance ?? parsed),
+    })),
     activeDocumentId:
       parsed.activeDocumentId ?? parsed.documents?.[0]?.id ?? null,
     theme: parsed.theme ?? "system",

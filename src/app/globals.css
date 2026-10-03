@@ -15,7 +15,7 @@
   --font-myeongjo: "Nanum Myeongjo", "Apple SD Gothic Neo", serif;
   --font-gaegu: "Gaegu", "Apple SD Gothic Neo", cursive;
   --font-jua: "Jua", "Apple SD Gothic Neo", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono: "JetBrains Mono", var(--font-inter), ui-monospace, SFMono-Regular, Menlo, monospace;
   /* Default app font (used by Tailwind's font-sans). */
   --font-sans: var(--font-inter);
 }

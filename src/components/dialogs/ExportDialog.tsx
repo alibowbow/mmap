@@ -1,17 +1,21 @@
 "use client";
 
-import { Check, Copy, Download, ImageIcon, Loader2, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Check,
+  Copy,
+  Download,
+  ImageIcon,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { cn } from "@/lib/cn";
 import { downloadFile, safeFileName } from "@/lib/export";
-import { renderCanvasImage, type ImageFormat } from "@/lib/image";
-import {
-  selectActiveDocument,
-  useMindMapStore,
-} from "@/store/mindMapStore";
+import type { ImageFormat } from "@/lib/image";
+import { selectActiveDocument, useMindMapStore } from "@/store/mindMapStore";
 
 type Tab = "json" | "markdown" | "outline" | "png" | "svg";
 
@@ -22,9 +26,27 @@ const TABS: {
   mime: string;
   kind: "text" | "image";
 }[] = [
-  { id: "json", label: "JSON", ext: "json", mime: "application/json", kind: "text" },
-  { id: "markdown", label: "Markdown", ext: "md", mime: "text/markdown", kind: "text" },
-  { id: "outline", label: "아웃라인", ext: "txt", mime: "text/plain", kind: "text" },
+  {
+    id: "json",
+    label: "JSON",
+    ext: "json",
+    mime: "application/json",
+    kind: "text",
+  },
+  {
+    id: "markdown",
+    label: "Markdown",
+    ext: "md",
+    mime: "text/markdown",
+    kind: "text",
+  },
+  {
+    id: "outline",
+    label: "아웃라인",
+    ext: "txt",
+    mime: "text/plain",
+    kind: "text",
+  },
   { id: "png", label: "PNG", ext: "png", mime: "image/png", kind: "image" },
   { id: "svg", label: "SVG", ext: "svg", mime: "image/svg+xml", kind: "image" },
 ];
@@ -43,7 +65,7 @@ export function ExportDialog() {
   const open = useMindMapStore((s) => s.dialog === "export");
   const setDialog = useMindMapStore((s) => s.setDialog);
   const doc = useMindMapStore(selectActiveDocument);
-  const nodes = useMindMapStore((s) => s.nodes);
+  const renderImage = useMindMapStore((s) => s.renderImage);
   const exportJson = useMindMapStore((s) => s.exportJson);
   const exportMarkdown = useMindMapStore((s) => s.exportMarkdown);
   const exportOutlineText = useMindMapStore((s) => s.exportOutlineText);
@@ -56,6 +78,10 @@ export function ExportDialog() {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const generation = useRef(0);
+  const invalidateGeneration = useCallback(() => {
+    generation.current++;
+  }, []);
 
   const tabMeta = TABS.find((t) => t.id === tab)!;
   const isImage = tabMeta.kind === "image";
@@ -69,18 +95,20 @@ export function ExportDialog() {
   }, [tab, open, isImage]);
 
   const generateImage = useCallback(async () => {
+    const request = ++generation.current;
     setImageLoading(true);
     setImageError(null);
     setImageUrl(null);
     try {
-      const url = await renderCanvasImage(nodes, tab as ImageFormat);
-      setImageUrl(url);
+      const url = await renderImage(tab as ImageFormat);
+      if (request === generation.current) setImageUrl(url);
     } catch (e) {
-      setImageError(e instanceof Error ? e.message : "이미지 생성 실패");
+      if (request === generation.current)
+        setImageError(e instanceof Error ? e.message : "이미지 생성 실패");
     } finally {
-      setImageLoading(false);
+      if (request === generation.current) setImageLoading(false);
     }
-  }, [nodes, tab]);
+  }, [renderImage, tab]);
 
   // Auto-generate when an image tab becomes active.
   useEffect(() => {
@@ -89,8 +117,8 @@ export function ExportDialog() {
       setImageUrl(null);
       setImageError(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, tab]);
+    return invalidateGeneration;
+  }, [open, isImage, generateImage, invalidateGeneration]);
 
   const handleCopy = async () => {
     try {
@@ -111,7 +139,7 @@ export function ExportDialog() {
     } else {
       downloadFile(name, textContent, tabMeta.mime);
     }
-    addToast(`${name} 저장됨`, "success");
+    addToast(`${name} 다운로드를 시작했습니다`, "success");
   };
 
   return (
@@ -119,7 +147,7 @@ export function ExportDialog() {
       open={open}
       onClose={() => setDialog(null)}
       title="내보내기"
-      description="현재 문서를 다양한 형식으로 내보냅니다."
+      description="다른 기기로 옮길 때는 내용과 디자인을 함께 담는 JSON을 사용하세요."
       className="sm:max-w-xl"
       footer={
         <>
@@ -137,7 +165,7 @@ export function ExportDialog() {
           <Button
             variant="primary"
             onClick={handleDownload}
-            disabled={isImage && !imageUrl}
+            disabled={isImage && (imageLoading || !imageUrl)}
           >
             <Download size={15} /> 다운로드
           </Button>
@@ -149,17 +177,24 @@ export function ExportDialog() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
+            aria-pressed={tab === t.id}
             className={cn(
-              "rounded-lg px-3 py-1.5 text-sm font-medium transition",
+              "min-h-11 rounded-lg px-3 py-1.5 text-sm font-medium transition",
               tab === t.id
                 ? "bg-surface-raised text-ink shadow-sm"
-                : "text-ink-soft hover:text-ink"
+                : "text-ink-soft hover:text-ink",
             )}
           >
             {t.label}
           </button>
         ))}
       </div>
+      {tab === "json" && (
+        <p className="mb-3 text-xs leading-relaxed text-ink-soft">
+          로컬 문서 주소만 복사하면 다른 기기로 내용이 옮겨지지 않습니다. JSON
+          파일을 내보낸 뒤 다른 기기에서 가져오세요.
+        </p>
+      )}
 
       {isImage ? (
         <div className="flex min-h-[240px] items-center justify-center rounded-xl border border-line bg-surface-sunken p-3">
