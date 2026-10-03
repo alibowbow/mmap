@@ -34,14 +34,15 @@ export function ShareDialog() {
   const open = useMindMapStore((s) => s.dialog === "share");
   const setDialog = useMindMapStore((s) => s.setDialog);
   const doc = useMindMapStore(selectActiveDocument);
+  const hasInk = !!doc?.ink?.strokes.length || doc?.boardMode === "blank";
   const addToast = useMindMapStore((s) => s.addToast);
   const [copied, setCopied] = useState(false);
 
   const url = useMemo(() => {
-    if (!open || !doc) return "";
+    if (!open || !doc || hasInk) return "";
     return buildShareUrl(doc);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, doc]);
+  }, [open, doc, hasInk]);
 
   const tooLong = url.length > SHARE_URL_MAX_LEN;
   const nearLimit = !tooLong && url.length > SHARE_URL_WARN_LEN;
@@ -84,7 +85,7 @@ export function ShareDialog() {
       open={open}
       onClose={() => setDialog(null)}
       title="링크로 공유"
-      description="서버 없이, 이 링크 하나에 맵 전체가 담깁니다."
+      description={hasInk ? "손그림은 JSON 파일로 옮겨주세요. 획·디자인·좌표를 함께 보존합니다." : "서버 없이, 이 링크 하나에 맵 전체가 담깁니다."}
       className="sm:max-w-lg"
       footer={
         <Button
@@ -101,7 +102,7 @@ export function ShareDialog() {
       <div className="flex items-center gap-2">
         <input
           readOnly
-          value={tooLong ? "해시 공유 한도 초과" : url}
+          value={hasInk ? "손그림은 JSON 내보내기 사용" : tooLong ? "해시 공유 한도 초과" : url}
           onFocus={(e) => e.currentTarget.select()}
           className="min-w-0 flex-1 rounded-xl border border-line bg-surface-sunken px-3 py-2 text-xs text-ink-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-soft"
         />

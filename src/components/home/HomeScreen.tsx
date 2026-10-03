@@ -12,6 +12,7 @@ import type { MindMapDocument, TemplateType } from "@/types/mindmap";
 
 type HomeScreenProps = {
   onCreate: (template?: TemplateType) => void;
+  onCreateInk: () => void;
   onOpenDocument: (documentId: string) => void;
   onImport: () => void;
 };
@@ -42,7 +43,7 @@ const shortDate = (iso: string) => {
   return Number.isNaN(d.getTime()) ? "" : `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
 };
 
-export function HomeScreen({ onCreate, onOpenDocument, onImport }: HomeScreenProps) {
+export function HomeScreen({ onCreate, onCreateInk, onOpenDocument, onImport }: HomeScreenProps) {
   const documents = useMindMapStore((s) => s.documents);
   const theme = useMindMapStore((s) => s.theme);
   const toggleTheme = useMindMapStore((s) => s.toggleTheme);
@@ -86,6 +87,7 @@ export function HomeScreen({ onCreate, onOpenDocument, onImport }: HomeScreenPro
             <p className="mf-hero-lede">흩어진 아이디어를 하나의 흐름으로.</p>
             <div className="mf-hero-actions">
               <button type="button" className="mf-cta" onClick={() => onCreate("blank")}>새 마인드맵 시작</button>
+              <button type="button" className="mf-textlink min-h-11" onClick={onCreateInk}>빈 손그림 보드</button>
               {recent[0] && (
                 <button type="button" className="mf-textlink" onClick={() => onOpenDocument(recent[0].id)}>
                   최근 작업 이어가기 <ArrowRight size={16} aria-hidden="true" />

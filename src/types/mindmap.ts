@@ -74,6 +74,19 @@ export type MindMapRelation = {
   label?: string;
 };
 
+// Immutable world-space ink. Pointer samples are collected outside the store;
+// only completed gestures enter history and persistence.
+export type InkPoint = { x: number; y: number; pressure: number };
+export type InkStroke = {
+  id: string;
+  color: string;
+  width: number;
+  points: InkPoint[];
+};
+export type InkData = { version: 1; strokes: InkStroke[] };
+export type InkTool = "node" | "pen" | "eraser" | "pan";
+export type InkSettings = { color: string; width: number };
+
 // A saved point-in-time copy of a document's content (local version history).
 export type MindMapSnapshot = {
   id: string;
@@ -83,6 +96,8 @@ export type MindMapSnapshot = {
   edges: Edge[];
   relations?: MindMapRelation[];
   layoutMode?: LayoutMode;
+  ink?: InkData;
+  boardMode?: "map" | "blank";
 };
 
 export type MindMapDocument = {
@@ -92,6 +107,9 @@ export type MindMapDocument = {
   edges: Edge[];
   relations?: MindMapRelation[];
   viewport?: MindMapViewport;
+  boardMode?: "map" | "blank";
+  ink?: InkData;
+  inkSettings?: InkSettings;
   pinned?: boolean;
   layoutMode?: LayoutMode; // last auto-layout applied (edge-face routing)
   // Portable document design. Older workspaces inherit their saved global design.

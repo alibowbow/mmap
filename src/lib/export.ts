@@ -3,7 +3,7 @@ import type { MindMapDocument } from "@/types/mindmap";
 import { appearanceFrom } from "./appearance";
 
 export const DOCUMENT_FORMAT = "mindforge-document";
-export const DOCUMENT_EXPORT_VERSION = 2;
+export const DOCUMENT_EXPORT_VERSION = 3;
 
 // ── JSON ─────────────────────────────────────────────────────────────────────
 export function exportDocumentJson(doc: MindMapDocument): string {
@@ -14,7 +14,7 @@ export function exportDocumentJson(doc: MindMapDocument): string {
       document: { ...doc, appearance: appearanceFrom(doc.appearance) },
     },
     null,
-    2
+    doc.ink?.strokes.length ? undefined : 2
   );
 }
 

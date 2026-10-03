@@ -11,7 +11,7 @@ globalThis.requestAnimationFrame = (fn: FrameRequestCallback) =>
   setTimeout(() => fn(performance.now()), 0) as unknown as number;
 globalThis.cancelAnimationFrame = (id: number) => clearTimeout(id);
 
-test("v2 preserves design, Korean content, manual geometry, collapse, relations and snapshots", () => {
+test("v3 preserves design, Korean content, manual geometry, collapse, relations and snapshots", () => {
   const doc = portableFixture();
   doc.nodes[0].width = 333;
   doc.nodes[0].height = 100;
@@ -29,7 +29,7 @@ test("v2 preserves design, Korean content, manual geometry, collapse, relations 
   ];
   const json = exportDocumentJson(doc),
     parsed = parseImportJson(json);
-  assert.equal(JSON.parse(json).version, 2);
+  assert.equal(JSON.parse(json).version, 3);
   assert.ok(parsed.ok);
   assert.deepEqual(parsed.document.nodes, doc.nodes);
   assert.deepEqual(parsed.document.appearance, doc.appearance);
@@ -116,7 +116,7 @@ test("malformed, partial, nonfinite geometry, invalid styles, future versions an
         error: string;
       }
     ).error,
-    /99.*2/,
+    /99.*3/,
   );
 });
 

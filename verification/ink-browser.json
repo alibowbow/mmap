@@ -1,0 +1,83 @@
+{
+  "checks": [
+    "Mouse drawing stores world coordinates and constant fallback pressure",
+    "Pen color/width controls persist; cancelled pointer discards unfinished ink",
+    "Pan/zoom changes camera only; subsequent ink stays in world space",
+    "Chromium CDP pen pressure 0.2–0.875 flows through Pointer Events (hardware unverified)",
+    "Emulated single touch draws; two fingers navigate and discard preview",
+    "Swept eraser, undo/redo, clear cancel/confirm/undo preserve committed drawings",
+    "Autosave, reload, real JSON download → fresh browser import/reexport retain empty-board flag, ink and settings",
+    {
+      "png": {
+        "blue": 1414,
+        "red": 0
+      },
+      "width": 1118,
+      "height": 960
+    },
+    {
+      "svg": {
+        "ids": [
+          "ink_20218e35-4e47-4f95-9dbb-92723e582d1a",
+          "ink_44162176-c37f-454b-af28-b6fd0bb52643",
+          "ink_bf8e3615-caba-498b-adc8-6df262e11527",
+          "ink_d0d47b35-2fe7-474b-ba46-3d818de924f0"
+        ],
+        "width": 559,
+        "height": 480,
+        "x": 780.4990234375,
+        "y": 329.4419860839844,
+        "zoom": 1.5967700481414795
+      }
+    },
+    {
+      "png": {
+        "blue": 140,
+        "red": 270
+      },
+      "width": 8192,
+      "height": 6116
+    },
+    {
+      "svg": {
+        "ids": [
+          "ink_20218e35-4e47-4f95-9dbb-92723e582d1a",
+          "ink_44162176-c37f-454b-af28-b6fd0bb52643",
+          "ink_bf8e3615-caba-498b-adc8-6df262e11527",
+          "ink_d0d47b35-2fe7-474b-ba46-3d818de924f0",
+          "outside-left",
+          "outside-right"
+        ],
+        "width": 4096,
+        "height": 3058,
+        "x": 1710.8299560546875,
+        "y": 1023.25,
+        "zoom": 0.8429149985313416
+      }
+    },
+    "Overlay erase does not touch nodes; switching back supports node edit/drag/undo while preserving ink",
+    "320/360/390/768/884/1440px viewport: no overflow, ≥44px controls; screenshots inspected separately",
+    "1000 strokes / 100,000 samples render, camera navigation and new stroke save in a separate Chromium context"
+  ],
+  "errors": [],
+  "performance": {
+    "samples": 100000,
+    "strokes": 1000,
+    "loadAndSettleMs": 1278,
+    "panGestureMs": 301,
+    "drawAndSaveMs": 3429,
+    "frameMedianMs": 16.699999999999818,
+    "frameP95Ms": 16.799999999999727,
+    "serializedBytes": 4748458
+  },
+  "screenshots": [
+    "verification/ink/width-320.png",
+    "verification/ink/width-360.png",
+    "verification/ink/width-390.png",
+    "verification/ink/width-768.png",
+    "verification/ink/width-884.png",
+    "verification/ink/width-1440.png",
+    "verification/ink/large-fold.png"
+  ],
+  "browser": "140.0.7339.186"
+}

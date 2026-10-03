@@ -15,7 +15,7 @@ type Dir = "up" | "down" | "left" | "right";
 function nearestInDirection(
   nodes: MindMapNode[],
   fromId: string,
-  dir: Dir
+  dir: Dir,
 ): string | null {
   const from = nodes.find((n) => n.id === fromId);
   if (!from) return null;
@@ -110,9 +110,13 @@ export function useKeyboardShortcuts(): void {
           else store.undo();
           return;
         }
+        // A retained node selection must not receive clipboard/duplicate
+        // commands while the ink surface owns input.
+        if (store.inkTool !== "node" || store.inkGestureActive) return;
         if (key === "d") {
           e.preventDefault();
-          if (store.selectedNodeId) store.duplicateSubtree(store.selectedNodeId);
+          if (store.selectedNodeId)
+            store.duplicateSubtree(store.selectedNodeId);
           return;
         }
         // Copy/paste subtrees — only outside text fields so the browser's
@@ -130,7 +134,8 @@ export function useKeyboardShortcuts(): void {
       }
 
       // The rest only apply when not typing in a field.
-      if (editable) return;
+      if (editable || store.inkTool !== "node" || store.inkGestureActive)
+        return;
 
       // Presentation navigation is intentionally global while that mode owns
       // the screen. Editing shortcuts, however, only run when focus is inside
@@ -151,7 +156,10 @@ export function useKeyboardShortcuts(): void {
       const canvas = target?.closest('[data-mindmap-canvas="true"]');
       const nodeSurfaceFocused = target?.classList.contains("react-flow__node");
       const paneFocused = target?.classList.contains("react-flow__pane");
-      if (!canvas || (!nodeSurfaceFocused && !paneFocused && target !== canvas)) {
+      if (
+        !canvas ||
+        (!nodeSurfaceFocused && !paneFocused && target !== canvas)
+      ) {
         return;
       }
 
@@ -198,7 +206,9 @@ export function useKeyboardShortcuts(): void {
           store.selectNode(next);
           requestAnimationFrame(() => {
             document
-              .querySelector<HTMLElement>(`.react-flow__node[data-id="${next}"]`)
+              .querySelector<HTMLElement>(
+                `.react-flow__node[data-id="${next}"]`,
+              )
               ?.focus({ preventScroll: true });
           });
         }

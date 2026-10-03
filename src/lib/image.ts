@@ -1,11 +1,12 @@
 import { getNodesBounds, getViewportForBounds } from "@xyflow/react";
 import { toPng, toSvg } from "html-to-image";
 
+import { inkBounds, EMPTY_INK } from "./ink";
 import { union } from "@/lib/layout-engine/geometry";
 import type { EdgeRoute } from "@/lib/layout-engine/types";
 import { getHiddenNodeIds } from "@/lib/tree";
 import { loadedCanvasFontCSS } from "./imageFonts";
-import type { MindMapNode } from "@/types/mindmap";
+import type { InkData, MindMapNode } from "@/types/mindmap";
 
 export type ImageFormat = "png" | "svg";
 
@@ -31,7 +32,8 @@ function themeBackground(): string {
 export async function renderCanvasImage(
   nodes: MindMapNode[],
   format: ImageFormat,
-  routes: readonly EdgeRoute[] = []
+  routes: readonly EdgeRoute[] = [],
+  ink: InkData = EMPTY_INK
 ): Promise<string> {
   const viewportEl = document.querySelector<HTMLElement>(
     ".react-flow__viewport"
@@ -41,9 +43,10 @@ export async function renderCanvasImage(
   // Only visible nodes contribute to the bounds (collapsed subtrees are hidden).
   const hidden = getHiddenNodeIds(nodes);
   const visible = nodes.filter((n) => !hidden.has(n.id));
-  if (visible.length === 0) throw new Error("내보낼 노드가 없습니다.");
-
-  let bounds = getNodesBounds(visible);
+  const inkRect = inkBounds(ink);
+  if (visible.length === 0 && !inkRect) throw new Error("내보낼 노드나 잉크가 없습니다.");
+  let bounds = visible.length ? getNodesBounds(visible) : inkRect!;
+  if (inkRect) bounds = union(bounds, inkRect);
   for (const route of routes) bounds = union(bounds, route.bounds);
   const imageWidth = Math.min(
     MAX_DIM,
@@ -57,7 +60,7 @@ export async function renderCanvasImage(
     bounds,
     imageWidth,
     imageHeight,
-    0.001,
+    0.0001,
     2,
     0.1
   );

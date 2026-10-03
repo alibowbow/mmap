@@ -75,6 +75,7 @@ function MindMapNodeComponent({ id, data, selected, dragging }: NodeProps) {
     (s) =>
       s.selectedNodeIds.length === 1 &&
       s.selectedNodeIds[0] === id &&
+      s.inkTool === "node" &&
       !s.presentationMode &&
       !s.connectMode
   );

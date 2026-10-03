@@ -22,6 +22,8 @@ import {
   type FocusEvent,
 } from "react";
 
+import { InkLayer } from "@/components/canvas/InkLayer";
+import { InkToolbar } from "@/components/toolbar/InkToolbar";
 import { CanvasEmptyState } from "@/components/canvas/CanvasEmptyState";
 import { MindMapEdge } from "@/components/canvas/MindMapEdge";
 import { MindMapNode } from "@/components/canvas/MindMapNode";
@@ -54,6 +56,8 @@ const DROP_DWELL_MS = 420;
 function CanvasInner() {
   useLayoutMeasurements();
   const isMobile = useIsMobile();
+  const inkTool = useMindMapStore(s => s.inkTool);
+  const boardMode = useMindMapStore(s => s.boardMode);
   const touchPrimary = useIsTouchPrimary();
   const nodes = useMindMapStore((s) => s.nodes);
   const edges = useMindMapStore((s) => s.edges);
@@ -632,7 +636,7 @@ function CanvasInner() {
     [reparentNode, setDropTargetId, setDropPendingId, clearDropDwell, endNodeDrag],
   );
 
-  const isEmpty = nodes.length === 0;
+  const isEmpty = nodes.length === 0 && boardMode !== "blank";
 
   return (
     <div
@@ -683,7 +687,7 @@ function CanvasInner() {
           }
         }}
         onMoveEnd={(_, vp) => updateViewport(vp)}
-        minZoom={0.15}
+        minZoom={0.0001}
         maxZoom={2.5}
         disableKeyboardA11y
         deleteKeyCode={null}
@@ -713,6 +717,7 @@ function CanvasInner() {
         }}
         className="touch-none"
       >
+        <InkLayer />
         {canvasBg !== "none" && (
           <Background
             variant={
@@ -727,14 +732,15 @@ function CanvasInner() {
             className={canvasBg === "dots" ? "!opacity-55" : "!opacity-35"}
           />
         )}
-        {!presentationMode && !isMobile && (
+        {!presentationMode && inkTool === "node" && !isMobile && (
           <Controls
+            onFitView={() => useMindMapStore.getState().fitToView()}
             showInteractive={false}
             position="bottom-left"
             className="!mb-5 !ml-5"
           />
         )}
-        {!presentationMode && (!isMobile || miniMapOpen) && (
+        {!presentationMode && inkTool === "node" && boardMode !== "blank" && (!isMobile || miniMapOpen) && (
           <MiniMap
             pannable
             zoomable
@@ -758,8 +764,10 @@ function CanvasInner() {
         )}
       </ReactFlow>
 
+      {!presentationMode && <InkToolbar />}
+
       {/* Mobile mini-map toggle */}
-      {!presentationMode && isMobile && (
+      {!presentationMode && inkTool === "node" && boardMode !== "blank" && isMobile && (
         <button
           onClick={() => setMiniMapOpen((o) => !o)}
           aria-label="미니맵 토글"
