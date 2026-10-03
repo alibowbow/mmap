@@ -3,14 +3,19 @@ import type { MindMapDocument } from "@/types/mindmap";
 import { appearanceFrom } from "./appearance";
 
 export const DOCUMENT_FORMAT = "mindforge-document";
-export const DOCUMENT_EXPORT_VERSION = 4;
+export const DOCUMENT_EXPORT_VERSION = 5;
 
 // ── JSON ─────────────────────────────────────────────────────────────────────
 export function exportDocumentJson(doc: MindMapDocument): string {
   return JSON.stringify(
     {
       format: DOCUMENT_FORMAT,
-      version: DOCUMENT_EXPORT_VERSION,
+      version:
+        doc.ink?.version === 3 ||
+        doc.inkSettings?.branchStyle === "hand-v1" ||
+        doc.snapshots?.some((s) => s.ink?.version === 3)
+          ? 5
+          : 4,
       document: { ...doc, appearance: appearanceFrom(doc.appearance) },
     },
     null,

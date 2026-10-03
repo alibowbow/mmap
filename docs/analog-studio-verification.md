@@ -1,5 +1,12 @@
 # Analog mind-map studio — verification, 2026-10-03
 
+> Release follow-up, 2026-10-03: the user subsequently approved PR #10.
+> It was merged at `00f233ff990530f87336acfe5b49af53d2d8ab02`; production
+> `dpl_8PhtXP9ausgzna1TaDCofDWHxkNn` is READY at that exact SHA and
+> `https://mmap-psi.vercel.app/` resolves to it. The checks below are the
+> historical pre-release record. The separate branch-expression review is
+> documented in [analog-branch-verification.md](analog-branch-verification.md).
+
 Continues draft PR #10 on `codex/handdrawn-mindmap`, parent
 `4e31c67aff9a2c13a77e2b752e61daa45b4c15a1`, base main
 `a41c6ac340b151b7d645e1e7e76655e8a920301e`. The latest remote PR was still

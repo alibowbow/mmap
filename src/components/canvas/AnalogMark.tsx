@@ -1,6 +1,9 @@
 "use client";
 import { memo } from "react";
 import {
+  branchPaintPaths,
+  hasBranchStyle,
+  pigmentColor,
   hashSeed,
   isStroke,
   itemTransform,
@@ -105,6 +108,8 @@ export const AnalogMark = memo(function AnalogMark({
     d = strokePath(item),
     id = `texture-${hashSeed(item.id)}`,
     seed = item.seed ?? hashSeed(item.id);
+  const hand = hasBranchStyle(item),
+    feel = item.texture ?? 0.45;
   const opacity =
     (item.opacity ?? 1) *
     (brush === "highlighter" ? 0.27 : brush === "marker" ? 0.86 : 1);
@@ -112,6 +117,7 @@ export const AnalogMark = memo(function AnalogMark({
     <g
       data-ink-stroke={item.id}
       data-brush={brush}
+      data-branch-style={hand ? "hand-v1" : undefined}
       transform={itemTransform(item)}
       opacity={opacity}
     >
@@ -132,10 +138,32 @@ export const AnalogMark = memo(function AnalogMark({
         d={d}
         fill={item.color}
         opacity={
-          brush === "pencil" ? 0.2 + (1 - (item.texture ?? 0.7)) * 0.35 : 1
+          hand
+            ? 0.98 - feel * 0.035
+            : brush === "pencil"
+              ? 0.2 + (1 - (item.texture ?? 0.7)) * 0.35
+              : 1
         }
         fillRule="nonzero"
       />
+      {hand && (
+        <path
+          d={branchPaintPaths(item).pigment}
+          fill={pigmentColor(item.color)}
+          opacity={feel * 0.12}
+        />
+      )}
+      {hand && (
+        <path
+          data-branch-fibers
+          d={branchPaintPaths(item).fibers}
+          fill="none"
+          stroke="#ffffff"
+          strokeWidth={0.55}
+          strokeLinecap="round"
+          opacity={feel * 0.35}
+        />
+      )}
       {(brush === "pencil" || brush === "marker") && (
         <path d={d} fill={`url(#${id})`} />
       )}

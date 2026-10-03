@@ -118,11 +118,13 @@ export type InkStroke = {
   opacity?: number;
   texture?: number;
   taper?: number;
+  // Absent/classic retains the released renderer; hand-v1 is deterministic.
+  branchStyle?: "classic" | "hand-v1";
   curve?: number;
   transform?: InkTransform;
 };
 export type InkData = {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   strokes: InkStroke[];
   objects?: InkObject[];
   order?: string[];
@@ -137,6 +139,8 @@ export type InkSettings = {
   opacity?: number;
   texture?: number;
   taper?: number;
+  // Absent/classic retains the released renderer; hand-v1 is deterministic.
+  branchStyle?: "classic" | "hand-v1";
   curve?: number;
   shape?: StampKind;
   text?: string;

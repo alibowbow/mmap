@@ -73,7 +73,7 @@
       "transformedExport": {
         "actual": 19,
         "patternCount": 7,
-        "elementCount": 99,
+        "elementCount": 103,
         "width": 1047,
         "height": 637,
         "inside": true,
@@ -140,9 +140,9 @@
   "performance": {
     "samples": 100000,
     "texturedStrokes": 500,
-    "importAndSaveMs": 5707,
+    "importAndSaveMs": 6066,
     "domElements": 3500,
-    "panMs": 50,
+    "panMs": 76,
     "jsonBytes": 4595142
   },
   "physicalDevices": "Not tested. CDP pen/touch and Fold viewport emulation only.",

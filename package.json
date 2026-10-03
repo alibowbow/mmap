@@ -15,7 +15,8 @@
     "test:e2e": "node --import tsx tests/e2e/layout.cjs",
     "test:ink": "node --import tsx --test tests/ink/*.test.ts",
     "test:ink-e2e": "node --import tsx tests/e2e/ink.cjs",
-    "test:studio-e2e": "node --import tsx tests/e2e/studio.cjs"
+    "test:studio-e2e": "node --import tsx tests/e2e/studio.cjs",
+    "test:branch-e2e": "node --import tsx tests/e2e/branch.cjs"
   },
   "dependencies": {
     "@fontsource/gaegu": "5.3.0",

@@ -33,6 +33,7 @@ import {
   isStroke,
   identityTransform,
 } from "@/lib/ink";
+import { branchStudyDocument } from "@/lib/branchExamples";
 import { studioDocument } from "@/lib/studioExamples";
 import { exportDocumentJson } from "@/lib/export";
 import type { InkTool } from "@/types/mindmap";
@@ -389,7 +390,13 @@ export function InkToolbar() {
                   aria-pressed={brush === b && tool === "pen"}
                   onClick={() => {
                     setTool("pen");
-                    setSettings({ brush: b, width: BRUSH_WIDTH[b] });
+                    setSettings({
+                      brush: b,
+                      width: BRUSH_WIDTH[b],
+                      ...(b === "branch"
+                        ? { branchStyle: "hand-v1", taper: 0.94, texture: 0.45 }
+                        : {}),
+                    });
                   }}
                   className={cn(
                     "min-h-20 rounded-xl border border-line p-2 text-xs",
@@ -404,6 +411,7 @@ export function InkToolbar() {
                         color: settings.color,
                         width: b === "branch" ? 15 : BRUSH_WIDTH[b] * 0.65,
                         seed: 7,
+                        branchStyle: b === "branch" ? "hand-v1" : undefined,
                         points: Array.from({ length: 30 }, (_, i) => ({
                           x: 10 + i * 2.6,
                           y: 18 + Math.sin(i / 7) * 6,
@@ -416,6 +424,38 @@ export function InkToolbar() {
                 </button>
               ))}
             </div>
+            {(brush === "brush" || brush === "branch") && (
+              <div
+                className="mt-3 grid grid-cols-2 gap-2"
+                role="group"
+                aria-label="가지 필치"
+              >
+                {(["classic", "hand-v1"] as const).map((style) => (
+                  <button
+                    key={style}
+                    className={cn(
+                      btn.replace("hover:bg-surface-sunken", ""),
+                      "border border-line",
+                      (settings.branchStyle ?? "classic") === style &&
+                        "bg-brand text-brand-contrast hover:bg-brand",
+                      (settings.branchStyle ?? "classic") !== style &&
+                        "hover:bg-surface-sunken",
+                    )}
+                    aria-pressed={(settings.branchStyle ?? "classic") === style}
+                    onClick={() =>
+                      setSettings({
+                        branchStyle: style,
+                        ...(style === "hand-v1"
+                          ? { taper: 0.94, texture: 0.45 }
+                          : {}),
+                      })
+                    }
+                  >
+                    {style === "classic" ? "기본 붓터치" : "손그림 가지"}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="mt-4 space-y-1">
               {range("펜 굵기", settings.width, 1, 64, 1, (width) =>
                 setSettings({ width }),
@@ -441,6 +481,16 @@ export function InkToolbar() {
                 range("가늘어짐", settings.taper ?? 0.8, 0, 1, 0.05, (taper) =>
                   setSettings({ taper }),
                 )}
+              {(brush === "brush" || brush === "branch") &&
+                settings.branchStyle === "hand-v1" &&
+                range(
+                  "가지 손맛",
+                  settings.texture ?? 0.45,
+                  0,
+                  1,
+                  0.05,
+                  (texture) => setSettings({ texture }),
+                )}
               {brush === "branch" &&
                 range(
                   "가지 곡선",
@@ -453,7 +503,8 @@ export function InkToolbar() {
             </div>
             <p className="text-xs text-ink-soft">
               필압이 있으면 반영합니다. 브러시·가지는 필압 없이도 자연스러운
-              굵기를 만듭니다.
+              굵기를 만듭니다. 손그림 가지는 굵은 시작에서 가는 끝으로, 브러시는
+              직접 그린 궤적 그대로 이어집니다.
             </p>
           </>
         )}
@@ -608,6 +659,17 @@ export function InkToolbar() {
                 {k === "map" ? "생각의 정원 열기" : "도구 자국 비교 열기"}
               </button>
             ))}
+            <button
+              className={cn(btn, "w-full border border-line")}
+              onClick={() => {
+                useMindMapStore
+                  .getState()
+                  .importJson(exportDocumentJson(branchStudyDocument()));
+                setOptions(false);
+              }}
+            >
+              새 문서로 가지 필치 비교 열기
+            </button>
             <p className="text-xs text-ink-soft">
               기존 문서는 그대로 보존하며 새 예제를 엽니다.
             </p>
@@ -626,6 +688,7 @@ export function InkToolbar() {
                       opacity: settings.opacity ?? 1,
                       texture: settings.texture ?? 0.7,
                       taper: settings.taper ?? 0.8,
+                      branchStyle: settings.branchStyle ?? "classic",
                       curve: settings.curve ?? 0.25,
                     }
                   : selected.kind === "label"

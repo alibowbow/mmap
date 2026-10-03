@@ -1,0 +1,25 @@
+{
+  "pr": 10,
+  "approvedHead": "98ab7764438360b9ada467be8fcb34fb12ddaf6d",
+  "mergeSha": "00f233ff990530f87336acfe5b49af53d2d8ab02",
+  "deploymentId": "dpl_8PhtXP9ausgzna1TaDCofDWHxkNn",
+  "target": "production",
+  "state": "READY",
+  "readyState": "READY",
+  "projectId": "prj_3M18Q4Ryg9cN1Hno0M7u8LFn4dMm",
+  "productionDomain": "https://mmap-psi.vercel.app/",
+  "aliasConfirmed": true,
+  "aliasError": null,
+  "publicBrowser": {
+    "newBlankTestBoard": true,
+    "existingDocumentsOpened": false,
+    "actualMouseStroke": true,
+    "toolboxSixToolsVisible": true,
+    "autosaveReloadRetainedStroke": true,
+    "jsonPreviewVersion": 4,
+    "inkVersion": 2,
+    "pngPreviewGenerated": true,
+    "downloadBytesChecked": false
+  },
+  "note": "Public browser smoke test, not a physical device test. Local production Chromium regressions are separate."
+}
