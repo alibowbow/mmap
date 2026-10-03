@@ -2,14 +2,7 @@ import type { Edge, Node } from "@xyflow/react";
 
 // ── Node taxonomy ──────────────────────────────────────────────────────────
 export type MindMapNodeType =
-  | "root"
-  | "plain"
-  | "idea"
-  | "task"
-  | "note"
-  | "question"
-  | "warning"
-  | "link";
+  "root" | "plain" | "idea" | "task" | "note" | "question" | "warning" | "link";
 
 // Which way a first-level branch extends from the root in bidirectional layout.
 export type BranchSide = "left" | "right";
@@ -77,15 +70,80 @@ export type MindMapRelation = {
 // Immutable world-space ink. Pointer samples are collected outside the store;
 // only completed gestures enter history and persistence.
 export type InkPoint = { x: number; y: number; pressure: number };
+export type AnalogBrush =
+  "pen" | "pencil" | "marker" | "highlighter" | "brush" | "branch";
+export type InkTransform = {
+  x: number;
+  y: number;
+  scale: number;
+  rotation: number;
+};
+export type StampKind =
+  | "circle"
+  | "box"
+  | "arrow"
+  | "star"
+  | "leaf"
+  | "bulb"
+  | "heart"
+  | "book"
+  | "sun"
+  | "cloud";
+export type InkObject = {
+  id: string;
+  kind: "stamp" | "label";
+  shape?: StampKind;
+  text?: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+  fill: boolean;
+  fontSize: number;
+  transform?: InkTransform;
+};
+export type PaperSpec = {
+  kind: "none" | "white" | "cream" | "kraft";
+  texture: number;
+  seed: number;
+};
 export type InkStroke = {
   id: string;
   color: string;
   width: number;
   points: InkPoint[];
+  brush?: AnalogBrush;
+  seed?: number;
+  opacity?: number;
+  texture?: number;
+  taper?: number;
+  curve?: number;
+  transform?: InkTransform;
 };
-export type InkData = { version: 1; strokes: InkStroke[] };
-export type InkTool = "node" | "pen" | "eraser" | "pan";
-export type InkSettings = { color: string; width: number };
+export type InkData = {
+  version: 1 | 2;
+  strokes: InkStroke[];
+  objects?: InkObject[];
+  order?: string[];
+  paper?: PaperSpec;
+};
+export type InkTool =
+  "node" | "pen" | "eraser" | "pan" | "select" | "stamp" | "label";
+export type InkSettings = {
+  color: string;
+  width: number;
+  brush?: AnalogBrush;
+  opacity?: number;
+  texture?: number;
+  taper?: number;
+  curve?: number;
+  shape?: StampKind;
+  text?: string;
+  fontSize?: number;
+  fill?: boolean;
+  recentColors?: string[];
+};
 
 // A saved point-in-time copy of a document's content (local version history).
 export type MindMapSnapshot = {

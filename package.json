@@ -14,7 +14,8 @@
     "bench:layout": "node --import tsx scripts/bench-layout.ts",
     "test:e2e": "node --import tsx tests/e2e/layout.cjs",
     "test:ink": "node --import tsx --test tests/ink/*.test.ts",
-    "test:ink-e2e": "node --import tsx tests/e2e/ink.cjs"
+    "test:ink-e2e": "node --import tsx tests/e2e/ink.cjs",
+    "test:studio-e2e": "node --import tsx tests/e2e/studio.cjs"
   },
   "dependencies": {
     "@fontsource/gaegu": "5.3.0",

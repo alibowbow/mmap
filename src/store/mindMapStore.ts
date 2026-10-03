@@ -5,8 +5,10 @@ import {
   EMPTY_INK,
   inkBounds,
   validateInk,
-  inkWidth,
-  inkColor,
+  validInkSettings,
+  validPaper,
+  inkItems,
+  DEFAULT_PAPER,
   MAX_INK_POINTS,
   MAX_INK_STROKES,
 } from "@/lib/ink";
@@ -81,6 +83,8 @@ import type {
   InkStroke,
   InkSettings,
   InkTool,
+  InkObject,
+  PaperSpec,
   BranchSide,
   Edge,
   LayoutMode,
@@ -157,6 +161,15 @@ export type MindMapState = {
   inkTool: InkTool;
   inkSettings: InkSettings;
   inkGestureActive: boolean;
+  selectedInkId: string | null;
+  selectInk: (id: string | null) => void;
+  addInkObject: (item: InkObject) => void;
+  updateInkItem: (
+    id: string,
+    patch: Partial<InkObject> | Partial<InkStroke>,
+  ) => void;
+  reorderInk: (id: string, front: boolean) => void;
+  setInkPaper: (paper: PaperSpec) => void;
   setInkTool: (tool: InkTool) => void;
   setInkSettings: (patch: Partial<InkSettings>) => void;
   createInkBoard: () => void;
@@ -488,6 +501,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       inkTool:
         doc.boardMode === "blank" ? ("pen" as InkTool) : ("node" as InkTool),
       inkGestureActive: false,
+      selectedInkId: null,
     };
   }
   function commitInk(ink: InkData) {
@@ -617,6 +631,65 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     inkTool: "node",
     inkSettings: DEFAULT_INK_SETTINGS,
     inkGestureActive: false,
+    selectedInkId: null,
+    selectInk: (id) => set({ selectedInkId: id }),
+    addInkObject: (item) => {
+      const ink = get().ink;
+      if ((ink.objects?.length ?? 0) >= 1000) {
+        get().addToast(
+          "그림·라벨 한도에 도달했습니다. JSON으로 보관하세요.",
+          "error",
+        );
+        return;
+      }
+      const next: InkData = {
+        ...ink,
+        version: 2,
+        objects: [...(ink.objects ?? []), item],
+        order: [...inkItems(ink).map((s) => s.id), item.id],
+      };
+      if (!validateInk(next).ok) return;
+      commitInk(next);
+      set({ freshDocumentId: null, selectedInkId: item.id });
+    },
+    updateInkItem: (id, patch) => {
+      const ink = get().ink,
+        item = inkItems(ink).find((s) => s.id === id);
+      if (
+        !item ||
+        JSON.stringify({ ...item, ...patch }) === JSON.stringify(item)
+      )
+        return;
+      const next: InkData = {
+        ...ink,
+        version: 2,
+        strokes: ink.strokes.map((s) =>
+          s.id === id ? ({ ...s, ...patch } as InkStroke) : s,
+        ),
+        objects: ink.objects?.map((s) =>
+          s.id === id ? ({ ...s, ...patch } as InkObject) : s,
+        ),
+      };
+      if (validateInk(next).ok) commitInk(next);
+    },
+    reorderInk: (id, front) => {
+      const ink = get().ink,
+        order = inkItems(ink).map((s) => s.id);
+      if (!order.includes(id)) return;
+      const rest = order.filter((i) => i !== id),
+        next = front ? [...rest, id] : [id, ...rest];
+      if (next.join() !== order.join())
+        commitInk({ ...ink, version: 2, order: next });
+    },
+    setInkPaper: (paper) => {
+      if (
+        !validPaper(paper) ||
+        JSON.stringify(get().ink.paper) === JSON.stringify(paper)
+      )
+        return;
+      commitInk({ ...get().ink, version: 2, paper });
+      set({ freshDocumentId: null });
+    },
     setInkTool: (inkTool) => {
       if (get().inkGestureActive) return;
       set({
@@ -630,7 +703,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     },
     setInkSettings: (patch) => {
       const inkSettings = { ...get().inkSettings, ...patch };
-      if (!inkColor(inkSettings.color) || !inkWidth(inkSettings.width)) return;
+      if (!validInkSettings(inkSettings)) return;
       set({ inkSettings });
       syncActiveDocument(get().nodes, get().edges);
     },
@@ -638,7 +711,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       get().discardFreshDocument();
       const doc = makeDocument("새 손그림 보드", [], []);
       doc.boardMode = "blank";
-      doc.ink = EMPTY_INK;
+      doc.ink = { version: 2, strokes: [], paper: { ...DEFAULT_PAPER } };
       doc.inkSettings = { ...DEFAULT_INK_SETTINGS };
       doc.appearance = appearanceFrom(get());
       set((s) => ({
@@ -667,8 +740,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     },
     addInkStroke: (stroke) => {
       const state = get();
-      const checked = validateInk({ version: 1, strokes: [stroke] });
-      if (!checked.ok || state.ink.strokes.some((s) => s.id === stroke.id))
+      const checked = validateInk({ version: 2, strokes: [stroke] });
+      if (!checked.ok || inkItems(state.ink).some((s) => s.id === stroke.id))
         return;
       if (
         state.ink.strokes.length >= MAX_INK_STROKES ||
@@ -683,8 +756,10 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         return;
       }
       commitInk({
-        version: 1,
+        ...state.ink,
+        version: 2,
         strokes: [...state.ink.strokes, checked.ink.strokes[0]],
+        order: [...inkItems(state.ink).map((s) => s.id), stroke.id],
       });
       set({ freshDocumentId: null });
     },
@@ -692,12 +767,23 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const removed = new Set(ids),
         ink = get().ink;
       const strokes = ink.strokes.filter((s) => !removed.has(s.id));
-      if (strokes.length !== ink.strokes.length)
-        commitInk({ version: 1, strokes });
+      const objects = ink.objects?.filter((s) => !removed.has(s.id));
+      if (
+        strokes.length !== ink.strokes.length ||
+        objects?.length !== ink.objects?.length
+      )
+        commitInk({
+          ...ink,
+          strokes,
+          objects,
+          order: inkItems(ink)
+            .map((s) => s.id)
+            .filter((id) => !removed.has(id)),
+        });
     },
     clearInk: () => {
-      if (!get().ink.strokes.length) return;
-      commitInk(EMPTY_INK);
+      if (!inkItems(get().ink).length) return;
+      commitInk({ ...get().ink, strokes: [], objects: [], order: [] });
       get().addToast(
         "잉크를 지웠습니다. 실행 취소로 복원할 수 있습니다.",
         "info",
@@ -1992,7 +2078,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         const inkModeBar = canvas
           ?.querySelector<HTMLElement>("[data-ink-modebar]")
           ?.getBoundingClientRect();
-        if (inkModeBar)
+        if (inkModeBar && !inkToolbar)
           top = Math.max(top, inkModeBar.bottom - canvasRect.top + 16);
         const width = Math.max(1, canvasRect.width - left - right);
         const height = Math.max(1, canvasRect.height - top - bottom);

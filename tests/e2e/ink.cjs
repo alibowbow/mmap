@@ -235,28 +235,36 @@ async function main() {
       "Mouse drawing stores world coordinates and constant fallback pressure",
     );
     await page
-      .getByRole("button", { name: "펜 색과 굵기", exact: true })
+      .getByRole("button", { name: "아날로그 도구함", exact: true })
       .click();
     const options = page.getByRole("dialog", {
-      name: "펜 색과 굵기",
+      name: "아날로그 도구함",
       exact: true,
     });
+    await options.getByRole("tab", { name: "색", exact: true }).click();
     await options
       .getByRole("button", { name: "펜 색 #dc2626", exact: true })
       .click();
+    await options.getByRole("tab", { name: "도구", exact: true }).click();
     await options
       .getByRole("slider", { name: "펜 굵기", exact: true })
       .fill("8");
     await options.getByRole("button", { name: "완료", exact: true }).click();
     await options.waitFor({ state: "hidden" });
-    assert.deepEqual((await stored(page)).inkSettings, {
-      color: "#dc2626",
-      width: 8,
-    });
+    assert.deepEqual(
+      ((s) => ({ color: s.color, width: s.width }))(
+        (await stored(page)).inkSettings,
+      ),
+      {
+        color: "#dc2626",
+        width: 8,
+      },
+    );
     // Keep the image color assertions blue while verifying settings are saved.
     await page
-      .getByRole("button", { name: "펜 색과 굵기", exact: true })
+      .getByRole("button", { name: "아날로그 도구함", exact: true })
       .click();
+    await options.getByRole("tab", { name: "색", exact: true }).click();
     await options
       .getByRole("button", { name: "펜 색 #2563eb", exact: true })
       .click();
@@ -409,6 +417,9 @@ async function main() {
     assert.deepEqual((await stored(page)).ink, erased.ink);
     await page.getByRole("button", { name: "실행 취소", exact: true }).click();
     await page
+      .getByRole("button", { name: "아날로그 도구함", exact: true })
+      .click();
+    await page
       .getByRole("button", { name: "잉크 전체 지우기", exact: true })
       .click();
     await page
@@ -416,6 +427,9 @@ async function main() {
       .getByRole("button", { name: "취소", exact: true })
       .click();
     assert.equal((await stored(page)).ink.strokes.length, 4);
+    await page
+      .getByRole("button", { name: "아날로그 도구함", exact: true })
+      .click();
     await page
       .getByRole("button", { name: "잉크 전체 지우기", exact: true })
       .click();
@@ -432,17 +446,27 @@ async function main() {
     await page.reload();
     await ready(page);
     assert.deepEqual((await stored(page)).ink, doc.ink);
-    assert.deepEqual((await stored(page)).inkSettings, {
-      color: "#2563eb",
-      width: 8,
-    });
+    assert.deepEqual(
+      ((s) => ({ color: s.color, width: s.width }))(
+        (await stored(page)).inkSettings,
+      ),
+      {
+        color: "#2563eb",
+        width: 8,
+      },
+    );
     const exported = await exportJson(page, "blank.json");
     assert.deepEqual(exported.document.ink, doc.ink);
-    assert.equal(exported.version, 3);
-    assert.deepEqual(exported.document.inkSettings, {
-      color: "#2563eb",
-      width: 8,
-    });
+    assert.equal(exported.version, 4);
+    assert.deepEqual(
+      ((s) => ({ color: s.color, width: s.width }))(
+        exported.document.inkSettings,
+      ),
+      {
+        color: "#2563eb",
+        width: 8,
+      },
+    );
     const fresh = await browser.newContext({
       viewport: { width: 1440, height: 1000 },
       acceptDownloads: true,
@@ -503,6 +527,9 @@ async function main() {
     const nodes = overlay.nodes;
     await page
       .getByRole("button", { name: "지우개 모드", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "아날로그 도구함", exact: true })
       .click();
     await page
       .getByRole("button", { name: "잉크 전체 지우기", exact: true })

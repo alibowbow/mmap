@@ -1,0 +1,150 @@
+{
+  "checks": [
+    {
+      "example": "swatches",
+      "pixels": {
+        "width": 2240,
+        "height": 2286,
+        "colorful": 232521,
+        "grain": 485120,
+        "dark": 176899,
+        "corner": [
+          252,
+          245,
+          232,
+          255
+        ]
+      },
+      "inkStrokes": 18,
+      "objects": 16
+    },
+    {
+      "svg": "swatches",
+      "actual": 34,
+      "patternCount": 7,
+      "elementCount": 142,
+      "width": 1120,
+      "height": 1143,
+      "inside": true,
+      "preview": false,
+      "paper": "#fcf5e8",
+      "hasFont": true,
+      "highlighter": true
+    },
+    "swatches: autosave/reload, real JSON file download → fresh browser import → byte-identical PNG",
+    {
+      "example": "map",
+      "pixels": {
+        "width": 2842,
+        "height": 1938,
+        "colorful": 342160,
+        "grain": 582220,
+        "dark": 126792,
+        "corner": [
+          252,
+          245,
+          232,
+          255
+        ]
+      },
+      "inkStrokes": 299,
+      "objects": 0
+    },
+    {
+      "svg": "map",
+      "actual": 299,
+      "patternCount": 28,
+      "elementCount": 1021,
+      "width": 1421,
+      "height": 969,
+      "inside": true,
+      "preview": false,
+      "paper": "#fcf5e8",
+      "hasFont": true,
+      "highlighter": true
+    },
+    "map: autosave/reload, real JSON file download → fresh browser import → byte-identical PNG",
+    "Six real mouse tools: distinct style, deterministic seed and constant-pressure fallback. Branch assistance is opt-in.",
+    "CDP simulated brush pressure varies geometry; no physical S Pen/palm rejection claim.",
+    "Real mouse freehand GROW lettering, colored pencil hatching and leaf outline, without nodes, stamps, text objects, recognition or layout.",
+    "Freehand stroke selection after zoom/pan: translation, scale, rotation and three atomic undos retain original samples/seed/style.",
+    "Optional stamps/labels, paper undo/redo, transformed selection after pan/zoom, scale/rotation/z-order/deletion undo.",
+    {
+      "transformedExport": {
+        "actual": 19,
+        "patternCount": 7,
+        "elementCount": 99,
+        "width": 1047,
+        "height": 637,
+        "inside": true,
+        "preview": false,
+        "paper": "#eadcc4",
+        "hasFont": true,
+        "highlighter": true
+      }
+    },
+    "Ink-only eraser and confirm-clear restore all tools, labels, seed, paper, transforms and z-order through undo.",
+    "Escape cancels unfinished freehand input without committing partial ink.",
+    {
+      "foldViewport": [
+        320,
+        720
+      ],
+      "dock": {
+        "x": 8,
+        "y": 578,
+        "width": 304,
+        "height": 130
+      }
+    },
+    {
+      "foldViewport": [
+        344,
+        882
+      ],
+      "dock": {
+        "x": 20,
+        "y": 740,
+        "width": 304,
+        "height": 130
+      }
+    },
+    {
+      "foldViewport": [
+        674,
+        842
+      ],
+      "dock": {
+        "x": 185,
+        "y": 700,
+        "width": 304,
+        "height": 130
+      }
+    },
+    {
+      "foldViewport": [
+        768,
+        900
+      ],
+      "dock": {
+        "x": 232,
+        "y": 758,
+        "width": 304,
+        "height": 130
+      }
+    },
+    "CDP touch freehand, two-finger pan/zoom discards pending stroke, touchCancel discards preview on Fold viewport.",
+    "100k mixed textured points: bounded SVG elements, pan responsiveness and autosave/reload."
+  ],
+  "errors": [],
+  "performance": {
+    "samples": 100000,
+    "texturedStrokes": 500,
+    "importAndSaveMs": 5707,
+    "domElements": 3500,
+    "panMs": 50,
+    "jsonBytes": 4595142
+  },
+  "physicalDevices": "Not tested. CDP pen/touch and Fold viewport emulation only.",
+  "browser": "140.0.7339.186"
+}

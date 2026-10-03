@@ -3,7 +3,7 @@ import type { MindMapDocument } from "@/types/mindmap";
 import { appearanceFrom } from "./appearance";
 
 export const DOCUMENT_FORMAT = "mindforge-document";
-export const DOCUMENT_EXPORT_VERSION = 3;
+export const DOCUMENT_EXPORT_VERSION = 4;
 
 // ── JSON ─────────────────────────────────────────────────────────────────────
 export function exportDocumentJson(doc: MindMapDocument): string {
@@ -14,7 +14,7 @@ export function exportDocumentJson(doc: MindMapDocument): string {
       document: { ...doc, appearance: appearanceFrom(doc.appearance) },
     },
     null,
-    doc.ink?.strokes.length ? undefined : 2
+    doc.ink?.strokes.length || doc.ink?.objects?.length ? undefined : 2,
   );
 }
 
@@ -39,9 +39,7 @@ export function exportMarkdown(doc: MindMapDocument): string {
     }
     if (node.data.checklist?.length) {
       for (const item of node.data.checklist) {
-        lines.push(
-          `${indent}  - [${item.checked ? "x" : " "}] ${item.text}`
-        );
+        lines.push(`${indent}  - [${item.checked ? "x" : " "}] ${item.text}`);
       }
     }
   });
@@ -62,7 +60,7 @@ export function exportOutlineText(doc: MindMapDocument): string {
 export function downloadFile(
   filename: string,
   content: string,
-  mime = "text/plain"
+  mime = "text/plain",
 ): void {
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);

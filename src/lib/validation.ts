@@ -1,4 +1,4 @@
-import { validateInk, inkColor, inkWidth } from "./ink";
+import { validateInk, validInkSettings } from "./ink";
 import { adaptInput } from "./layout-engine/adapter";
 import { buildGraph } from "./layout-engine/graph";
 import { drain } from "./layout-engine/types";
@@ -89,12 +89,7 @@ export function validateImportedDocument(raw: unknown): ImportResult {
     );
   const ink = validateInk(c.ink);
   if (!ink.ok) return fail(ink.error);
-  if (
-    c.inkSettings !== undefined &&
-    (!object(c.inkSettings) ||
-      !inkColor(c.inkSettings.color) ||
-      !inkWidth(c.inkSettings.width))
-  )
+  if (c.inkSettings !== undefined && !validInkSettings(c.inkSettings))
     return fail("펜 설정이 올바르지 않습니다.");
   if (c.nodes.length > 20_000)
     return fail("한 문서는 20,000개 이하의 노드를 가져올 수 있습니다.");
@@ -357,14 +352,14 @@ export function parseImportJson(text: string): ImportResult {
     // ink envelope needs room for up to 250,000 world-space samples.
     const inkEnvelope =
       object(raw) &&
-      raw.version === 3 &&
+      (raw.version === 3 || raw.version === 4) &&
       raw.format === DOCUMENT_FORMAT &&
       object(raw.document) &&
       object(raw.document.ink) &&
       Array.isArray(raw.document.ink.strokes);
     if (bytes > LEGACY_IMPORT_BYTES && !inkEnvelope)
       return fail(
-        "10MB 이하의 JSON 파일을 사용하세요. 손그림 v3 파일은 32MB까지 지원합니다.",
+        "10MB 이하의 JSON 파일을 사용하세요. 손그림 v3/v4 파일은 32MB까지 지원합니다.",
       );
     return validateImportedDocument(raw);
   } catch {

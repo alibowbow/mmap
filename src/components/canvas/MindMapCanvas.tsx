@@ -22,6 +22,7 @@ import {
   type FocusEvent,
 } from "react";
 
+import { PaperLayer } from "./PaperLayer";
 import { InkLayer } from "@/components/canvas/InkLayer";
 import { InkToolbar } from "@/components/toolbar/InkToolbar";
 import { CanvasEmptyState } from "@/components/canvas/CanvasEmptyState";
@@ -57,6 +58,7 @@ function CanvasInner() {
   useLayoutMeasurements();
   const isMobile = useIsMobile();
   const inkTool = useMindMapStore(s => s.inkTool);
+  const paper = useMindMapStore(s => s.ink.paper);
   const boardMode = useMindMapStore(s => s.boardMode);
   const touchPrimary = useIsTouchPrimary();
   const nodes = useMindMapStore((s) => s.nodes);
@@ -717,8 +719,9 @@ function CanvasInner() {
         }}
         className="touch-none"
       >
+        <PaperLayer />
         <InkLayer />
-        {canvasBg !== "none" && (
+        {canvasBg !== "none" && (!paper || paper.kind === "none") && (
           <Background
             variant={
               canvasBg === "lines"

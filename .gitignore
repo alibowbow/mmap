@@ -35,3 +35,5 @@ next-env.d.ts
 
 /verification/ink/
 /verification/production-*.json
+
+/verification/studio/

@@ -189,7 +189,7 @@ export function ExportDialog() {
           </button>
         ))}
       </div>
-      {(doc?.ink?.strokes.length || doc?.boardMode === "blank") && (
+      {(doc?.ink?.strokes.length || doc?.ink?.objects?.length || doc?.boardMode === "blank") && (
         <p className="mb-3 text-xs leading-relaxed text-ink-soft">
           손그림은 JSON·PNG·SVG에 포함됩니다. Markdown·아웃라인은 노드 텍스트만
           저장합니다.

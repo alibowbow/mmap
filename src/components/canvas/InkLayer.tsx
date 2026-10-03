@@ -2,7 +2,6 @@
 
 import { ViewportPortal, useReactFlow } from "@xyflow/react";
 import {
-  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -13,27 +12,30 @@ import {
 import {
   inkBounds,
   appendInkPoint,
-  strokeHit,
-  strokePath,
+  itemHit,
+  inkItems,
+  itemBounds,
+  identityTransform,
+  hashSeed,
+  isStroke,
   MAX_STROKE_POINTS,
 } from "@/lib/ink";
 import { createId } from "@/lib/id";
 import { useMindMapStore } from "@/store/mindMapStore";
-import type { InkPoint, InkStroke, MindMapViewport } from "@/types/mindmap";
+import { AnalogMark } from "./AnalogMark";
+import type { InkItem } from "@/lib/ink";
+import type {
+  InkObject,
+  InkPoint,
+  InkStroke,
+  MindMapViewport,
+} from "@/types/mindmap";
 
-const Stroke = memo(function Stroke({ stroke }: { stroke: InkStroke }) {
-  return (
-    <path
-      data-ink-stroke={stroke.id}
-      d={strokePath(stroke)}
-      fill={stroke.color}
-      fillRule="nonzero"
-    />
-  );
-});
 type Contact = { x: number; y: number; type: string };
 type Gesture = {
-  kind: "pen" | "eraser";
+  kind: "pen" | "eraser" | "select" | "stamp" | "label";
+  item?: InkItem;
+  start: InkPoint;
   pointer: number;
   doc: string | null;
   stroke: InkStroke;
@@ -54,7 +56,10 @@ export function InkLayer() {
   const presentation = useMindMapStore((s) => s.presentationMode);
   const flow = useReactFlow();
   const bounds = useMemo(() => inkBounds(ink), [ink]);
-  const preview = useRef<SVGPathElement>(null);
+  const [live, setLive] = useState<InkItem | null>(null);
+  const selectedId = useMindMapStore((s) => s.selectedInkId);
+  const items = useMemo(() => inkItems(ink), [ink]);
+  const selected = items.find((s) => s.id === selectedId);
   const eraser = useRef<SVGCircleElement>(null);
   const surface = useRef<HTMLDivElement>(null);
   const contacts = useRef(new Map<number, Contact>());
@@ -70,7 +75,7 @@ export function InkLayer() {
     gesture.current = null;
     camera.current = null;
     contacts.current.clear();
-    if (preview.current) preview.current.setAttribute("d", "");
+    setLive(null);
     if (eraser.current) eraser.current.style.display = "none";
     setHidden(new Set());
     useMindMapStore.setState({ inkGestureActive: false });
@@ -80,12 +85,20 @@ export function InkLayer() {
     // A cancelled gesture never adds partial ink or deletes committed strokes.
     const cancel = () => reset();
     window.addEventListener("blur", cancel);
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && contacts.current.size) {
+        event.preventDefault();
+        reset();
+      }
+    };
+    window.addEventListener("keydown", escape);
     const visibility = () => {
       if (document.visibilityState === "hidden") reset();
     };
     document.addEventListener("visibilitychange", visibility);
     return () => {
       window.removeEventListener("blur", cancel);
+      window.removeEventListener("keydown", escape);
       document.removeEventListener("visibilitychange", visibility);
       reset();
     };
@@ -128,11 +141,20 @@ export function InkLayer() {
     frame.current = 0;
     const g = gesture.current;
     if (!g) return;
-    if (g.kind === "pen" && preview.current) {
-      // The in-flight path is drawn once per animation frame, outside Zustand.
-      preview.current.setAttribute("d", strokePath({ ...g.stroke }));
-      preview.current.setAttribute("fill", g.stroke.color);
+    if (g.kind === "pen") setLive({ ...g.stroke });
+    if (g.kind === "select" && g.item) {
+      const t = g.item.transform ?? identityTransform();
+      setLive({
+        ...g.item,
+        transform: {
+          ...t,
+          x: t.x + g.last.x - g.start.x,
+          y: t.y + g.last.y - g.start.y,
+        },
+      });
+      setHidden(new Set([g.item.id]));
     }
+    if ((g.kind === "stamp" || g.kind === "label") && g.item) setLive(g.item);
     if (g.kind === "eraser")
       setHidden((prev) =>
         prev.size === g.removed.size ? prev : new Set(g.removed),
@@ -142,10 +164,10 @@ export function InkLayer() {
     if (!frame.current) frame.current = requestAnimationFrame(renderPreview);
   };
   const eraseSegment = (g: Gesture, point: InkPoint) => {
-    for (const stroke of useMindMapStore.getState().ink.strokes) {
+    for (const stroke of inkItems(useMindMapStore.getState().ink)) {
       if (
         !g.removed.has(stroke.id) &&
-        strokeHit(stroke, g.last, point, 12 / g.zoom)
+        itemHit(stroke, g.last, point, 12 / g.zoom)
       )
         g.removed.add(stroke.id);
     }
@@ -176,7 +198,7 @@ export function InkLayer() {
     if (contacts.current.size > 1) {
       // A second finger becomes navigation, dropping the uncommitted preview.
       gesture.current = null;
-      if (preview.current) preview.current.setAttribute("d", "");
+      setLive(null);
       setHidden(new Set());
       useMindMapStore.setState({ inkGestureActive: false });
       startCamera();
@@ -188,12 +210,71 @@ export function InkLayer() {
     }
     const state = useMindMapStore.getState();
     const point = sample(e);
-    const kind = tool === "eraser" || e.button === 5 ? "eraser" : "pen";
+    const kind =
+      e.button === 5
+        ? "eraser"
+        : tool === "eraser"
+          ? "eraser"
+          : tool === "select"
+            ? "select"
+            : tool === "stamp"
+              ? "stamp"
+              : tool === "label"
+                ? "label"
+                : "pen";
+    let item: InkItem | undefined;
+    if (kind === "select") {
+      item = [...inkItems(state.ink)]
+        .reverse()
+        .find((s) => itemHit(s, point, point, 8 / flow.getZoom()));
+      state.selectInk(item?.id ?? null);
+      if (!item) return;
+    }
+    if (kind === "stamp" || kind === "label") {
+      const fontSize = state.inkSettings.fontSize ?? 28,
+        text = state.inkSettings.text?.trim() || "핵심어";
+      item = {
+        id: createId("art"),
+        kind,
+        x: point.x,
+        y: point.y,
+        width:
+          kind === "stamp"
+            ? 80
+            : Math.max(
+                20,
+                [...text].reduce(
+                  (n, c) => n + (/[^\x00-\x7F]/.test(c) ? 1 : 0.6),
+                  0,
+                ) * fontSize,
+              ),
+        height: kind === "stamp" ? 80 : fontSize * 1.5,
+        fontSize,
+        text,
+        shape: state.inkSettings.shape ?? "leaf",
+        color: state.inkSettings.color,
+        fill: state.inkSettings.fill ?? false,
+      };
+    }
+    const id = createId("ink");
     const g: Gesture = {
       kind,
+      item,
+      start: point,
       pointer: e.pointerId,
       doc: state.activeDocumentId,
-      stroke: { id: createId("ink"), ...state.inkSettings, points: [point] },
+      stroke: {
+        id,
+        color: state.inkSettings.color,
+        width: state.inkSettings.width,
+        brush: state.inkSettings.brush ?? "pen",
+        seed: hashSeed(id),
+        opacity: state.inkSettings.opacity ?? 1,
+        texture: state.inkSettings.texture ?? 0.7,
+        taper: state.inkSettings.taper ?? 0.8,
+        curve: state.inkSettings.curve ?? 0.25,
+        points: [point],
+      },
       removed: new Set(),
       last: point,
       zoom: flow.getZoom(),
@@ -241,8 +322,25 @@ export function InkLayer() {
     const events = e.nativeEvent.getCoalescedEvents?.() ?? [];
     for (const ev of events.length ? events : [e.nativeEvent]) {
       const point = sample(ev, g.last);
-      if (g.kind === "pen") appendInkPoint(g.stroke.points, point, g.zoom);
-      else eraseSegment(g, point);
+      if (g.kind === "pen") {
+        if (g.stroke.brush === "branch") g.stroke.points = [g.start, point];
+        else appendInkPoint(g.stroke.points, point, g.zoom);
+      } else if (g.kind === "eraser") eraseSegment(g, point);
+      else if (g.kind === "select") g.last = point;
+      else if (g.kind === "stamp" && g.item) {
+        if (Math.hypot(point.x - g.start.x, point.y - g.start.y) * g.zoom > 6)
+          g.item = {
+            ...(g.item as InkObject),
+            width: Math.min(
+              4000,
+              Math.max(20, Math.abs(point.x - g.start.x) * 2),
+            ),
+            height: Math.min(
+              4000,
+              Math.max(20, Math.abs(point.y - g.start.y) * 2),
+            ),
+          };
+      }
     }
     schedule();
   };
@@ -256,20 +354,35 @@ export function InkLayer() {
     ) {
       const point = sample(e, g.stroke.points.at(-1));
       if (g.kind === "pen") {
-        appendInkPoint(g.stroke.points, point, g.zoom, true);
+        if (g.stroke.brush === "branch") g.stroke.points = [g.start, point];
+        else appendInkPoint(g.stroke.points, point, g.zoom, true);
         useMindMapStore.getState().addInkStroke(g.stroke);
         if (g.stroke.points.length === MAX_STROKE_POINTS)
           useMindMapStore
             .getState()
             .addToast("긴 획을 마쳤습니다. 다음 획으로 이어 그려주세요.");
-      } else {
+      } else if (g.kind === "eraser") {
         eraseSegment(g, point);
         useMindMapStore.getState().eraseInkStrokes([...g.removed]);
+      } else if (g.kind === "select" && g.item) {
+        const t = g.item.transform ?? identityTransform();
+        if (Math.hypot(point.x - g.start.x, point.y - g.start.y) * g.zoom > 1)
+          useMindMapStore
+            .getState()
+            .updateInkItem(g.item.id, {
+              transform: {
+                ...t,
+                x: t.x + point.x - g.start.x,
+                y: t.y + point.y - g.start.y,
+              },
+            });
+      } else if (g.item && !isStroke(g.item)) {
+        useMindMapStore.getState().addInkObject(g.item);
       }
     }
     contacts.current.delete(e.pointerId);
     gesture.current = null;
-    if (preview.current) preview.current.setAttribute("d", "");
+    setLive(null);
     if (eraser.current) eraser.current.style.display = "none";
     setHidden(new Set());
     useMindMapStore.setState({ inkGestureActive: false });
@@ -328,12 +441,12 @@ export function InkLayer() {
               zIndex: 20,
             }}
           >
-            {ink.strokes.map((stroke) => (
+            {items.map((stroke) => (
               <g
                 key={stroke.id}
                 style={{ opacity: hidden.has(stroke.id) ? 0 : 1 }}
               >
-                <Stroke stroke={stroke} />
+                <AnalogMark item={stroke} />
               </g>
             ))}
           </svg>
@@ -351,7 +464,7 @@ export function InkLayer() {
             zIndex: 21,
           }}
         >
-          <path ref={preview} fillRule="nonzero" />
+          {live && <AnalogMark item={live} />}
           <circle
             ref={eraser}
             fill="none"
@@ -360,6 +473,37 @@ export function InkLayer() {
             style={{ display: "none" }}
           />
         </svg>
+        {tool === "select" &&
+          selected &&
+          (() => {
+            const b = itemBounds(live?.id === selected.id ? live : selected);
+            return (
+              <svg
+                data-studio-selection
+                width="1"
+                height="1"
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  top: 0,
+                  overflow: "visible",
+                  pointerEvents: "none",
+                  zIndex: 22,
+                }}
+              >
+                <rect
+                  x={b.x}
+                  y={b.y}
+                  width={b.width}
+                  height={b.height}
+                  fill="none"
+                  stroke="#ed5269"
+                  strokeWidth={1.5 / flow.getZoom()}
+                  strokeDasharray={`${5 / flow.getZoom()} ${3 / flow.getZoom()}`}
+                />
+              </svg>
+            );
+          })()}
       </ViewportPortal>
       {active && (
         <div

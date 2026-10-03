@@ -126,7 +126,7 @@ test("document switching, duplication and deletion preserve each ink and setting
   assert.equal(store.getState().activeDocumentId, b);
   assert.equal(store.getState().ink.strokes[0].id, "b");
 });
-test("v3 blank and node-overlay JSON round trip preserves world coordinates, pressure, settings, snapshots", () => {
+test("v4 blank and node-overlay JSON round trip preserves world coordinates, pressure, settings, snapshots", () => {
   for (const blank of [false, true]) {
     reset();
     if (blank) store.getState().createInkBoard();
@@ -137,7 +137,7 @@ test("v3 blank and node-overlay JSON round trip preserves world coordinates, pre
     const raw = store.getState().exportJson(),
       before = data(),
       parsed = parseImportJson(raw);
-    assert.equal(JSON.parse(raw).version, 3);
+    assert.equal(JSON.parse(raw).version, 4);
     assert.ok(parsed.ok);
     assert.deepEqual(parsed.document.ink, before.ink);
     const old = store.getState().activeDocumentId;
@@ -160,7 +160,7 @@ test("v1 / v2 imports reset ink safely; malformed ink and future versions preser
   store.getState().addInkStroke(stroke());
   const before = JSON.stringify(data());
   for (const bad of [
-    { version: 2, strokes: [] },
+    { version: 99, strokes: [] },
     { version: 1, strokes: [{ ...stroke(), color: "url(javascript:x)" }] },
     { version: 1, strokes: [{ ...stroke(), width: 0 }] },
     {
@@ -223,7 +223,7 @@ test("autosave storage schema migration retains blank boards and legacy maps", (
   try {
     const loaded = loadWorkspaceFromStorage();
     assert.ok(loaded.ok);
-    assert.equal(loaded.workspace.version, 2);
+    assert.equal(loaded.workspace.version, 3);
     assert.deepEqual(loaded.workspace.documents[1].ink, blank.ink);
     assert.equal(loaded.workspace.documents[0].nodes.length, 22);
   } finally {
@@ -299,7 +299,7 @@ test("100,000 samples remain portable; path/bounds cache and shared history avoi
   assert.equal(strokePath(strokes[0]), strokePath(strokes[0]));
 });
 
-test("full 250,000-sample v3 ink JSON over 10MB remains importable within the 32MB bound", () => {
+test("full 250,000-sample v4 ink JSON over 10MB remains importable within the 32MB bound", () => {
   const strokes = Array.from({ length: 25 }, (_, j) => ({
     id: `max${j}`,
     color: "#2563eb",

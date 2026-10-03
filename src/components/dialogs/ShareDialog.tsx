@@ -34,7 +34,7 @@ export function ShareDialog() {
   const open = useMindMapStore((s) => s.dialog === "share");
   const setDialog = useMindMapStore((s) => s.setDialog);
   const doc = useMindMapStore(selectActiveDocument);
-  const hasInk = !!doc?.ink?.strokes.length || doc?.boardMode === "blank";
+  const hasInk = !!doc?.ink?.strokes.length || doc?.ink?.objects?.length || doc?.boardMode === "blank";
   const addToast = useMindMapStore((s) => s.addToast);
   const [copied, setCopied] = useState(false);
 
