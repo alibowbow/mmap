@@ -8,7 +8,11 @@ import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
 import { cn } from "@/lib/cn";
 import { parseOutlineToTree } from "@/lib/outlineImport";
-import { parseImportJson, summarizeDocument } from "@/lib/validation";
+import {
+  MAX_IMPORT_BYTES,
+  parseImportJson,
+  summarizeDocument,
+} from "@/lib/validation";
 import { useMindMapStore } from "@/store/mindMapStore";
 
 const OUTLINE_PLACEHOLDER = `# 중심 주제
@@ -58,8 +62,13 @@ export function ImportJsonDialog({
 
   const handleFile = (file: File) => {
     setFileError("");
-    if (file.size > 10 * 1024 * 1024) {
-      setFileError("10MB 이하 파일을 선택하세요.");
+    const limit = tab === "json" ? MAX_IMPORT_BYTES : 10 * 1024 * 1024;
+    if (file.size > limit) {
+      setFileError(
+        tab === "json"
+          ? "32MB 이하 JSON 파일을 선택하세요."
+          : "10MB 이하 파일을 선택하세요.",
+      );
       return;
     }
     const reader = new FileReader();
@@ -90,7 +99,7 @@ export function ImportJsonDialog({
       open={open}
       onClose={close}
       title="가져오기"
-      description="기존 문서를 덮어쓰지 않고 새 문서로 엽니다. JSON은 내용과 디자인을 함께 복원합니다."
+      description="기존 문서를 덮어쓰지 않고 새 문서로 엽니다. JSON은 내용·디자인·손그림을 함께 복원합니다."
       footer={
         <>
           <Button onClick={close}>취소</Button>

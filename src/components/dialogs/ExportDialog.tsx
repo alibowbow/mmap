@@ -189,6 +189,12 @@ export function ExportDialog() {
           </button>
         ))}
       </div>
+      {(doc?.ink?.strokes.length || doc?.ink?.objects?.length || doc?.boardMode === "blank") && (
+        <p className="mb-3 text-xs leading-relaxed text-ink-soft">
+          손그림은 JSON·PNG·SVG에 포함됩니다. Markdown·아웃라인은 노드 텍스트만
+          저장합니다.
+        </p>
+      )}
       {tab === "json" && (
         <p className="mb-3 text-xs leading-relaxed text-ink-soft">
           로컬 문서 주소만 복사하면 다른 기기로 내용이 옮겨지지 않습니다. JSON
@@ -220,7 +226,10 @@ export function ExportDialog() {
         </div>
       ) : (
         <pre className="max-h-[44vh] overflow-auto mf-scroll rounded-xl border border-line bg-surface-sunken p-3 text-xs leading-relaxed text-ink-soft whitespace-pre-wrap break-words">
-          {textContent}
+          {textContent.length > 20_000
+            ? textContent.slice(0, 20_000) +
+              "\n… 미리보기만 줄였습니다. 다운로드에는 전체 내용이 포함됩니다."
+            : textContent}
         </pre>
       )}
     </Modal>

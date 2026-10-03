@@ -195,6 +195,11 @@ export function MindForgeApp() {
     [showEditor]
   );
 
+  const createInkAndOpen = useCallback(() => {
+    const state = useMindMapStore.getState(); state.createInkBoard(); state.saveWorkspace();
+    const id = useMindMapStore.getState().activeDocumentId; if (id) showEditor(id);
+  }, [showEditor]);
+
   const openDocument = useCallback(
     (documentId: string) => {
       const state = useMindMapStore.getState();
@@ -243,6 +248,7 @@ export function MindForgeApp() {
           <>
           <HomeScreen
             onCreate={createAndOpen}
+            onCreateInk={createInkAndOpen}
             onOpenDocument={openDocument}
             onImport={openImport}
           />

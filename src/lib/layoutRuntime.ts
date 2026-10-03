@@ -29,7 +29,10 @@ export type LayoutRequest = Partial<
   >
 >;
 function snapshot(
-  s: Pick<MindMapState, "nodes" | "edges" | "relations" | "activeLayoutMode">,
+  s: Pick<
+    MindMapState,
+    "nodes" | "edges" | "relations" | "activeLayoutMode" | "ink" | "boardMode"
+  >,
 ): HistoryEntry {
   return {
     nodes: s.nodes.map((n) => ({
@@ -47,6 +50,8 @@ function snapshot(
     })),
     relations: s.relations.map((r) => ({ ...r })),
     layoutMode: s.activeLayoutMode,
+    ink: s.ink,
+    boardMode: s.boardMode,
   };
 }
 function meaning(
@@ -107,11 +112,18 @@ export class LayoutRuntime {
   record(
     next: Pick<
       MindMapState,
-      "nodes" | "edges" | "relations" | "activeLayoutMode"
+      "nodes" | "edges" | "relations" | "activeLayoutMode" | "ink" | "boardMode"
     >,
   ) {
     const t = this.transaction;
-    if (!t || t.recorded || meaning(next) === t.signature) return;
+    if (
+      !t ||
+      t.recorded ||
+      (meaning(next) === t.signature &&
+        next.ink === t.before.ink &&
+        next.boardMode === t.before.boardMode)
+    )
+      return;
     t.recorded = true;
     this.set({
       history: [...this.get().history, t.before].slice(-60),

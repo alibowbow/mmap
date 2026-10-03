@@ -1,3 +1,4 @@
+import { validateInk, validInkSettings } from "./ink";
 import { adaptInput } from "./layout-engine/adapter";
 import { buildGraph } from "./layout-engine/graph";
 import { drain } from "./layout-engine/types";
@@ -35,10 +36,10 @@ const types = [
   "link",
 ];
 const statuses = ["none", "todo", "doing", "done", "blocked"];
-export const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
+export const MAX_IMPORT_BYTES = 32 * 1024 * 1024;
+const LEGACY_IMPORT_BYTES = 10 * 1024 * 1024;
 export type ImportResult =
-  | { ok: true; document: MindMapDocument }
-  | { ok: false; error: string };
+  { ok: true; document: MindMapDocument } | { ok: false; error: string };
 const fail = (error: string): ImportResult => ({ ok: false, error });
 const object = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -76,8 +77,20 @@ export function validateImportedDocument(raw: unknown): ImportResult {
   }
   if (!object(candidate)) return fail("유효한 문서 객체가 아닙니다.");
   const c = candidate;
-  if (!Array.isArray(c.nodes) || !c.nodes.length)
-    return fail("nodes 배열과 최소 한 개의 노드가 필요합니다.");
+  if (
+    c.boardMode !== undefined &&
+    c.boardMode !== "map" &&
+    c.boardMode !== "blank"
+  )
+    return fail("보드 종류가 올바르지 않습니다.");
+  if (!Array.isArray(c.nodes) || (!c.nodes.length && c.boardMode !== "blank"))
+    return fail(
+      "nodes 배열과 최소 한 개의 노드가 필요합니다. 빈 손그림 보드는 boardMode=blank로 저장하세요.",
+    );
+  const ink = validateInk(c.ink);
+  if (!ink.ok) return fail(ink.error);
+  if (c.inkSettings !== undefined && !validInkSettings(c.inkSettings))
+    return fail("펜 설정이 올바르지 않습니다.");
   if (c.nodes.length > 20_000)
     return fail("한 문서는 20,000개 이하의 노드를 가져올 수 있습니다.");
   if (c.title !== undefined && typeof c.title !== "string")
@@ -265,7 +278,7 @@ export function validateImportedDocument(raw: unknown): ImportResult {
       }),
     ),
   );
-  if (graph.diagnostics.length)
+  if (nodes.length && graph.diagnostics.length)
     return fail(
       "트리 구조 또는 좌표를 확인하세요. 노드 id는 고유해야 하고 모든 가지는 한 중심 주제에 연결되어야 합니다.",
     );
@@ -276,6 +289,9 @@ export function validateImportedDocument(raw: unknown): ImportResult {
     nodes,
     edges,
     relations,
+    boardMode: c.boardMode === "blank" ? "blank" : "map",
+    ink: ink.ink,
+    inkSettings: c.inkSettings as MindMapDocument["inkSettings"],
     appearance: appearanceFrom(c.appearance),
     layoutMode: (c.layoutMode as LayoutMode) ?? "right-tree",
     viewport: c.viewport as MindMapDocument["viewport"],
@@ -296,6 +312,8 @@ export function validateImportedDocument(raw: unknown): ImportResult {
       )
         return fail("버전 기록 형식이 올바르지 않습니다.");
       const checked = validateImportedDocument({
+        boardMode: snap.boardMode ?? c.boardMode,
+        ink: snap.ink,
         nodes: snap.nodes,
         edges: snap.edges,
         relations: snap.relations,
@@ -306,6 +324,10 @@ export function validateImportedDocument(raw: unknown): ImportResult {
         id: snap.id,
         label: snap.label,
         createdAt: snap.createdAt,
+        ...(snap.boardMode !== undefined
+          ? { boardMode: checked.document.boardMode }
+          : {}),
+        ...(snap.ink !== undefined ? { ink: checked.document.ink } : {}),
         nodes: checked.document.nodes,
         edges: checked.document.edges,
         relations: checked.document.relations,
@@ -316,17 +338,30 @@ export function validateImportedDocument(raw: unknown): ImportResult {
   return { ok: true, document: doc };
 }
 export function parseImportJson(text: string): ImportResult {
-  if (
-    text.length > MAX_IMPORT_BYTES ||
-    new TextEncoder().encode(text).length > MAX_IMPORT_BYTES
-  )
-    return fail("10MB 이하의 JSON 파일을 사용하세요.");
+  if (text.length > MAX_IMPORT_BYTES)
+    return fail("32MB 이하의 JSON 파일을 사용하세요.");
+  const bytes = new TextEncoder().encode(text).length;
+  if (bytes > MAX_IMPORT_BYTES)
+    return fail("32MB 이하의 JSON 파일을 사용하세요.");
   try {
-    return validateImportedDocument(
-      JSON.parse(text.replace(/^\uFEFF/, ""), (key, value) =>
-        key === "__proto__" ? undefined : value,
-      ),
+    const raw: unknown = JSON.parse(
+      text.replace(/^\uFEFF/, ""),
+      (key, value) => (key === "__proto__" ? undefined : value),
     );
+    // Existing node-only imports retain their 10MB bound. The explicit v3
+    // ink envelope needs room for up to 250,000 world-space samples.
+    const inkEnvelope =
+      object(raw) &&
+      (raw.version === 3 || raw.version === 4) &&
+      raw.format === DOCUMENT_FORMAT &&
+      object(raw.document) &&
+      object(raw.document.ink) &&
+      Array.isArray(raw.document.ink.strokes);
+    if (bytes > LEGACY_IMPORT_BYTES && !inkEnvelope)
+      return fail(
+        "10MB 이하의 JSON 파일을 사용하세요. 손그림 v3/v4 파일은 32MB까지 지원합니다.",
+      );
+    return validateImportedDocument(raw);
   } catch {
     return fail(
       "JSON을 읽지 못했습니다. 파일이 잘렸거나 문법이 잘못됐는지 확인하세요.",

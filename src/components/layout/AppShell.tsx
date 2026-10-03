@@ -347,6 +347,8 @@ export function AppShell({ onHome }: { onHome: () => void }) {
   const isDesktop = useIsDesktop();
 
   const hydrated = useMindMapStore((s) => s.hydrated);
+  const inkTool = useMindMapStore(s => s.inkTool);
+  const boardMode = useMindMapStore(s => s.boardMode);
 
   const sidebarCollapsed = useMindMapStore((s) => s.sidebarCollapsed);
   const inspectorOpen = useMindMapStore((s) => s.inspectorOpen);
@@ -407,13 +409,13 @@ export function AppShell({ onHome }: { onHome: () => void }) {
           <MindMapCanvas />
 
           {/* Bulk edit bar appears when multiple nodes are selected */}
-          {!presentationMode && <BulkActionBar />}
+          {!presentationMode && inkTool === "node" && <BulkActionBar />}
 
           {/* Floating toolbar on desktop/tablet */}
-          {!isMobile && !presentationMode && <FloatingToolbar />}
+          {!isMobile && !presentationMode && inkTool === "node" && <FloatingToolbar />}
 
           {/* Onboarding */}
-          {!presentationMode && (
+          {!presentationMode && inkTool === "node" && boardMode !== "blank" && (
             <OnboardingHint
               mobile={isMobile}
               align={showTablet && !sidebarCollapsed ? "right" : "left"}
@@ -422,7 +424,7 @@ export function AppShell({ onHome }: { onHome: () => void }) {
         </div>
 
         {/* Mobile bottom action bar */}
-        {isMobile && !presentationMode && <MobileBottomBar />}
+        {isMobile && !presentationMode && inkTool === "node" && <MobileBottomBar />}
       </main>
 
       {/* Desktop inspector (inline) */}

@@ -274,7 +274,7 @@ async function main() {
     report.juaFacesLoaded = loaded;
     if (!baseline) {
       assert.ok(loaded > 0);
-      assert.equal(exported.version, 2);
+      assert.equal(exported.version, 4);
       assert.equal(exported.document.appearance.font, "jua");
       assert.equal(exported.document.appearance.nodeStyle, "soft");
       assert.equal(exported.document.appearance.rainbowBranches, true);

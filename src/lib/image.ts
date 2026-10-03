@@ -1,11 +1,12 @@
 import { getNodesBounds, getViewportForBounds } from "@xyflow/react";
 import { toPng, toSvg } from "html-to-image";
 
+import { inkBounds, EMPTY_INK, PAPER_COLORS } from "./ink";
 import { union } from "@/lib/layout-engine/geometry";
 import type { EdgeRoute } from "@/lib/layout-engine/types";
 import { getHiddenNodeIds } from "@/lib/tree";
 import { loadedCanvasFontCSS } from "./imageFonts";
-import type { MindMapNode } from "@/types/mindmap";
+import type { InkData, MindMapNode } from "@/types/mindmap";
 
 export type ImageFormat = "png" | "svg";
 
@@ -31,39 +32,48 @@ function themeBackground(): string {
 export async function renderCanvasImage(
   nodes: MindMapNode[],
   format: ImageFormat,
-  routes: readonly EdgeRoute[] = []
+  routes: readonly EdgeRoute[] = [],
+  ink: InkData = EMPTY_INK,
 ): Promise<string> {
   const viewportEl = document.querySelector<HTMLElement>(
-    ".react-flow__viewport"
+    ".react-flow__viewport",
   );
   if (!viewportEl) throw new Error("캔버스를 찾을 수 없습니다.");
 
   // Only visible nodes contribute to the bounds (collapsed subtrees are hidden).
   const hidden = getHiddenNodeIds(nodes);
   const visible = nodes.filter((n) => !hidden.has(n.id));
-  if (visible.length === 0) throw new Error("내보낼 노드가 없습니다.");
-
-  let bounds = getNodesBounds(visible);
+  const inkRect = inkBounds(ink);
+  if (visible.length === 0 && !inkRect)
+    throw new Error("내보낼 노드나 잉크가 없습니다.");
+  let bounds = visible.length ? getNodesBounds(visible) : inkRect!;
+  if (inkRect) bounds = union(bounds, inkRect);
   for (const route of routes) bounds = union(bounds, route.bounds);
   const imageWidth = Math.min(
     MAX_DIM,
-    Math.max(MIN_DIM, Math.round(bounds.width + MARGIN * 2))
+    Math.max(MIN_DIM, Math.round(bounds.width + MARGIN * 2)),
   );
   const imageHeight = Math.min(
     MAX_DIM,
-    Math.max(MIN_DIM, Math.round(bounds.height + MARGIN * 2))
+    Math.max(MIN_DIM, Math.round(bounds.height + MARGIN * 2)),
   );
   const vp = getViewportForBounds(
     bounds,
     imageWidth,
     imageHeight,
-    0.001,
+    0.0001,
     2,
-    0.1
+    0.1,
   );
 
   const options = {
-    backgroundColor: themeBackground(),
+    backgroundColor:
+      ink.paper && ink.paper.kind !== "none"
+        ? PAPER_COLORS[ink.paper.kind]
+        : themeBackground(),
+    filter: (node: HTMLElement) =>
+      !node.hasAttribute?.("data-ink-preview") &&
+      !node.hasAttribute?.("data-studio-selection"),
     width: imageWidth,
     height: imageHeight,
     pixelRatio: format === "png" ? 2 : 1,
@@ -83,6 +93,44 @@ export async function renderCanvasImage(
   // a real viewBox/size/position that covers the content (keeps it aligned with
   // the absolutely-positioned nodes), then restore afterwards.
   const restoreEdges = expandEdgesSvg(viewportEl, bounds);
+  const paperEl = viewportEl.querySelector<SVGSVGElement>("[data-ink-paper]");
+  const restorePaper = paperEl
+    ? {
+        width: paperEl.getAttribute("width"),
+        height: paperEl.getAttribute("height"),
+        viewBox: paperEl.getAttribute("viewBox"),
+        style: paperEl.getAttribute("style"),
+        rects: [...paperEl.querySelectorAll("rect")].map(
+          (r) =>
+            [
+              r,
+              r.getAttribute("x"),
+              r.getAttribute("y"),
+              r.getAttribute("width"),
+              r.getAttribute("height"),
+            ] as const,
+        ),
+      }
+    : null;
+  if (paperEl) {
+    const px = -vp.x / vp.zoom,
+      py = -vp.y / vp.zoom,
+      pw = imageWidth / vp.zoom,
+      ph = imageHeight / vp.zoom;
+    paperEl.setAttribute("width", String(pw));
+    paperEl.setAttribute("height", String(ph));
+    paperEl.setAttribute("viewBox", `${px} ${py} ${pw} ${ph}`);
+    paperEl.style.left = `${px}px`;
+    paperEl.style.top = `${py}px`;
+    for (const r of paperEl.querySelectorAll("rect"))
+      for (const [k, n] of Object.entries({
+        x: px,
+        y: py,
+        width: pw,
+        height: ph,
+      }))
+        r.setAttribute(k, String(n));
+  }
   // A quiet brand credit in the exported image's bottom-right corner. Sized
   // against the zoom so it stays ~11px in the OUTPUT regardless of map scale.
   const watermark = document.createElement("div");
@@ -107,6 +155,20 @@ export async function renderCanvasImage(
   } finally {
     watermark.remove();
     restoreEdges();
+    if (paperEl && restorePaper) {
+      for (const k of ["width", "height", "viewBox", "style"] as const) {
+        const v = restorePaper[k];
+        if (v !== null) paperEl.setAttribute(k, v);
+      }
+      for (const [r, x, y, w, h] of restorePaper.rects)
+        for (const [k, v] of [
+          ["x", x],
+          ["y", y],
+          ["width", w],
+          ["height", h],
+        ])
+          if (v !== null) r.setAttribute(k!, v);
+    }
   }
 }
 
@@ -117,10 +179,10 @@ export async function renderCanvasImage(
 // bounds (1:1, so paths stay aligned with the nodes), then restore.
 function expandEdgesSvg(
   viewportEl: HTMLElement,
-  bounds: { x: number; y: number; width: number; height: number }
+  bounds: { x: number; y: number; width: number; height: number },
 ): () => void {
   const svgs = Array.from(
-    viewportEl.querySelectorAll<SVGSVGElement>(".react-flow__edges svg")
+    viewportEl.querySelectorAll<SVGSVGElement>(".react-flow__edges svg"),
   );
   if (!svgs.length) return () => {};
 
@@ -135,7 +197,7 @@ function expandEdgesSvg(
   // Edge stroke color comes from a CSS class; html-to-image may not inline it,
   // rasterizing the path as stroke:none (invisible). Force an inline stroke.
   const paths = Array.from(
-    viewportEl.querySelectorAll<SVGPathElement>(".react-flow__edge-path")
+    viewportEl.querySelectorAll<SVGPathElement>(".react-flow__edge-path"),
   );
   for (const p of paths) {
     const cs = getComputedStyle(p);

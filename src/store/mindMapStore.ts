@@ -1,6 +1,18 @@
 "use client";
 
 import {
+  DEFAULT_INK_SETTINGS,
+  EMPTY_INK,
+  inkBounds,
+  validateInk,
+  validInkSettings,
+  validPaper,
+  inkItems,
+  DEFAULT_PAPER,
+  MAX_INK_POINTS,
+  MAX_INK_STROKES,
+} from "@/lib/ink";
+import {
   applyEdgeChanges,
   applyNodeChanges,
   type EdgeChange,
@@ -67,6 +79,12 @@ import { parseImportJson } from "@/lib/validation";
 import { appearanceFrom, preserveDocumentDesign } from "@/lib/appearance";
 import { ensureDocumentFont } from "@/lib/fonts";
 import type {
+  InkData,
+  InkStroke,
+  InkSettings,
+  InkTool,
+  InkObject,
+  PaperSpec,
   BranchSide,
   Edge,
   LayoutMode,
@@ -109,6 +127,8 @@ let lastSaveErrorAt = 0;
 let layoutRuntime: LayoutRuntime;
 
 export type HistoryEntry = {
+  ink?: InkData;
+  boardMode?: "map" | "blank";
   layoutMode?: LayoutMode;
   nodes: MindMapNode[];
   edges: Edge[];
@@ -135,6 +155,27 @@ export type MindMapState = {
   nodes: MindMapNode[];
   edges: Edge[];
   relations: MindMapRelation[];
+
+  ink: InkData;
+  boardMode: "map" | "blank";
+  inkTool: InkTool;
+  inkSettings: InkSettings;
+  inkGestureActive: boolean;
+  selectedInkId: string | null;
+  selectInk: (id: string | null) => void;
+  addInkObject: (item: InkObject) => void;
+  updateInkItem: (
+    id: string,
+    patch: Partial<InkObject> | Partial<InkStroke>,
+  ) => void;
+  reorderInk: (id: string, front: boolean) => void;
+  setInkPaper: (paper: PaperSpec) => void;
+  setInkTool: (tool: InkTool) => void;
+  setInkSettings: (patch: Partial<InkSettings>) => void;
+  createInkBoard: () => void;
+  addInkStroke: (stroke: InkStroke) => void;
+  eraseInkStrokes: (ids: string[]) => void;
+  clearInk: () => void;
 
   // ── Selection / editing ──
   selectedNodeId: string | null; // primary selection (inspector / single-node UI)
@@ -452,6 +493,37 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       revision: state.revision + 1,
     });
   }
+  function inkFor(doc: MindMapDocument) {
+    return {
+      ink: doc.ink ?? EMPTY_INK,
+      boardMode: doc.boardMode ?? ("map" as "map" | "blank"),
+      inkSettings: doc.inkSettings ?? DEFAULT_INK_SETTINGS,
+      inkTool:
+        doc.boardMode === "blank" ? ("pen" as InkTool) : ("node" as InkTool),
+      inkGestureActive: false,
+      selectedInkId: null,
+    };
+  }
+  function commitInk(ink: InkData) {
+    // References remain immutable; history shares old stroke geometry instead
+    // of copying every sample on each pen movement or node edit.
+    layoutRuntime.cancel(true);
+    const state = get();
+    const entry: HistoryEntry = {
+      nodes: state.nodes,
+      edges: state.edges,
+      relations: state.relations,
+      layoutMode: state.activeLayoutMode,
+      ink: state.ink,
+      boardMode: state.boardMode,
+    };
+    set({
+      ink,
+      history: [...state.history, entry].slice(-HISTORY_LIMIT),
+      future: [],
+    });
+    syncActiveDocument(get().nodes, get().edges);
+  }
   // Write the live nodes/edges back into the active document and mark dirty.
   // Relations referencing deleted nodes are pruned here — every node mutation
   // funnels through this, so it's the single cleanup choke point.
@@ -473,6 +545,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
             nodes,
             edges,
             relations,
+            ink: get().ink,
+            boardMode: get().boardMode,
+            inkSettings: get().inkSettings,
             layoutMode: get().activeLayoutMode,
             appearance: appearanceFrom(get()),
             updatedAt: touch ? nowIso() : d.updatedAt,
@@ -550,6 +625,170 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     nodes: [],
     edges: [],
     relations: [],
+
+    ink: EMPTY_INK,
+    boardMode: "map",
+    inkTool: "node",
+    inkSettings: DEFAULT_INK_SETTINGS,
+    inkGestureActive: false,
+    selectedInkId: null,
+    selectInk: (id) => set({ selectedInkId: id }),
+    addInkObject: (item) => {
+      const ink = get().ink;
+      if ((ink.objects?.length ?? 0) >= 1000) {
+        get().addToast(
+          "그림·라벨 한도에 도달했습니다. JSON으로 보관하세요.",
+          "error",
+        );
+        return;
+      }
+      const next: InkData = {
+        ...ink,
+        version: 2,
+        objects: [...(ink.objects ?? []), item],
+        order: [...inkItems(ink).map((s) => s.id), item.id],
+      };
+      if (!validateInk(next).ok) return;
+      commitInk(next);
+      set({ freshDocumentId: null, selectedInkId: item.id });
+    },
+    updateInkItem: (id, patch) => {
+      const ink = get().ink,
+        item = inkItems(ink).find((s) => s.id === id);
+      if (
+        !item ||
+        JSON.stringify({ ...item, ...patch }) === JSON.stringify(item)
+      )
+        return;
+      const next: InkData = {
+        ...ink,
+        version: 2,
+        strokes: ink.strokes.map((s) =>
+          s.id === id ? ({ ...s, ...patch } as InkStroke) : s,
+        ),
+        objects: ink.objects?.map((s) =>
+          s.id === id ? ({ ...s, ...patch } as InkObject) : s,
+        ),
+      };
+      if (validateInk(next).ok) commitInk(next);
+    },
+    reorderInk: (id, front) => {
+      const ink = get().ink,
+        order = inkItems(ink).map((s) => s.id);
+      if (!order.includes(id)) return;
+      const rest = order.filter((i) => i !== id),
+        next = front ? [...rest, id] : [id, ...rest];
+      if (next.join() !== order.join())
+        commitInk({ ...ink, version: 2, order: next });
+    },
+    setInkPaper: (paper) => {
+      if (
+        !validPaper(paper) ||
+        JSON.stringify(get().ink.paper) === JSON.stringify(paper)
+      )
+        return;
+      commitInk({ ...get().ink, version: 2, paper });
+      set({ freshDocumentId: null });
+    },
+    setInkTool: (inkTool) => {
+      if (get().inkGestureActive) return;
+      set({
+        inkTool,
+        editingNodeId: null,
+        contextMenu: null,
+        connectMode: false,
+        mobileSheetOpen: false,
+      });
+      if (inkTool !== "node") set({ inspectorOpen: false });
+    },
+    setInkSettings: (patch) => {
+      const inkSettings = { ...get().inkSettings, ...patch };
+      if (!validInkSettings(inkSettings)) return;
+      set({ inkSettings });
+      syncActiveDocument(get().nodes, get().edges);
+    },
+    createInkBoard: () => {
+      get().discardFreshDocument();
+      const doc = makeDocument("새 손그림 보드", [], []);
+      doc.boardMode = "blank";
+      doc.ink = { version: 2, strokes: [], paper: { ...DEFAULT_PAPER } };
+      doc.inkSettings = { ...DEFAULT_INK_SETTINGS };
+      doc.appearance = appearanceFrom(get());
+      set((s) => ({
+        documents: [doc, ...s.documents],
+        activeDocumentId: doc.id,
+        freshDocumentId: doc.id,
+        nodes: [],
+        edges: [],
+        relations: [],
+        ...inkFor(doc),
+        ...selectionFor(null),
+        editingNodeId: null,
+        selectedRelationId: null,
+        focusModeNodeId: null,
+        connectMode: false,
+        history: [],
+        future: [],
+        revision: s.revision + 1,
+        saveStatus: "idle",
+        dialog: null,
+        mobileDrawerOpen: false,
+        inspectorOpen: false,
+      }));
+      get().flow?.setViewport({ x: 0, y: 0, zoom: 1 });
+      get().addToast("빈 보드에 직접 그려보세요", "success");
+    },
+    addInkStroke: (stroke) => {
+      const state = get();
+      const checked = validateInk({ version: 2, strokes: [stroke] });
+      if (!checked.ok || inkItems(state.ink).some((s) => s.id === stroke.id))
+        return;
+      if (
+        state.ink.strokes.length >= MAX_INK_STROKES ||
+        state.ink.strokes.reduce((n, s) => n + s.points.length, 0) +
+          stroke.points.length >
+          MAX_INK_POINTS
+      ) {
+        get().addToast(
+          "잉크 용량 한도에 도달했습니다. JSON으로 보관하고 새 보드에서 이어가세요.",
+          "error",
+        );
+        return;
+      }
+      commitInk({
+        ...state.ink,
+        version: 2,
+        strokes: [...state.ink.strokes, checked.ink.strokes[0]],
+        order: [...inkItems(state.ink).map((s) => s.id), stroke.id],
+      });
+      set({ freshDocumentId: null });
+    },
+    eraseInkStrokes: (ids) => {
+      const removed = new Set(ids),
+        ink = get().ink;
+      const strokes = ink.strokes.filter((s) => !removed.has(s.id));
+      const objects = ink.objects?.filter((s) => !removed.has(s.id));
+      if (
+        strokes.length !== ink.strokes.length ||
+        objects?.length !== ink.objects?.length
+      )
+        commitInk({
+          ...ink,
+          strokes,
+          objects,
+          order: inkItems(ink)
+            .map((s) => s.id)
+            .filter((id) => !removed.has(id)),
+        });
+    },
+    clearInk: () => {
+      if (!inkItems(get().ink).length) return;
+      commitInk({ ...get().ink, strokes: [], objects: [], order: [] });
+      get().addToast(
+        "잉크를 지웠습니다. 실행 취소로 복원할 수 있습니다.",
+        "info",
+      );
+    },
 
     selectedNodeId: null,
     selectedNodeIds: [],
@@ -648,6 +887,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         documents: [doc, ...s.documents],
         activeDocumentId: doc.id,
         freshDocumentId: doc.id,
+        ...inkFor(doc),
         nodes: doc.nodes,
         edges: doc.edges,
         relations: [],
@@ -686,6 +926,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       set((s) => ({
         documents: rest,
         activeDocumentId: next.id,
+        ...inkFor(next),
         nodes: next.nodes,
         edges: next.edges,
         relations: next.relations ?? [],
@@ -709,6 +950,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         src.nodes.map(cloneNode),
         src.edges.map((e) => ({ ...e })),
       );
+      copy.ink = src.ink;
+      copy.boardMode = src.boardMode;
+      copy.inkSettings = src.inkSettings;
       copy.relations = (src.relations ?? []).map((r) => ({ ...r }));
       copy.layoutMode = src.layoutMode;
       copy.viewport = src.viewport ? { ...src.viewport } : undefined;
@@ -732,6 +976,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       set((s) => ({
         documents: nextDocs,
         activeDocumentId: wasActive ? nextDocs[0].id : s.activeDocumentId,
+        ...(wasActive ? inkFor(nextDocs[0]) : {}),
         nodes: wasActive ? nextDocs[0].nodes : s.nodes,
         edges: wasActive ? nextDocs[0].edges : s.edges,
         relations: wasActive ? (nextDocs[0].relations ?? []) : s.relations,
@@ -778,6 +1023,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       if (!doc) return;
       set((s) => ({
         activeDocumentId: documentId,
+        ...inkFor(doc),
         nodes: doc.nodes,
         edges: doc.edges,
         relations: doc.relations ?? [],
@@ -816,6 +1062,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         set({
           documents,
           activeDocumentId: activeId,
+          ...inkFor(active),
           nodes: active.nodes,
           edges: active.edges,
           relations: active.relations ?? [],
@@ -835,6 +1082,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         set({
           documents: [sample],
           activeDocumentId: sample.id,
+          ...inkFor(sample),
           nodes: sample.nodes,
           edges: sample.edges,
           relations: [],
@@ -1477,6 +1725,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           minute: "2-digit",
         }),
         createdAt: nowIso(),
+        ink: get().ink,
+        boardMode: get().boardMode,
         layoutMode: get().activeLayoutMode,
         nodes: nodes.map(cloneNode),
         edges: edges.map((e) => ({ ...e })),
@@ -1501,6 +1751,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       if (!snap) return;
       layoutRuntime.begin("restore");
       const restored = {
+        ink: snap.ink ?? EMPTY_INK,
+        boardMode:
+          snap.boardMode ?? doc?.boardMode ?? ("map" as "map" | "blank"),
         nodes: snap.nodes.map(cloneNode),
         edges: snap.edges.map((e) => ({ ...e })),
         relations: (snap.relations ?? []).map((r) => ({ ...r })),
@@ -1798,15 +2051,35 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
             .filter((e) => !e.hidden)
             .map((e) => e.id),
         );
+        const inkRect = inkBounds(get().ink);
+        if (inkRect) bounds = bounds ? union(bounds, inkRect) : inkRect;
         for (const [id, route] of Object.entries(get().layoutRoutes))
           if (displayedEdges.has(id)) bounds = union(bounds, route.bounds);
-        if (!bounds || !canvasRect) return;
-        const top = isCompact ? 16 : 24;
+        if (!canvasRect) return;
+        if (!bounds) {
+          flow.setViewport({
+            x: canvasRect.width / 2,
+            y: canvasRect.height / 2,
+            zoom: 1,
+          });
+          return;
+        }
+        let top = isCompact ? 16 : 24;
         if (isCompact) {
           left = 16;
           right = 16;
           bottom = 16;
         }
+        const inkToolbar = canvas
+          ?.querySelector<HTMLElement>("[data-ink-toolbar]")
+          ?.getBoundingClientRect();
+        if (inkToolbar)
+          bottom = Math.max(bottom, canvasRect.bottom - inkToolbar.top + 16);
+        const inkModeBar = canvas
+          ?.querySelector<HTMLElement>("[data-ink-modebar]")
+          ?.getBoundingClientRect();
+        if (inkModeBar && !inkToolbar)
+          top = Math.max(top, inkModeBar.bottom - canvasRect.top + 16);
         const width = Math.max(1, canvasRect.width - left - right);
         const height = Math.max(1, canvasRect.height - top - bottom);
         const natural =
@@ -1814,7 +2087,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
             width / Math.max(1, bounds.width),
             height / Math.max(1, bounds.height),
           ) * 0.9;
-        const min = isCompact && natural >= 0.35 ? 0.35 : 0.15;
+        const min = isCompact && natural >= 0.35 ? 0.35 : 0.0001;
         const zoom = Math.max(min, Math.min(1.2, natural));
         flow.setViewport(
           {
@@ -1929,17 +2202,22 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     },
 
     undo: () => {
+      if (get().inkGestureActive) return;
       layoutRuntime.cancel(true);
       const { history, nodes, edges, relations } = get();
       if (history.length === 0) return;
       const prev = history[history.length - 1];
       const current: HistoryEntry = {
+        ink: get().ink,
+        boardMode: get().boardMode,
         layoutMode: get().activeLayoutMode,
         nodes: nodes.map(cloneNode),
         edges: edges.map((e) => ({ ...e })),
         relations: relations.map((r) => ({ ...r })),
       };
       set((s) => ({
+        ink: prev.ink ?? EMPTY_INK,
+        boardMode: prev.boardMode ?? get().boardMode,
         nodes: prev.nodes,
         activeLayoutMode: prev.layoutMode ?? "right-tree",
         edges: prev.edges,
@@ -1953,17 +2231,22 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     },
 
     redo: () => {
+      if (get().inkGestureActive) return;
       layoutRuntime.cancel(true);
       const { future, nodes, edges, relations } = get();
       if (future.length === 0) return;
       const nextEntry = future[0];
       const current: HistoryEntry = {
+        ink: get().ink,
+        boardMode: get().boardMode,
         layoutMode: get().activeLayoutMode,
         nodes: nodes.map(cloneNode),
         edges: edges.map((e) => ({ ...e })),
         relations: relations.map((r) => ({ ...r })),
       };
       set((s) => ({
+        ink: nextEntry.ink ?? EMPTY_INK,
+        boardMode: nextEntry.boardMode ?? get().boardMode,
         nodes: nextEntry.nodes,
         activeLayoutMode: nextEntry.layoutMode ?? "right-tree",
         edges: nextEntry.edges,
@@ -2004,6 +2287,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           ? result.document.edges
           : buildEdgesFromNodes(result.document.nodes),
       );
+      doc.ink = result.document.ink;
+      doc.boardMode = result.document.boardMode;
+      doc.inkSettings = result.document.inkSettings;
       doc.viewport = result.document.viewport;
       doc.layoutMode = result.document.layoutMode;
       doc.relations = result.document.relations ?? [];
@@ -2014,6 +2300,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         documents: [doc, ...preserveDocumentDesign(s.documents, s)],
         activeDocumentId: doc.id,
         freshDocumentId: null,
+        ...inkFor(doc),
         nodes: doc.nodes,
         edges: doc.edges,
         relations: doc.relations ?? [],
@@ -2055,6 +2342,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       set((s) => ({
         documents: [doc, ...s.documents],
         activeDocumentId: doc.id,
+        ...inkFor(doc),
         nodes: doc.nodes,
         edges: doc.edges,
         relations: doc.relations ?? [],
@@ -2082,6 +2370,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       set((s) => ({
         documents: [doc, ...s.documents],
         activeDocumentId: doc.id,
+        ...inkFor(doc),
         nodes: doc.nodes,
         edges: doc.edges,
         relations: [],
@@ -2121,6 +2410,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
 
     // Both dialog previews and direct downloads use this same settled graph.
     renderImage: async (format) => {
+      if (get().inkGestureActive)
+        throw new Error("획을 마친 뒤 이미지를 저장하세요.");
       const id = get().activeDocumentId;
       const checkDocument = () => {
         if (id !== get().activeDocumentId)
@@ -2148,6 +2439,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           get().nodes,
           format,
           Object.values(get().layoutRoutes),
+          get().ink,
         );
         checkDocument();
         return url;
