@@ -644,7 +644,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       }
       const next: InkData = {
         ...ink,
-        version: 2,
+        version: ink.version === 3 ? 3 : 2,
         objects: [...(ink.objects ?? []), item],
         order: [...inkItems(ink).map((s) => s.id), item.id],
       };
@@ -662,7 +662,11 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         return;
       const next: InkData = {
         ...ink,
-        version: 2,
+        version:
+          ink.version === 3 ||
+          ("branchStyle" in patch && patch.branchStyle === "hand-v1")
+            ? 3
+            : 2,
         strokes: ink.strokes.map((s) =>
           s.id === id ? ({ ...s, ...patch } as InkStroke) : s,
         ),
@@ -679,7 +683,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const rest = order.filter((i) => i !== id),
         next = front ? [...rest, id] : [id, ...rest];
       if (next.join() !== order.join())
-        commitInk({ ...ink, version: 2, order: next });
+        commitInk({ ...ink, version: ink.version === 3 ? 3 : 2, order: next });
     },
     setInkPaper: (paper) => {
       if (
@@ -687,7 +691,11 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         JSON.stringify(get().ink.paper) === JSON.stringify(paper)
       )
         return;
-      commitInk({ ...get().ink, version: 2, paper });
+      commitInk({
+        ...get().ink,
+        version: get().ink.version === 3 ? 3 : 2,
+        paper,
+      });
       set({ freshDocumentId: null });
     },
     setInkTool: (inkTool) => {
@@ -740,7 +748,10 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     },
     addInkStroke: (stroke) => {
       const state = get();
-      const checked = validateInk({ version: 2, strokes: [stroke] });
+      const checked = validateInk({
+        version: stroke.branchStyle === "hand-v1" ? 3 : 2,
+        strokes: [stroke],
+      });
       if (!checked.ok || inkItems(state.ink).some((s) => s.id === stroke.id))
         return;
       if (
@@ -757,7 +768,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       }
       commitInk({
         ...state.ink,
-        version: 2,
+        version:
+          state.ink.version === 3 || stroke.branchStyle === "hand-v1" ? 3 : 2,
         strokes: [...state.ink.strokes, checked.ink.strokes[0]],
         order: [...inkItems(state.ink).map((s) => s.id), stroke.id],
       });

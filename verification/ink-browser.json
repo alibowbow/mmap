@@ -9,7 +9,7 @@
     "Autosave, reload, real JSON download → fresh browser import/reexport retain empty-board flag, ink and settings",
     {
       "png": {
-        "blue": 1380,
+        "blue": 1379,
         "red": 0
       },
       "width": 1118,
@@ -18,16 +18,16 @@
     {
       "svg": {
         "ids": [
-          "ink_0cdfa5cb-d0cb-40c2-b92c-67d3e53a019e",
-          "ink_5e2736b9-76ce-4824-a18b-9e5b7ad0e42f",
-          "ink_eb1af3f1-8872-4c0f-8d5f-702033db3d89",
-          "ink_f42dbbc4-ac94-4920-a60f-1dffcd5cd88d"
+          "ink_3a3421a7-6abe-41c3-8e6a-7526b1f57fe7",
+          "ink_4f7dd08f-3057-4c0d-9b9d-ebeb0d055524",
+          "ink_adbe609e-60c7-42ff-9615-0c9b9acac9df",
+          "ink_eab29b9d-17b9-4658-a1a1-fab7e4397dea"
         ],
         "width": 559,
         "height": 480,
-        "x": 781.5,
+        "x": 781.4990234375,
         "y": 267.6319885253906,
-        "zoom": 1.5967799425125122
+        "zoom": 1.5967600345611572
       }
     },
     {
@@ -41,10 +41,10 @@
     {
       "svg": {
         "ids": [
-          "ink_0cdfa5cb-d0cb-40c2-b92c-67d3e53a019e",
-          "ink_5e2736b9-76ce-4824-a18b-9e5b7ad0e42f",
-          "ink_eb1af3f1-8872-4c0f-8d5f-702033db3d89",
-          "ink_f42dbbc4-ac94-4920-a60f-1dffcd5cd88d",
+          "ink_3a3421a7-6abe-41c3-8e6a-7526b1f57fe7",
+          "ink_4f7dd08f-3057-4c0d-9b9d-ebeb0d055524",
+          "ink_adbe609e-60c7-42ff-9615-0c9b9acac9df",
+          "ink_eab29b9d-17b9-4658-a1a1-fab7e4397dea",
           "outside-left",
           "outside-right"
         ],
@@ -63,11 +63,11 @@
   "performance": {
     "samples": 100000,
     "strokes": 1000,
-    "loadAndSettleMs": 1331,
-    "panGestureMs": 310,
-    "drawAndSaveMs": 3473,
+    "loadAndSettleMs": 1374,
+    "panGestureMs": 302,
+    "drawAndSaveMs": 3422,
     "frameMedianMs": 16.699999999999818,
-    "frameP95Ms": 16.799999999999727,
+    "frameP95Ms": 16.700000000000045,
     "serializedBytes": 4758484
   },
   "screenshots": [

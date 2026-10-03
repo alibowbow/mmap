@@ -272,6 +272,7 @@ export function InkLayer() {
         opacity: state.inkSettings.opacity ?? 1,
         texture: state.inkSettings.texture ?? 0.7,
         taper: state.inkSettings.taper ?? 0.8,
+        branchStyle: state.inkSettings.branchStyle,
         curve: state.inkSettings.curve ?? 0.25,
         points: [point],
       },
@@ -367,15 +368,13 @@ export function InkLayer() {
       } else if (g.kind === "select" && g.item) {
         const t = g.item.transform ?? identityTransform();
         if (Math.hypot(point.x - g.start.x, point.y - g.start.y) * g.zoom > 1)
-          useMindMapStore
-            .getState()
-            .updateInkItem(g.item.id, {
-              transform: {
-                ...t,
-                x: t.x + point.x - g.start.x,
-                y: t.y + point.y - g.start.y,
-              },
-            });
+          useMindMapStore.getState().updateInkItem(g.item.id, {
+            transform: {
+              ...t,
+              x: t.x + point.x - g.start.x,
+              y: t.y + point.y - g.start.y,
+            },
+          });
       } else if (g.item && !isStroke(g.item)) {
         useMindMapStore.getState().addInkObject(g.item);
       }

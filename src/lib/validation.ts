@@ -352,14 +352,14 @@ export function parseImportJson(text: string): ImportResult {
     // ink envelope needs room for up to 250,000 world-space samples.
     const inkEnvelope =
       object(raw) &&
-      (raw.version === 3 || raw.version === 4) &&
+      (raw.version === 3 || raw.version === 4 || raw.version === 5) &&
       raw.format === DOCUMENT_FORMAT &&
       object(raw.document) &&
       object(raw.document.ink) &&
       Array.isArray(raw.document.ink.strokes);
     if (bytes > LEGACY_IMPORT_BYTES && !inkEnvelope)
       return fail(
-        "10MB 이하의 JSON 파일을 사용하세요. 손그림 v3/v4 파일은 32MB까지 지원합니다.",
+        "10MB 이하의 JSON 파일을 사용하세요. 손그림 v3/v4/v5 파일은 32MB까지 지원합니다.",
       );
     return validateImportedDocument(raw);
   } catch {

@@ -27,7 +27,7 @@ export function validateInk(
   if (raw === undefined) return { ok: true, ink: EMPTY_INK };
   if (
     !object(raw) ||
-    ![1, 2].includes(raw.version as number) ||
+    ![1, 2, 3].includes(raw.version as number) ||
     !Array.isArray(raw.strokes)
   )
     return { ok: false, error: "잉크 버전 또는 획 형식이 올바르지 않습니다." };
@@ -51,6 +51,8 @@ export function validateInk(
       return { ok: false, error: "잉크의 id·색·굵기·좌표를 확인하세요." };
     if (!validStrokeStyle(s))
       return { ok: false, error: "도구 속성 또는 변환이 올바르지 않습니다." };
+    if (s.branchStyle === "hand-v1" && raw.version !== 3)
+      return { ok: false, error: "가지 필치는 잉크 v3 형식이 필요합니다." };
     ids.add(s.id);
     count += s.points.length;
     if (count > MAX_INK_POINTS)
@@ -114,7 +116,7 @@ export function validateInk(
   return {
     ok: true,
     ink: {
-      version: raw.version as 1 | 2,
+      version: raw.version as 1 | 2 | 3,
       strokes,
       ...(raw.objects !== undefined ? { objects } : {}),
       ...(raw.paper !== undefined
@@ -176,6 +178,11 @@ const pointsCache = new WeakMap<InkStroke, InkPoint[]>();
 export function strokePath(s: InkStroke): string {
   const cached = pathCache.get(s);
   if (cached) return cached;
+  if (hasBranchStyle(s)) {
+    const d = branchPaintPaths(s).outline;
+    pathCache.set(s, d);
+    return d;
+  }
   const ps = renderPoints(s);
   if (!ps.length) return "";
   const left: string[] = [],
@@ -362,6 +369,8 @@ function validStrokeStyle(s: Record<string, unknown>) {
     (s.brush === undefined ||
       BRUSHES.includes(s.brush as (typeof BRUSHES)[number])) &&
     (s.seed === undefined || seedOK(s.seed)) &&
+    (s.branchStyle === undefined ||
+      ["classic", "hand-v1"].includes(s.branchStyle as string)) &&
     [s.opacity, s.texture, s.taper].every((v) => v === undefined || unit(v)) &&
     (s.curve === undefined ||
       (typeof s.curve === "number" && s.curve >= -1 && s.curve <= 1)) &&
@@ -376,6 +385,7 @@ function pickStyle(s: Record<string, unknown>): Partial<InkStroke> {
     "opacity",
     "texture",
     "taper",
+    "branchStyle",
     "curve",
     "transform",
   ])
@@ -568,7 +578,7 @@ export function hashSeed(id: string) {
   for (const c of id) n = Math.imul(n ^ c.charCodeAt(0), 16777619);
   return n >>> 0;
 }
-function renderPoints(s: InkStroke): InkPoint[] {
+export function renderPoints(s: InkStroke): InkPoint[] {
   const cached = pointsCache.get(s);
   if (cached) return cached;
   if (s.brush !== "branch" || s.points.length < 2) {
@@ -632,4 +642,186 @@ export function texturePath(seed: number, grain = false): string {
     );
   }
   return commands.join("");
+}
+
+export const hasBranchStyle = (s: InkStroke) =>
+  s.branchStyle === "hand-v1" && (s.brush === "brush" || s.brush === "branch");
+export type BranchGeometry = {
+  points: InkPoint[];
+  radii: number[];
+  distances: number[];
+};
+const branchCache = new WeakMap<InkStroke, BranchGeometry>();
+// Seed affects width and pigment only. Subdivision stays on the released
+// smoothed centreline: no random offset, curve fitting or trajectory change.
+export function branchGeometry(s: InkStroke): BranchGeometry {
+  const cached = branchCache.get(s);
+  if (cached) return cached;
+  const source = renderPoints(s),
+    lengths = source.map((p, i) =>
+      i ? Math.hypot(p.x - source[i - 1].x, p.y - source[i - 1].y) : 0,
+    );
+  const desired = lengths.reduce(
+    (n, d) => n + Math.max(0, Math.ceil(d / 4) - 1),
+    0,
+  );
+  const budget = Math.min(1024, source.length * 2 + 64),
+    ratio = desired ? Math.min(1, budget / desired) : 1;
+  const points: InkPoint[] = [],
+    distances: number[] = [];
+  let length = 0;
+  source.forEach((p, i) => {
+    if (i) {
+      const a = source[i - 1],
+        steps =
+          1 + Math.floor(Math.max(0, Math.ceil(lengths[i] / 4) - 1) * ratio);
+      for (let j = 1; j < steps; j++) {
+        const t = j / steps;
+        points.push({
+          x: a.x + (p.x - a.x) * t,
+          y: a.y + (p.y - a.y) * t,
+          pressure: a.pressure + (p.pressure - a.pressure) * t,
+        });
+        distances.push(length + lengths[i] * t);
+      }
+      length += lengths[i];
+    }
+    points.push(p);
+    distances.push(length);
+  });
+  const random = seeded(s.seed ?? hashSeed(s.id)),
+    phase = random() * Math.PI * 2,
+    wavelength = 36 + random() * 24;
+  const texture = s.texture ?? 0.45,
+    taper = s.taper ?? 0.94;
+  let pressure = points[0]?.pressure ?? 1;
+  const radii = points.map((p, i) => {
+    const distance = distances[i],
+      step = i ? distance - distances[i - 1] : 0;
+    // Spatial filtering avoids abrupt pressure steps without moving any point.
+    pressure += (p.pressure - pressure) * (1 - Math.exp(-step / 9));
+    const t = length ? distance / length : 0;
+    const envelope = 1 - taper + taper * Math.pow(Math.max(0, 1 - t), 0.85);
+    // Slow, restrained, symmetric edge variation; maximum width stays in bounds.
+    const grain =
+      1 -
+      texture *
+        0.024 *
+        (0.55 +
+          0.3 * Math.sin((distance / wavelength) * 6.283 + phase) +
+          0.15 * Math.sin(distance / 13 + phase));
+    return Math.max(
+      0.06,
+      (s.width / 2) * (0.55 + 0.45 * pressure) * envelope * grain,
+    );
+  });
+  const result = { points, radii, distances };
+  branchCache.set(s, result);
+  return result;
+}
+const paintCache = new WeakMap<
+  InkStroke,
+  { outline: string; pigment: string; fibers: string }
+>();
+export function branchPaintPaths(s: InkStroke) {
+  const cached = paintCache.get(s);
+  if (cached) return cached;
+  const { points: ps, radii } = branchGeometry(s);
+  const outline = (factor: number) => {
+    const left: string[] = [],
+      right: string[] = [];
+    ps.forEach((p, i) => {
+      const a = ps[Math.max(0, i - 1)],
+        b = ps[Math.min(ps.length - 1, i + 1)];
+      let dx = b.x - a.x,
+        dy = b.y - a.y;
+      if (!dx && !dy) {
+        dx = p.x - a.x || b.x - p.x;
+        dy = p.y - a.y || b.y - p.y;
+      }
+      const len = Math.hypot(dx, dy) || 1,
+        r = radii[i] * factor;
+      left.push(`${fmt(p.x - (dy / len) * r)},${fmt(p.y + (dx / len) * r)}`);
+      right.push(`${fmt(p.x + (dy / len) * r)},${fmt(p.y - (dx / len) * r)}`);
+    });
+    const cap = (i: number, aspect: number) => {
+      const p = ps[i],
+        r = radii[i] * factor,
+        a = ps[Math.max(0, i - 1)],
+        b = ps[Math.min(ps.length - 1, i + 1)];
+      const dx = b.x - a.x,
+        dy = b.y - a.y,
+        len = Math.hypot(dx, dy) || 1,
+        ux = dx / len || (!dy ? 1 : 0),
+        uy = dy / len;
+      const along = r * aspect,
+        angle = (Math.atan2(uy, ux) * 180) / Math.PI;
+      return `M${fmt(p.x - ux * along)},${fmt(p.y - uy * along)}a${fmt(along)},${fmt(r)} ${fmt(angle)} 1,0 ${fmt(2 * ux * along)},${fmt(2 * uy * along)}a${fmt(along)},${fmt(r)} ${fmt(angle)} 1,0 ${fmt(-2 * ux * along)},${fmt(-2 * uy * along)}Z`;
+    };
+    return (
+      (ps.length > 1
+        ? `M${left.join("L")}L${right.reverse().join("L")}Z`
+        : "") +
+      (ps.length
+        ? cap(0, ps.length > 1 ? 0.42 : 1) +
+          (ps.length > 1 ? cap(ps.length - 1, 0.7) : "")
+        : "")
+    );
+  };
+  const { distances } = branchGeometry(s),
+    length = distances.at(-1) ?? 0;
+  const random = seeded((s.seed ?? hashSeed(s.id)) ^ 0x91e10da5),
+    fibers: string[] = [];
+  // At most 28 short pigment fibres in one compound SVG path. Each follows
+  // the same centreline, inside the body, independent of input sample density.
+  const count = Math.min(28, Math.ceil(length / 14));
+  const at = (distance: number, offset: number) => {
+    let lo = 0,
+      hi = Math.max(0, ps.length - 1);
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (distances[mid] < distance) lo = mid + 1;
+      else hi = mid;
+    }
+    const i = Math.max(1, lo),
+      a = ps[i - 1] ?? ps[0],
+      b = ps[i] ?? a,
+      span = (distances[i] ?? 0) - (distances[i - 1] ?? 0),
+      t = span ? (distance - distances[i - 1]) / span : 0;
+    const dx = b.x - a.x,
+      dy = b.y - a.y,
+      len = Math.hypot(dx, dy) || 1,
+      r = (radii[i - 1] ?? 0) * (1 - t) + (radii[i] ?? radii[0] ?? 0) * t;
+    return `${fmt(a.x + dx * t - (dy / len) * r * offset)},${fmt(a.y + dy * t + (dx / len) * r * offset)}`;
+  };
+  for (let i = 0; i < count; i++) {
+    const start = (length * (i + random() * 0.6)) / Math.max(1, count),
+      end = Math.min(length, start + 9 + random() * 22),
+      offset = (random() - 0.5) * 1.2;
+    fibers.push(
+      "M" +
+        Array.from({ length: 7 }, (_, j) =>
+          at(start + ((end - start) * j) / 6, offset),
+        ).join("L"),
+    );
+  }
+  const result = {
+    outline: outline(1),
+    pigment: outline(0.76),
+    fibers: fibers.join(""),
+  };
+  paintCache.set(s, result);
+  return result;
+}
+export function pigmentColor(color: string) {
+  return (
+    "#" +
+    [1, 3, 5]
+      .map((i) =>
+        Math.round(parseInt(color.slice(i, i + 2), 16) * 0.88)
+          .toString(16)
+          .padStart(2, "0"),
+      )
+      .join("")
+  );
 }

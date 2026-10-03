@@ -1,0 +1,90 @@
+{
+  "checks": [
+    {
+      "comparisonPixels": {
+        "width": 5762,
+        "height": 2430,
+        "colorful": 492021,
+        "grain": 1587566,
+        "dark": 262364,
+        "corner": [
+          252,
+          245,
+          232,
+          255
+        ]
+      }
+    },
+    {
+      "svgAlignment": {
+        "actual": 602,
+        "patternCount": 55,
+        "elementCount": 2074,
+        "width": 2881,
+        "height": 1215,
+        "inside": true,
+        "preview": false,
+        "paper": "#fcf5e8",
+        "hasFont": true,
+        "highlighter": true
+      },
+      "styleGeometry": {
+        "styles": 18,
+        "allMatch": true,
+        "filters": false,
+        "pathsPerStroke": 3
+      }
+    },
+    "Real v5 JSON download → fresh Chromium context import → byte-identical PNG; autosave/reload keeps all seeds/styles/transforms/order.",
+    "Real mouse fallback, pan/zoom world coordinates, selection move/scale/rotate, ink-only eraser and undo/redo; classic brush preserved.",
+    "CDP pen pressure variation stored; centreline has no seeded offsets. Physical S Pen/palm rejection unverified.",
+    {
+      "touchEmulation": {
+        "width": 320,
+        "height": 720
+      },
+      "draw": true,
+      "panWithoutInk": true,
+      "pinch": true
+    },
+    {
+      "touchEmulation": {
+        "width": 344,
+        "height": 882
+      },
+      "draw": true,
+      "panWithoutInk": true,
+      "pinch": true
+    },
+    {
+      "touchEmulation": {
+        "width": 674,
+        "height": 842
+      },
+      "draw": true,
+      "panWithoutInk": true,
+      "pinch": true
+    },
+    {
+      "touchEmulation": {
+        "width": 768,
+        "height": 900
+      },
+      "draw": true,
+      "panWithoutInk": true,
+      "pinch": true
+    },
+    "Accumulated test documents hit local quota: rescue warning is visible and all 500 live strokes remain exportable."
+  ],
+  "errors": [],
+  "performance": {
+    "samples": 100000,
+    "strokes": 500,
+    "svgElements": 1500,
+    "jsonBytes": 4624310,
+    "importAndSaveMs": 7984,
+    "twoEventPanMs": 71
+  },
+  "physicalDevices": "Not tested. CDP pen/touch and Fold viewport emulation only.",
+  "browser": "140.0.7339.186"
+}
