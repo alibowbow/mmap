@@ -8,6 +8,7 @@
 /verification/*.png
 /verification/*.svg
 /verification/*.log
+/verification/io-*.json
 
 # next.js
 /.next/

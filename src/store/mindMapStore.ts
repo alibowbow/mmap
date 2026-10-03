@@ -64,11 +64,14 @@ import {
 } from "@/lib/tree";
 import { decodeSharedDocument } from "@/lib/share";
 import { parseImportJson } from "@/lib/validation";
+import { appearanceFrom, preserveDocumentDesign } from "@/lib/appearance";
+import { ensureDocumentFont } from "@/lib/fonts";
 import type {
   BranchSide,
   Edge,
   LayoutMode,
   MindMapDocument,
+  MindMapAppearance,
   MindMapNode,
   MindMapNodeData,
   MindMapRelation,
@@ -296,6 +299,7 @@ export type MindMapState = {
   importOutline: (text: string) => boolean;
   exportMarkdown: () => string;
   exportOutlineText: () => string;
+  renderImage: (format: "png" | "svg") => Promise<string>;
   exportImage: (format: "png" | "svg") => Promise<void>;
 
   // ── UI actions ──
@@ -364,6 +368,16 @@ function applyThemeClass(theme: MindMapTheme) {
   root.style.colorScheme = dark ? "dark" : "light";
 }
 
+function activateAppearance(
+  doc: MindMapDocument,
+  fallback: unknown,
+): MindMapAppearance {
+  const appearance = appearanceFrom(doc.appearance ?? fallback);
+  applyThemeClass(appearance.theme);
+  applyAccentAttr(appearance.accent);
+  return appearance;
+}
+
 function makeDocument(
   title: string,
   nodes: MindMapNode[],
@@ -413,7 +427,31 @@ function reconcileEdges(nodes: MindMapNode[], edges: Edge[]): Edge[] {
   );
 }
 
+let imageQueue: Promise<unknown> = Promise.resolve();
+
 export const useMindMapStore = create<MindMapState>((set, get) => {
+  function setAppearance(patch: Partial<MindMapAppearance>) {
+    const state = get();
+    if (
+      Object.entries(patch).every(
+        ([key, value]) =>
+          JSON.stringify(state[key as keyof MindMapAppearance]) ===
+          JSON.stringify(value),
+      )
+    )
+      return;
+    const appearance = appearanceFrom({ ...state, ...patch });
+    set({
+      ...patch,
+      documents: preserveDocumentDesign(state.documents, state).map((doc) =>
+        doc.id === state.activeDocumentId
+          ? { ...doc, appearance, updatedAt: nowIso() }
+          : doc,
+      ),
+      saveStatus: "idle",
+      revision: state.revision + 1,
+    });
+  }
   // Write the live nodes/edges back into the active document and mark dirty.
   // Relations referencing deleted nodes are pruned here — every node mutation
   // funnels through this, so it's the single cleanup choke point.
@@ -436,6 +474,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
             edges,
             relations,
             layoutMode: get().activeLayoutMode,
+            appearance: appearanceFrom(get()),
             updatedAt: touch ? nowIso() : d.updatedAt,
           }
         : d,
@@ -604,6 +643,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
               })(),
             )
           : blankRootDocument();
+      doc.appearance = appearanceFrom(get());
       set((s) => ({
         documents: [doc, ...s.documents],
         activeDocumentId: doc.id,
@@ -635,7 +675,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       if (!freshDocumentId) return;
       set({ freshDocumentId: null });
       const doc = documents.find((d) => d.id === freshDocumentId);
-      if (!doc || doc.updatedAt !== doc.createdAt || documents.length < 2) return;
+      if (!doc || doc.updatedAt !== doc.createdAt || documents.length < 2)
+        return;
       const rest = documents.filter((d) => d.id !== doc.id);
       if (activeDocumentId !== doc.id) {
         set((s) => ({ documents: rest, revision: s.revision + 1 }));
@@ -650,6 +691,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         relations: next.relations ?? [],
         selectedRelationId: null,
         activeLayoutMode: next.layoutMode ?? "right-tree",
+        ...activateAppearance(next, get()),
         ...selectionFor(getRootNode(next.nodes)?.id ?? null),
         editingNodeId: null,
         history: [],
@@ -670,6 +712,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       copy.relations = (src.relations ?? []).map((r) => ({ ...r }));
       copy.layoutMode = src.layoutMode;
       copy.viewport = src.viewport ? { ...src.viewport } : undefined;
+      copy.appearance = appearanceFrom(src.appearance ?? get());
       set((s) => ({
         documents: [copy, ...s.documents],
         revision: s.revision + 1,
@@ -699,6 +742,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         ...(wasActive
           ? selectionFor(getRootNode(nextDocs[0].nodes)?.id ?? null)
           : {}),
+        ...(wasActive ? activateAppearance(nextDocs[0], get()) : {}),
         history: wasActive ? [] : s.history,
         future: wasActive ? [] : s.future,
         revision: s.revision + 1,
@@ -741,6 +785,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         connectMode: false,
         focusModeNodeId: null,
         activeLayoutMode: doc.layoutMode ?? "right-tree",
+        ...activateAppearance(doc, get()),
         ...selectionFor(getRootNode(doc.nodes)?.id ?? null),
         editingNodeId: null,
         history: [],
@@ -768,8 +813,6 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
             ? ws.activeDocumentId
             : documents[0].id;
         const active = documents.find((d) => d.id === activeId)!;
-        applyThemeClass(ws.theme);
-        applyAccentAttr(ws.accent ?? DEFAULT_ACCENT);
         set({
           documents,
           activeDocumentId: activeId,
@@ -778,19 +821,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           relations: active.relations ?? [],
           activeLayoutMode: active.layoutMode ?? "right-tree",
           ...selectionFor(getRootNode(active.nodes)?.id ?? null),
-          theme: ws.theme,
-          font: ws.font ?? DEFAULT_FONT,
-          nodeStyle: ws.nodeStyle ?? DEFAULT_NODE_STYLE,
-          levelFontSizes: ws.levelFontSizes ?? [...DEFAULT_LEVEL_FONT_SIZES],
-          edgeStyle: ws.edgeStyle ?? "curved",
-          edgeAnimated: ws.edgeAnimated ?? false,
-          edgeWidth: ws.edgeWidth ?? 2,
-          edgeColorMode: ws.edgeColorMode ?? "default",
-          edgeLine: ws.edgeLine ?? DEFAULT_EDGE_LINE,
-          nodeTint: ws.nodeTint ?? false,
-          canvasBg: ws.canvasBg ?? DEFAULT_CANVAS_BG,
-          accent: ws.accent ?? DEFAULT_ACCENT,
-          rainbowBranches: ws.rainbowBranches ?? false,
+          ...activateAppearance(active, ws),
           sidebarCollapsed: ws.sidebarCollapsed,
           inspectorOpen: ws.inspectorOpen,
           hydrated: true,
@@ -911,8 +942,13 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
               siblings[siblings.length - 1].position.x < parent.position.x);
           // Bidirectional maps grow first-level branches on the lighter side
           // of the central topic, so the map stays balanced as it grows.
-          if (parent.data.isRoot && get().activeLayoutMode === "bidirectional") {
-            const onLeft = siblings.filter((n) => n.position.x < parent.position.x);
+          if (
+            parent.data.isRoot &&
+            get().activeLayoutMode === "bidirectional"
+          ) {
+            const onLeft = siblings.filter(
+              (n) => n.position.x < parent.position.x,
+            );
             left = onLeft.length < siblings.length - onLeft.length;
             siblings = left
               ? onLeft
@@ -1205,6 +1241,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         laid,
         buildEdgesFromNodes(laid),
       );
+      newDoc.appearance = appearanceFrom(get());
 
       // Update the current document: drop the moved descendants and turn the
       // node into a portal linking to the new map.
@@ -1944,7 +1981,14 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const { documents, activeDocumentId } = get();
       const doc = documents.find((d) => d.id === activeDocumentId);
       if (!doc) return "";
-      return exportDocumentJson(doc);
+      return exportDocumentJson({
+        ...doc,
+        nodes: get().nodes,
+        edges: get().edges,
+        relations: get().relations,
+        layoutMode: get().activeLayoutMode,
+        appearance: appearanceFrom(get()),
+      });
     },
 
     importJson: (json) => {
@@ -1963,14 +2007,20 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       doc.viewport = result.document.viewport;
       doc.layoutMode = result.document.layoutMode;
       doc.relations = result.document.relations ?? [];
+      doc.appearance = result.document.appearance;
+      doc.snapshots = result.document.snapshots;
+      doc.pinned = result.document.pinned;
       set((s) => ({
-        documents: [doc, ...s.documents],
+        documents: [doc, ...preserveDocumentDesign(s.documents, s)],
         activeDocumentId: doc.id,
+        freshDocumentId: null,
         nodes: doc.nodes,
         edges: doc.edges,
         relations: doc.relations ?? [],
         selectedRelationId: null,
         activeLayoutMode: doc.layoutMode ?? "right-tree",
+        ...activateAppearance(doc, get()),
+        editingNodeId: null,
         ...selectionFor(getRootNode(doc.nodes)?.id ?? null),
         history: [],
         future: [],
@@ -1999,6 +2049,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           : buildEdgesFromNodes(result.document.nodes),
       );
       doc.relations = result.document.relations ?? [];
+      doc.appearance = appearanceFrom(get());
       // Preserve the sharer's layout so edge-face routing matches immediately.
       if (result.layoutMode) doc.layoutMode = result.layoutMode;
       set((s) => ({
@@ -2027,6 +2078,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         return false;
       }
       const doc = makeDocument(result.title, result.nodes, result.edges);
+      doc.appearance = appearanceFrom(get());
       set((s) => ({
         documents: [doc, ...s.documents],
         activeDocumentId: doc.id,
@@ -2067,17 +2119,48 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       return doc ? exportOutlineText(doc) : "";
     },
 
-    // Generate a PNG/SVG of the current map and download it directly.
-    exportImage: async (format) => {
-      const { documents, activeDocumentId } = get();
-      const doc = documents.find((d) => d.id === activeDocumentId);
-      try {
+    // Both dialog previews and direct downloads use this same settled graph.
+    renderImage: async (format) => {
+      const id = get().activeDocumentId;
+      const checkDocument = () => {
+        if (id !== get().activeDocumentId)
+          throw new Error(
+            "문서가 바뀌었습니다. 현재 문서에서 다시 저장하세요.",
+          );
+      };
+      // html-to-image temporarily changes live edge SVGs. Serialize captures
+      // so rapid tab changes / repeated saves cannot restore each other's DOM.
+      const task = imageQueue.then(async () => {
+        checkDocument();
+        await ensureDocumentFont(
+          get().font,
+          get()
+            .nodes.map((n) => n.data.label)
+            .join(" "),
+        );
+        // FontFaceSet completion precedes ResizeObserver / React Flow measurement.
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        );
         await get().settleLayout();
+        checkDocument();
         const url = await renderCanvasImage(
           get().nodes,
           format,
           Object.values(get().layoutRoutes),
         );
+        checkDocument();
+        return url;
+      });
+      imageQueue = task.catch(() => undefined);
+      return task;
+    },
+
+    exportImage: async (format) => {
+      const { documents, activeDocumentId } = get();
+      const doc = documents.find((d) => d.id === activeDocumentId);
+      try {
+        const url = await get().renderImage(format);
         const name = `${safeFileName(doc?.title ?? "mindbranch")}.${format}`;
         const a = document.createElement("a");
         a.href = url;
@@ -2085,7 +2168,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         document.body.appendChild(a);
         a.click();
         a.remove();
-        get().addToast(`${name} 저장됨`, "success");
+        get().addToast(`${name} 다운로드를 시작했습니다`, "success");
       } catch (e) {
         get().addToast(
           e instanceof Error ? e.message : "이미지 저장에 실패했습니다",
@@ -2104,24 +2187,18 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
 
     setTheme: (theme) => {
       applyThemeClass(theme);
-      set((s) => ({ theme, revision: s.revision + 1 }));
+      setAppearance({ theme });
     },
 
-    setFont: (font) => set((s) => ({ font, revision: s.revision + 1 })),
+    setFont: (font) => setAppearance({ font }),
 
-    setNodeStyle: (nodeStyle) =>
-      set((s) => ({ nodeStyle, revision: s.revision + 1 })),
+    setNodeStyle: (nodeStyle) => setAppearance({ nodeStyle }),
 
-    setEdgeStyle: (edgeStyle) =>
-      set((s) => ({ edgeStyle, revision: s.revision + 1 })),
-    setEdgeAnimated: (edgeAnimated) =>
-      set((s) => ({ edgeAnimated, revision: s.revision + 1 })),
-    setEdgeWidth: (edgeWidth) =>
-      set((s) => ({ edgeWidth, revision: s.revision + 1 })),
-    setEdgeColorMode: (edgeColorMode) =>
-      set((s) => ({ edgeColorMode, revision: s.revision + 1 })),
-    setEdgeLine: (edgeLine) =>
-      set((s) => ({ edgeLine, revision: s.revision + 1 })),
+    setEdgeStyle: (edgeStyle) => setAppearance({ edgeStyle }),
+    setEdgeAnimated: (edgeAnimated) => setAppearance({ edgeAnimated }),
+    setEdgeWidth: (edgeWidth) => setAppearance({ edgeWidth }),
+    setEdgeColorMode: (edgeColorMode) => setAppearance({ edgeColorMode }),
+    setEdgeLine: (edgeLine) => setAppearance({ edgeLine }),
 
     // One-tap curated look: applies the preset's whole combination at once.
     // Never touches the user's light/dark theme preference.
@@ -2129,7 +2206,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const preset = THEME_PRESETS.find((p) => p.id === presetId);
       if (!preset) return;
       const st = preset.settings;
-      set((s) => ({
+      setAppearance({
         nodeStyle: st.nodeStyle,
         edgeStyle: st.edgeStyle,
         edgeWidth: st.edgeWidth,
@@ -2139,8 +2216,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         rainbowBranches: st.rainbowBranches,
         nodeTint: st.nodeTint,
         canvasBg: st.canvasBg,
-        revision: s.revision + 1,
-      }));
+      });
       const isDark =
         typeof document !== "undefined" &&
         document.documentElement.classList.contains("dark");
@@ -2152,30 +2228,25 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       );
     },
 
-    setNodeTint: (nodeTint) =>
-      set((s) => ({ nodeTint, revision: s.revision + 1 })),
-    setCanvasBg: (canvasBg) =>
-      set((s) => ({ canvasBg, revision: s.revision + 1 })),
-    setRainbowBranches: (rainbowBranches) =>
-      set((s) => ({ rainbowBranches, revision: s.revision + 1 })),
+    setNodeTint: (nodeTint) => setAppearance({ nodeTint }),
+    setCanvasBg: (canvasBg) => setAppearance({ canvasBg }),
+    setRainbowBranches: (rainbowBranches) => setAppearance({ rainbowBranches }),
     setAccent: (accent) => {
       applyAccentAttr(accent);
-      set((s) => ({ accent, revision: s.revision + 1 }));
+      setAppearance({ accent });
     },
 
-    setLevelFontSize: (level, size) =>
-      set((s) => {
-        const clamped = Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, size));
-        const next = [...s.levelFontSizes];
-        next[level] = clamped;
-        return { levelFontSizes: next, revision: s.revision + 1 };
-      }),
+    setLevelFontSize: (level, size) => {
+      const clamped = Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, size));
+      const next = [...get().levelFontSizes];
+      next[level] = clamped;
+      setAppearance({ levelFontSizes: next });
+    },
 
     resetLevelFontSizes: () =>
-      set((s) => ({
+      setAppearance({
         levelFontSizes: [...DEFAULT_LEVEL_FONT_SIZES],
-        revision: s.revision + 1,
-      })),
+      }),
 
     toggleSidebar: () =>
       set((s) => ({

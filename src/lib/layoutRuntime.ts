@@ -76,6 +76,7 @@ export class LayoutRuntime {
   private labels = new Map<string, { width: number; height: number }>();
   private protectedIds = new Set<string>();
   private measurementPasses = 0;
+  private preserveInitialPositions = true;
   private cameraVersion = 0;
   constructor(
     private get: () => MindMapState,
@@ -93,6 +94,7 @@ export class LayoutRuntime {
     this.cancel();
     const s = this.get();
     this.measurementPasses = 0;
+    this.preserveInitialPositions = false;
     this.transaction = {
       id: `tx${++this.serial}`,
       kind,
@@ -158,6 +160,7 @@ export class LayoutRuntime {
     this.ports.clear();
     this.labels.clear();
     this.measurementPasses = 0;
+    this.preserveInitialPositions = true;
     this.stamp = {
       ...this.stamp,
       documentId: this.get().activeDocumentId ?? "",
@@ -198,6 +201,9 @@ export class LayoutRuntime {
     const relationsChanged =
       s.relations !== before.relations &&
       JSON.stringify(s.relations) !== JSON.stringify(before.relations);
+    // Opening/importing a map is a read, even when a font's new metrics arrive.
+    // Only an actual edit or design change opts back into automatic placement.
+    if (fontChanged || relationsChanged) this.preserveInitialPositions = false;
     if (
       s.nodes === before.nodes &&
       !optionsChanged &&
@@ -301,6 +307,7 @@ export class LayoutRuntime {
       compact: removed,
       routingOnly:
         !!s.editingNodeId ||
+        (this.preserveInitialPositions && !content && !structural) ||
         freeDrag ||
         onlyCollapsed ||
         (!structural && !geometry && !fontChanged),
@@ -331,6 +338,10 @@ export class LayoutRuntime {
     this.queue({ changedNodeIds: changed, routingOnly: true });
   }
   dimensionsChanged() {
+    if (this.preserveInitialPositions) {
+      this.queue({ routingOnly: true });
+      return;
+    }
     if (this.get().editingNodeId || this.isDragging) {
       this.queue({ routingOnly: true });
       return;

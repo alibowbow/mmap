@@ -94,12 +94,31 @@ export type MindMapDocument = {
   viewport?: MindMapViewport;
   pinned?: boolean;
   layoutMode?: LayoutMode; // last auto-layout applied (edge-face routing)
+  // Portable document design. Older workspaces inherit their saved global design.
+  appearance?: MindMapAppearance;
   snapshots?: MindMapSnapshot[];
   createdAt: string;
   updatedAt: string;
 };
 
 export type MindMapTheme = "light" | "dark" | "system";
+
+export type MindMapAppearance = Pick<
+  MindMapWorkspace,
+  | "theme"
+  | "font"
+  | "nodeStyle"
+  | "levelFontSizes"
+  | "edgeStyle"
+  | "edgeAnimated"
+  | "edgeWidth"
+  | "edgeColorMode"
+  | "edgeLine"
+  | "nodeTint"
+  | "canvasBg"
+  | "accent"
+  | "rainbowBranches"
+>;
 
 export type LayoutMode = "right-tree" | "bidirectional" | "vertical" | "radial";
 

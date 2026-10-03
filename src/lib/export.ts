@@ -1,13 +1,17 @@
 import { walkTree } from "@/lib/tree";
 import type { MindMapDocument } from "@/types/mindmap";
+import { appearanceFrom } from "./appearance";
+
+export const DOCUMENT_FORMAT = "mindforge-document";
+export const DOCUMENT_EXPORT_VERSION = 2;
 
 // ── JSON ─────────────────────────────────────────────────────────────────────
 export function exportDocumentJson(doc: MindMapDocument): string {
   return JSON.stringify(
     {
-      format: "mindforge-document",
-      version: 1,
-      document: doc,
+      format: DOCUMENT_FORMAT,
+      version: DOCUMENT_EXPORT_VERSION,
+      document: { ...doc, appearance: appearanceFrom(doc.appearance) },
     },
     null,
     2

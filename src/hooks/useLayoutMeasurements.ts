@@ -9,6 +9,7 @@ import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useMindMapStore } from "@/store/mindMapStore";
 import type { EnginePort, Face } from "@/lib/layout-engine/types";
+import { ensureDocumentFont } from "@/lib/fonts";
 
 export function useLayoutMeasurements() {
   const initialized = useNodesInitialized(),
@@ -78,6 +79,17 @@ export function useLayoutMeasurements() {
         );
     };
     const raf = requestAnimationFrame(refresh);
+    void ensureDocumentFont(
+      font,
+      useMindMapStore
+        .getState()
+        .nodes.map((n) => n.data.label)
+        .join(" "),
+    )
+      .then(refresh)
+      .catch((error) => {
+        if (active) useMindMapStore.getState().addToast(error.message, "error");
+      });
     void document.fonts?.ready.then(refresh);
     document.fonts?.addEventListener("loadingdone", refresh);
     return () => {

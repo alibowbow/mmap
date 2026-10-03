@@ -9,6 +9,7 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
+        mono: ["var(--font-mono)"],
         sans: [
           "var(--font-sans)",
           "ui-sans-serif",

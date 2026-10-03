@@ -9,10 +9,17 @@
     "lint": "next lint",
     "test:layout": "node --import tsx --test tests/layout-engine/*.test.ts",
     "test:layout-integration": "node --import tsx --test tests/layout-integration/*.test.ts",
+    "test:io": "node --import tsx --test tests/io/*.test.ts",
+    "test:io-e2e": "node --import tsx tests/e2e/io.cjs",
     "bench:layout": "node --import tsx scripts/bench-layout.ts",
     "test:e2e": "node --import tsx tests/e2e/layout.cjs"
   },
   "dependencies": {
+    "@fontsource/gaegu": "5.3.0",
+    "@fontsource/jetbrains-mono": "5.3.0",
+    "@fontsource/jua": "5.3.0",
+    "@fontsource/nanum-myeongjo": "5.3.0",
+    "@fontsource/noto-sans-kr": "5.3.0",
     "@xyflow/react": "^12.3.5",
     "framer-motion": "^11.11.17",
     "html-to-image": "^1.11.13",

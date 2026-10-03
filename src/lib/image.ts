@@ -4,6 +4,7 @@ import { toPng, toSvg } from "html-to-image";
 import { union } from "@/lib/layout-engine/geometry";
 import type { EdgeRoute } from "@/lib/layout-engine/types";
 import { getHiddenNodeIds } from "@/lib/tree";
+import { loadedCanvasFontCSS } from "./imageFonts";
 import type { MindMapNode } from "@/types/mindmap";
 
 export type ImageFormat = "png" | "svg";
@@ -66,6 +67,7 @@ export async function renderCanvasImage(
     width: imageWidth,
     height: imageHeight,
     pixelRatio: format === "png" ? 2 : 1,
+    fontEmbedCSS: await loadedCanvasFontCSS(viewportEl),
     cacheBust: true,
     // Exclude controls/minimap/panels that live outside the viewport node;
     // capturing the viewport alone already isolates just the nodes + edges.
