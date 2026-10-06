@@ -210,7 +210,7 @@ async function main() {
     );
     await page.goto(base);
     await page
-      .getByRole("button", { name: "빈 손그림 보드", exact: true })
+      .getByRole("button", { name: "손그림", exact: true })
       .click();
     await ready(page);
     await page
@@ -235,10 +235,10 @@ async function main() {
       "Mouse drawing stores world coordinates and constant fallback pressure",
     );
     await page
-      .getByRole("button", { name: "아날로그 도구함", exact: true })
+      .getByRole("button", { name: "그리기 도구", exact: true })
       .click();
     const options = page.getByRole("dialog", {
-      name: "아날로그 도구함",
+      name: "그리기 도구",
       exact: true,
     });
     await options.getByRole("tab", { name: "색", exact: true }).click();
@@ -262,7 +262,7 @@ async function main() {
     );
     // Keep the image color assertions blue while verifying settings are saved.
     await page
-      .getByRole("button", { name: "아날로그 도구함", exact: true })
+      .getByRole("button", { name: "그리기 도구", exact: true })
       .click();
     await options.getByRole("tab", { name: "색", exact: true }).click();
     await options
@@ -417,7 +417,7 @@ async function main() {
     assert.deepEqual((await stored(page)).ink, erased.ink);
     await page.getByRole("button", { name: "실행 취소", exact: true }).click();
     await page
-      .getByRole("button", { name: "아날로그 도구함", exact: true })
+      .getByRole("button", { name: "그리기 도구", exact: true })
       .click();
     await page
       .getByRole("button", { name: "잉크 전체 지우기", exact: true })
@@ -428,7 +428,7 @@ async function main() {
       .click();
     assert.equal((await stored(page)).ink.strokes.length, 4);
     await page
-      .getByRole("button", { name: "아날로그 도구함", exact: true })
+      .getByRole("button", { name: "그리기 도구", exact: true })
       .click();
     await page
       .getByRole("button", { name: "잉크 전체 지우기", exact: true })
@@ -529,7 +529,7 @@ async function main() {
       .getByRole("button", { name: "지우개 모드", exact: true })
       .click();
     await page
-      .getByRole("button", { name: "아날로그 도구함", exact: true })
+      .getByRole("button", { name: "그리기 도구", exact: true })
       .click();
     await page
       .getByRole("button", { name: "잉크 전체 지우기", exact: true })
@@ -660,7 +660,7 @@ async function main() {
     const loadStart = Date.now();
     await largePage.goto(base + "/?doc=" + largeDoc.id);
     await ready(largePage);
-    assert.equal(await largePage.locator("[data-ink-stroke]").count(), 1000);
+    assert.equal(await largePage.locator("[data-ink-layer] [data-ink-stroke]").count(), 1000);
     const loadMs = Date.now() - loadStart;
     const timings = await largePage.evaluate(async () => {
       const times = [];

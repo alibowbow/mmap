@@ -41,3 +41,5 @@ next-env.d.ts
 /verification/branch/
 
 /verification/editing/
+
+/verification/ink-tool-access/

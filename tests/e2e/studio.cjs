@@ -59,8 +59,8 @@ async function command(p, name) {
     .click();
 }
 async function options(p, tab) {
-  await p.getByRole("button", { name: "아날로그 도구함", exact: true }).click();
-  const d = p.getByRole("dialog", { name: "아날로그 도구함", exact: true });
+  await p.getByRole("button", { name: "그리기 도구", exact: true }).click();
+  const d = p.getByRole("dialog", { name: "그리기 도구", exact: true });
   if (tab) await d.getByRole("tab", { name: tab, exact: true }).click();
   return d;
 }
@@ -267,7 +267,7 @@ async function main() {
     p.on("pageerror", (e) => report.errors.push(e.message));
     await p.goto(base);
     await p
-      .getByRole("button", { name: "빈 손그림 보드", exact: true })
+      .getByRole("button", { name: "손그림", exact: true })
       .click();
     await ready(p);
     await closeDocuments(p);
@@ -325,7 +325,7 @@ async function main() {
       q.on("pageerror", (e) => report.errors.push(e.message));
       await q.goto(base);
       await q
-        .getByRole("button", { name: "빈 손그림 보드", exact: true })
+        .getByRole("button", { name: "손그림", exact: true })
         .click();
       await ready(q);
       await importFile(q, file);
@@ -351,7 +351,7 @@ async function main() {
     // Actual pointer input through the UI for each tool, constant-pressure mouse fallback.
     await p.goto(base);
     await p
-      .getByRole("button", { name: "빈 손그림 보드", exact: true })
+      .getByRole("button", { name: "손그림", exact: true })
       .click();
     await ready(p);
     await closeDocuments(p);
