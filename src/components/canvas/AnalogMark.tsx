@@ -1,5 +1,6 @@
 "use client";
-import { memo } from "react";
+import { memo, useId } from "react";
+import { materialPaintPaths } from "@/lib/inkMaterial";
 import {
   branchPaintPaths,
   hasBranchStyle,
@@ -8,6 +9,7 @@ import {
   isStroke,
   itemTransform,
   strokePath,
+  rawStrokeBounds,
   texturePath,
   type InkItem,
 } from "@/lib/ink";
@@ -82,6 +84,7 @@ export const AnalogMark = memo(function AnalogMark({
 }: {
   item: InkItem;
 }) {
+  const instance = useId().replace(/:/g, "");
   if (!isStroke(item))
     return (
       <g data-ink-object={item.id} transform={itemTransform(item)}>
@@ -106,21 +109,63 @@ export const AnalogMark = memo(function AnalogMark({
     );
   const brush = item.brush ?? "pen",
     d = strokePath(item),
-    id = `texture-${hashSeed(item.id)}`,
+    id = `texture-${hashSeed(item.id)}-${instance}`,
     seed = item.seed ?? hashSeed(item.id);
   const hand = hasBranchStyle(item),
     feel = item.texture ?? 0.45;
   const opacity =
     (item.opacity ?? 1) *
     (brush === "highlighter" ? 0.27 : brush === "marker" ? 0.86 : 1);
-  return (
-    <g
-      data-ink-stroke={item.id}
-      data-brush={brush}
-      data-branch-style={hand ? "hand-v1" : undefined}
-      transform={itemTransform(item)}
-      opacity={opacity}
-    >
+  const material = materialPaintPaths(item);
+  const maskId = `erase-${hashSeed(item.id)}-${instance}`;
+  const erased = !!item.erasures?.length;
+  const rect = erased ? rawStrokeBounds(item) : undefined;
+  const paint = material ? (
+    <>
+      {material.paperGrain && (
+        <defs>
+          <pattern
+            id={id}
+            patternUnits="userSpaceOnUse"
+            width={material.paperGrain.size}
+            height={material.paperGrain.size}
+            patternTransform={material.paperGrain.transform}
+          >
+            <path
+              d={material.paperGrain.path}
+              fill={item.color}
+              opacity={material.paperGrain.opacity}
+            />
+          </pattern>
+        </defs>
+      )}
+      <path
+        d={material.body}
+        fill={item.color}
+        opacity={material.bodyOpacity}
+      />
+      {material.accent && (
+        <path
+          d={material.accent}
+          fill={pigmentColor(item.color)}
+          opacity={material.accentOpacity}
+        />
+      )}
+      {material.grain && (
+        <path
+          data-material-grain
+          d={material.grain}
+          fill="none"
+          stroke="#ffffff"
+          strokeWidth={material.grainStrokeWidth}
+          strokeLinecap="round"
+          opacity={material.grainOpacity}
+        />
+      )}
+      {material.paperGrain && <path d={material.body} fill={`url(#${id})`} />}
+    </>
+  ) : (
+    <>
       {(brush === "pencil" || brush === "marker") && (
         <defs>
           <pattern id={id} patternUnits="userSpaceOnUse" width="24" height="24">
@@ -167,6 +212,56 @@ export const AnalogMark = memo(function AnalogMark({
       {(brush === "pencil" || brush === "marker") && (
         <path d={d} fill={`url(#${id})`} />
       )}
+    </>
+  );
+  return (
+    <g
+      data-ink-stroke={item.id}
+      data-brush={brush}
+      data-branch-style={hand ? "hand-v1" : undefined}
+      data-material-style={item.materialStyle}
+      transform={itemTransform(item)}
+      opacity={opacity}
+    >
+      {rect && (
+        <defs>
+          <mask
+            id={maskId}
+            maskUnits="userSpaceOnUse"
+            x={rect.x}
+            y={rect.y}
+            width={rect.width}
+            height={rect.height}
+            style={{ maskType: "luminance" }}
+          >
+            <rect {...rect} fill="white" />
+            {item.erasures!.map((m, i) =>
+              m.points.length === 1 ? (
+                <circle
+                  key={i}
+                  cx={m.points[0].x}
+                  cy={m.points[0].y}
+                  r={m.radius}
+                  fill="black"
+                />
+              ) : (
+                <path
+                  key={i}
+                  d={m.points
+                    .map((p, j) => `${j ? "L" : "M"}${p.x},${p.y}`)
+                    .join(" ")}
+                  fill="none"
+                  stroke="black"
+                  strokeWidth={m.radius * 2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              ),
+            )}
+          </mask>
+        </defs>
+      )}
+      {erased ? <g mask={`url(#${maskId})`}>{paint}</g> : paint}
     </g>
   );
 });

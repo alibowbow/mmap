@@ -178,7 +178,7 @@ test("v1-v4 legacy geometry stays exact; unsupported style/version rejects atomi
     count = store.getState().documents.length;
   for (const mutate of [
     (d: any) => (d.ink.strokes[0].branchStyle = "hand-v2"),
-    (d: any) => (d.ink.version = 4),
+    (d: any) => (d.ink.version = 5),
     (d: any) => {
       d.ink.version = 2;
       d.ink.strokes[0].branchStyle = "hand-v1";

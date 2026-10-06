@@ -116,7 +116,7 @@ test("malformed, partial, nonfinite geometry, invalid styles, future versions an
         error: string;
       }
     ).error,
-    /99.*5/,
+    /99.*6/,
   );
 });
 

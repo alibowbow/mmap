@@ -39,3 +39,5 @@ next-env.d.ts
 /verification/studio/
 
 /verification/branch/
+
+/verification/editing/

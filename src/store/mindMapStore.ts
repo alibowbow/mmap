@@ -8,6 +8,9 @@ import {
   validInkSettings,
   validPaper,
   inkItems,
+  inkVersion,
+  isStroke,
+  type InkItem,
   DEFAULT_PAPER,
   MAX_INK_POINTS,
   MAX_INK_STROKES,
@@ -162,7 +165,10 @@ export type MindMapState = {
   inkSettings: InkSettings;
   inkGestureActive: boolean;
   selectedInkId: string | null;
+  selectedInkIds: string[];
   selectInk: (id: string | null) => void;
+  selectInkItems: (ids: string[]) => void;
+  replaceInkItems: (items: InkItem[]) => boolean;
   addInkObject: (item: InkObject) => void;
   updateInkItem: (
     id: string,
@@ -502,7 +508,19 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         doc.boardMode === "blank" ? ("pen" as InkTool) : ("node" as InkTool),
       inkGestureActive: false,
       selectedInkId: null,
+      selectedInkIds: [],
     };
+  }
+  function inkSelectionFor(ink: InkData) {
+    const state = get(),
+      surviving = new Set(inkItems(ink).map((s) => s.id));
+    const ids = state.selectedInkIds.length
+      ? state.selectedInkIds
+      : state.selectedInkId
+        ? [state.selectedInkId]
+        : [];
+    const selectedInkIds = ids.filter((id) => surviving.has(id));
+    return { selectedInkIds, selectedInkId: selectedInkIds[0] ?? null };
   }
   function commitInk(ink: InkData) {
     // References remain immutable; history shares old stroke geometry instead
@@ -519,6 +537,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     };
     set({
       ink,
+      ...inkSelectionFor(ink),
       history: [...state.history, entry].slice(-HISTORY_LIMIT),
       future: [],
     });
@@ -632,7 +651,38 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     inkSettings: DEFAULT_INK_SETTINGS,
     inkGestureActive: false,
     selectedInkId: null,
-    selectInk: (id) => set({ selectedInkId: id }),
+    selectedInkIds: [],
+    selectInk: (id) =>
+      set({ selectedInkId: id, selectedInkIds: id ? [id] : [] }),
+    selectInkItems: (ids) => {
+      const existing = new Set(inkItems(get().ink).map((s) => s.id));
+      const selectedInkIds = [...new Set(ids)].filter((id) => existing.has(id));
+      set({ selectedInkId: selectedInkIds[0] ?? null, selectedInkIds });
+    },
+    replaceInkItems: (items) => {
+      const ink = get().ink;
+      const previous = inkItems(ink);
+      if (
+        items.length === previous.length &&
+        items.every((item, i) => item === previous[i])
+      )
+        return false;
+      const next: InkData = {
+        ...ink,
+        strokes: items.filter(isStroke),
+        objects: items.filter((s): s is InkObject => !isStroke(s)),
+        order: items.map((s) => s.id),
+      };
+      next.version = inkVersion(next);
+      const checked = validateInk(next);
+      if (!checked.ok) {
+        get().addToast(checked.error, "error");
+        return false;
+      }
+      commitInk(next);
+      set({ freshDocumentId: null });
+      return true;
+    },
     addInkObject: (item) => {
       const ink = get().ink;
       if ((ink.objects?.length ?? 0) >= 1000) {
@@ -644,13 +694,17 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       }
       const next: InkData = {
         ...ink,
-        version: ink.version === 3 ? 3 : 2,
+        version: inkVersion(ink),
         objects: [...(ink.objects ?? []), item],
         order: [...inkItems(ink).map((s) => s.id), item.id],
       };
       if (!validateInk(next).ok) return;
       commitInk(next);
-      set({ freshDocumentId: null, selectedInkId: item.id });
+      set({
+        freshDocumentId: null,
+        selectedInkId: item.id,
+        selectedInkIds: [item.id],
+      });
     },
     updateInkItem: (id, patch) => {
       const ink = get().ink,
@@ -662,11 +716,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         return;
       const next: InkData = {
         ...ink,
-        version:
-          ink.version === 3 ||
-          ("branchStyle" in patch && patch.branchStyle === "hand-v1")
-            ? 3
-            : 2,
+        version: inkVersion(ink),
         strokes: ink.strokes.map((s) =>
           s.id === id ? ({ ...s, ...patch } as InkStroke) : s,
         ),
@@ -674,6 +724,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           s.id === id ? ({ ...s, ...patch } as InkObject) : s,
         ),
       };
+      next.version = inkVersion(next);
       if (validateInk(next).ok) commitInk(next);
     },
     reorderInk: (id, front) => {
@@ -683,7 +734,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       const rest = order.filter((i) => i !== id),
         next = front ? [...rest, id] : [id, ...rest];
       if (next.join() !== order.join())
-        commitInk({ ...ink, version: ink.version === 3 ? 3 : 2, order: next });
+        commitInk({ ...ink, version: inkVersion(ink), order: next });
     },
     setInkPaper: (paper) => {
       if (
@@ -693,7 +744,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         return;
       commitInk({
         ...get().ink,
-        version: get().ink.version === 3 ? 3 : 2,
+        version: inkVersion(get().ink),
         paper,
       });
       set({ freshDocumentId: null });
@@ -749,7 +800,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     addInkStroke: (stroke) => {
       const state = get();
       const checked = validateInk({
-        version: stroke.branchStyle === "hand-v1" ? 3 : 2,
+        version: inkVersion({ version: 2, strokes: [stroke] }),
         strokes: [stroke],
       });
       if (!checked.ok || inkItems(state.ink).some((s) => s.id === stroke.id))
@@ -766,13 +817,18 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         );
         return;
       }
-      commitInk({
+      const next: InkData = {
         ...state.ink,
-        version:
-          state.ink.version === 3 || stroke.branchStyle === "hand-v1" ? 3 : 2,
         strokes: [...state.ink.strokes, checked.ink.strokes[0]],
         order: [...inkItems(state.ink).map((s) => s.id), stroke.id],
-      });
+      };
+      next.version = inkVersion(next);
+      const complete = validateInk(next);
+      if (!complete.ok) {
+        get().addToast(complete.error, "error");
+        return;
+      }
+      commitInk(next);
       set({ freshDocumentId: null });
     },
     eraseInkStrokes: (ids) => {
@@ -1775,6 +1831,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       layoutRuntime.record({ ...get(), ...restored });
       set({
         ...restored,
+        ...inkSelectionFor(restored.ink),
         ...selectionFor(getRootNode(snap.nodes)?.id ?? null),
         focusModeNodeId: null,
         dialog: null,
@@ -2229,6 +2286,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       };
       set((s) => ({
         ink: prev.ink ?? EMPTY_INK,
+        ...inkSelectionFor(prev.ink ?? EMPTY_INK),
         boardMode: prev.boardMode ?? get().boardMode,
         nodes: prev.nodes,
         activeLayoutMode: prev.layoutMode ?? "right-tree",
@@ -2258,6 +2316,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       };
       set((s) => ({
         ink: nextEntry.ink ?? EMPTY_INK,
+        ...inkSelectionFor(nextEntry.ink ?? EMPTY_INK),
         boardMode: nextEntry.boardMode ?? get().boardMode,
         nodes: nextEntry.nodes,
         activeLayoutMode: nextEntry.layoutMode ?? "right-tree",

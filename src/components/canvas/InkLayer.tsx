@@ -20,6 +20,18 @@ import {
   isStroke,
   MAX_STROKE_POINTS,
 } from "@/lib/ink";
+import {
+  appendStrokeErasure,
+  selectInkInPolygon,
+  strokeVisibleHit,
+  translateInkItems,
+} from "@/lib/inkEditing";
+import {
+  findBranchJunction,
+  snapBranchStart,
+  type InkJunction,
+} from "@/lib/inkJunction";
+import { strokeEditHandles, deformStrokeAt } from "@/lib/inkCurveEditing";
 import { createId } from "@/lib/id";
 import { useMindMapStore } from "@/store/mindMapStore";
 import { AnalogMark } from "./AnalogMark";
@@ -33,7 +45,14 @@ import type {
 
 type Contact = { x: number; y: number; type: string };
 type Gesture = {
-  kind: "pen" | "eraser" | "select" | "stamp" | "label";
+  kind: "pen" | "eraser" | "select" | "lasso" | "reshape" | "stamp" | "label";
+  items: InkItem[];
+  selectedIds: string[];
+  path: InkPoint[];
+  replacements: Map<string, InkItem>;
+  fraction?: number;
+  junction?: InkJunction;
+  partial?: boolean;
   item?: InkItem;
   start: InkPoint;
   pointer: number;
@@ -56,8 +75,12 @@ export function InkLayer() {
   const presentation = useMindMapStore((s) => s.presentationMode);
   const flow = useReactFlow();
   const bounds = useMemo(() => inkBounds(ink), [ink]);
+  const [previews, setPreviews] = useState<InkItem[]>([]);
+  const [lassoPath, setLassoPath] = useState<InkPoint[]>([]);
+  const [joinPreview, setJoinPreview] = useState<InkJunction | null>(null);
   const [live, setLive] = useState<InkItem | null>(null);
   const selectedId = useMindMapStore((s) => s.selectedInkId);
+  const selectedIds = useMindMapStore((s) => s.selectedInkIds);
   const items = useMemo(() => inkItems(ink), [ink]);
   const selected = items.find((s) => s.id === selectedId);
   const eraser = useRef<SVGCircleElement>(null);
@@ -76,6 +99,9 @@ export function InkLayer() {
     camera.current = null;
     contacts.current.clear();
     setLive(null);
+    setPreviews([]);
+    setLassoPath([]);
+    setJoinPreview(null);
     if (eraser.current) eraser.current.style.display = "none";
     setHidden(new Set());
     useMindMapStore.setState({ inkGestureActive: false });
@@ -137,40 +163,60 @@ export function InkLayer() {
     camera.current = { ...geo, viewport: flow.getViewport() };
     useMindMapStore.getState().noteCameraIntent();
   };
+  const partialItems = (g: Gesture) => {
+    g.replacements.clear();
+    for (const item of g.items) {
+      if (!isStroke(item) || !g.removed.has(item.id)) continue;
+      const next = appendStrokeErasure(item, g.path, 12 / g.zoom);
+      if (next !== item) g.replacements.set(item.id, next);
+    }
+    return g.items.map((item) => g.replacements.get(item.id) ?? item);
+  };
+  const renderedStroke = (g: Gesture) =>
+    g.junction ? snapBranchStart({ ...g.stroke }, g.junction) : { ...g.stroke };
   const renderPreview = () => {
     frame.current = 0;
     const g = gesture.current;
     if (!g) return;
-    if (g.kind === "pen") setLive({ ...g.stroke });
-    if (g.kind === "select" && g.item) {
-      const t = g.item.transform ?? identityTransform();
-      setLive({
-        ...g.item,
-        transform: {
-          ...t,
-          x: t.x + g.last.x - g.start.x,
-          y: t.y + g.last.y - g.start.y,
-        },
-      });
+    if (g.kind === "pen") setLive(renderedStroke(g));
+    if (g.kind === "select") {
+      const changed = translateInkItems(
+        g.items,
+        g.selectedIds,
+        g.last.x - g.start.x,
+        g.last.y - g.start.y,
+      );
+      setPreviews(changed.filter((item) => g.selectedIds.includes(item.id)));
+      setHidden(new Set(g.selectedIds));
+    }
+    if (g.kind === "reshape" && g.item && isStroke(g.item)) {
+      setLive(deformStrokeAt(g.item, g.fraction ?? 0.5, g.last));
       setHidden(new Set([g.item.id]));
     }
+    if (g.kind === "lasso") setLassoPath([...g.path]);
     if ((g.kind === "stamp" || g.kind === "label") && g.item) setLive(g.item);
-    if (g.kind === "eraser")
-      setHidden((prev) =>
-        prev.size === g.removed.size ? prev : new Set(g.removed),
-      );
+    if (g.kind === "eraser") {
+      if (g.partial) {
+        partialItems(g);
+        setPreviews([...g.replacements.values()]);
+        setHidden(new Set(g.replacements.keys()));
+      } else setHidden(new Set(g.removed));
+    }
   };
   const schedule = () => {
     if (!frame.current) frame.current = requestAnimationFrame(renderPreview);
   };
   const eraseSegment = (g: Gesture, point: InkPoint) => {
-    for (const stroke of inkItems(useMindMapStore.getState().ink)) {
+    for (const item of g.items) {
+      if (g.partial && !isStroke(item)) continue;
       if (
-        !g.removed.has(stroke.id) &&
-        itemHit(stroke, g.last, point, 12 / g.zoom)
+        isStroke(item)
+          ? strokeVisibleHit(item, g.last, point, 12 / g.zoom)
+          : itemHit(item, g.last, point, 12 / g.zoom)
       )
-        g.removed.add(stroke.id);
+        g.removed.add(item.id);
     }
+    appendInkPoint(g.path, point, g.zoom);
     g.last = point;
     if (eraser.current) {
       eraser.current.setAttribute("cx", String(point.x));
@@ -199,6 +245,9 @@ export function InkLayer() {
       // A second finger becomes navigation, dropping the uncommitted preview.
       gesture.current = null;
       setLive(null);
+      setPreviews([]);
+      setLassoPath([]);
+      setJoinPreview(null);
       setHidden(new Set());
       useMindMapStore.setState({ inkGestureActive: false });
       startCamera();
@@ -210,25 +259,83 @@ export function InkLayer() {
     }
     const state = useMindMapStore.getState();
     const point = sample(e);
-    const kind =
+    let kind: Gesture["kind"] =
       e.button === 5
         ? "eraser"
         : tool === "eraser"
           ? "eraser"
           : tool === "select"
             ? "select"
-            : tool === "stamp"
-              ? "stamp"
-              : tool === "label"
-                ? "label"
-                : "pen";
+            : tool === "lasso"
+              ? "lasso"
+              : tool === "reshape"
+                ? "reshape"
+                : tool === "stamp"
+                  ? "stamp"
+                  : tool === "label"
+                    ? "label"
+                    : "pen";
     let item: InkItem | undefined;
-    if (kind === "select") {
-      item = [...inkItems(state.ink)]
+    const all = inkItems(state.ink);
+    let group = state.selectedInkIds.length
+      ? state.selectedInkIds
+      : state.selectedInkId
+        ? [state.selectedInkId]
+        : [];
+    let fraction: number | undefined;
+    const hit = () =>
+      [...all]
         .reverse()
-        .find((s) => itemHit(s, point, point, 8 / flow.getZoom()));
-      state.selectInk(item?.id ?? null);
-      if (!item) return;
+        .find((s) =>
+          isStroke(s)
+            ? strokeVisibleHit(s, point, point, 8 / flow.getZoom())
+            : itemHit(s, point, point, 8 / flow.getZoom()),
+        );
+    if (kind === "select") {
+      item = hit();
+      if (!item) {
+        state.selectInk(null);
+        return;
+      }
+      if (e.shiftKey) {
+        state.selectInkItems(
+          group.includes(item.id)
+            ? group.filter((id) => id !== item!.id)
+            : [...group, item.id],
+        );
+        return;
+      }
+      if (!group.includes(item.id)) {
+        state.selectInk(item.id);
+        group = [item.id];
+      }
+    }
+    if (kind === "reshape") {
+      const chosen = all.find((s) => s.id === state.selectedInkId);
+      const handle =
+        chosen && isStroke(chosen)
+          ? strokeEditHandles(chosen).find(
+              (h) =>
+                Math.hypot(h.point.x - point.x, h.point.y - point.y) *
+                  flow.getZoom() <
+                16,
+            )
+          : undefined;
+      if (!handle || !chosen) {
+        item = hit();
+        if (item && isStroke(item)) {
+          state.selectInk(item.id);
+          if (!strokeEditHandles(item).length)
+            state.addToast(
+              item.erasures?.length
+                ? "부분 지운 획은 곡선 다듬기를 지원하지 않습니다."
+                : "브러시나 유기적 가지를 선택해 주세요.",
+            );
+        } else state.selectInk(null);
+        return;
+      }
+      item = chosen;
+      fraction = handle.fraction;
     }
     if (kind === "stamp" || kind === "label") {
       const fontSize = state.inkSettings.fontSize ?? 28,
@@ -256,10 +363,54 @@ export function InkLayer() {
         fill: state.inkSettings.fill ?? false,
       };
     }
+    if (
+      kind === "label" &&
+      item &&
+      !isStroke(item) &&
+      state.inkSettings.labelOnBranch
+    ) {
+      const branch = findBranchJunction(state.ink, point, 48 / flow.getZoom());
+      if (branch) {
+        let angle =
+          (Math.atan2(branch.tangent.y, branch.tangent.x) * 180) / Math.PI;
+        if (angle > 90) angle -= 180;
+        if (angle < -90) angle += 180;
+        angle = Math.max(-25, Math.min(25, angle));
+        const a = (angle * Math.PI) / 180;
+        item = {
+          ...item,
+          x: branch.point.x + Math.sin(a) * item.fontSize * 0.72,
+          y: branch.point.y - Math.cos(a) * item.fontSize * 0.72,
+          transform: { ...identityTransform(), rotation: angle },
+        };
+      }
+    }
     const id = createId("ink");
+    const connecting =
+      kind === "pen" &&
+      state.inkSettings.connectBranches &&
+      !e.altKey &&
+      (state.inkSettings.brush === "brush" ||
+        state.inkSettings.brush === "branch");
+    const junction = connecting
+      ? (findBranchJunction(
+          state.ink,
+          point,
+          16 / flow.getZoom(),
+          state.inkSettings.color,
+        ) ?? undefined)
+      : undefined;
+    setJoinPreview(junction ?? null);
     const g: Gesture = {
       kind,
       item,
+      items: all,
+      selectedIds: group,
+      fraction,
+      junction,
+      partial: state.inkSettings.eraserMode === "partial",
+      path: [point],
+      replacements: new Map(),
       start: point,
       pointer: e.pointerId,
       doc: state.activeDocumentId,
@@ -272,7 +423,8 @@ export function InkLayer() {
         opacity: state.inkSettings.opacity ?? 1,
         texture: state.inkSettings.texture ?? 0.7,
         taper: state.inkSettings.taper ?? 0.8,
-        branchStyle: state.inkSettings.branchStyle,
+        branchStyle: junction ? "hand-v1" : state.inkSettings.branchStyle,
+        materialStyle: state.inkSettings.materialStyle,
         curve: state.inkSettings.curve ?? 0.25,
         points: [point],
       },
@@ -287,7 +439,26 @@ export function InkLayer() {
   };
   const move = (e: ReactPointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
-    if (!contacts.current.has(e.pointerId)) return;
+    if (!contacts.current.has(e.pointerId)) {
+      const state = useMindMapStore.getState();
+      if (
+        tool === "pen" &&
+        state.inkSettings.connectBranches &&
+        !e.altKey &&
+        (state.inkSettings.brush === "brush" ||
+          state.inkSettings.brush === "branch")
+      )
+        setJoinPreview(
+          findBranchJunction(
+            state.ink,
+            sample(e),
+            16 / flow.getZoom(),
+            state.inkSettings.color,
+          ),
+        );
+      else setJoinPreview(null);
+      return;
+    }
     contacts.current.set(e.pointerId, {
       x: e.clientX,
       y: e.clientY,
@@ -327,8 +498,11 @@ export function InkLayer() {
         if (g.stroke.brush === "branch") g.stroke.points = [g.start, point];
         else appendInkPoint(g.stroke.points, point, g.zoom);
       } else if (g.kind === "eraser") eraseSegment(g, point);
-      else if (g.kind === "select") g.last = point;
-      else if (g.kind === "stamp" && g.item) {
+      else if (g.kind === "select" || g.kind === "reshape") g.last = point;
+      else if (g.kind === "lasso") {
+        appendInkPoint(g.path, point, g.zoom);
+        g.last = point;
+      } else if (g.kind === "stamp" && g.item) {
         if (Math.hypot(point.x - g.start.x, point.y - g.start.y) * g.zoom > 6)
           g.item = {
             ...(g.item as InkObject),
@@ -357,24 +531,42 @@ export function InkLayer() {
       if (g.kind === "pen") {
         if (g.stroke.brush === "branch") g.stroke.points = [g.start, point];
         else appendInkPoint(g.stroke.points, point, g.zoom, true);
-        useMindMapStore.getState().addInkStroke(g.stroke);
+        useMindMapStore.getState().addInkStroke(renderedStroke(g));
         if (g.stroke.points.length === MAX_STROKE_POINTS)
           useMindMapStore
             .getState()
             .addToast("긴 획을 마쳤습니다. 다음 획으로 이어 그려주세요.");
       } else if (g.kind === "eraser") {
         eraseSegment(g, point);
-        useMindMapStore.getState().eraseInkStrokes([...g.removed]);
-      } else if (g.kind === "select" && g.item) {
-        const t = g.item.transform ?? identityTransform();
+        if (g.partial)
+          useMindMapStore.getState().replaceInkItems(partialItems(g));
+        else useMindMapStore.getState().eraseInkStrokes([...g.removed]);
+      } else if (g.kind === "select") {
         if (Math.hypot(point.x - g.start.x, point.y - g.start.y) * g.zoom > 1)
-          useMindMapStore.getState().updateInkItem(g.item.id, {
-            transform: {
-              ...t,
-              x: t.x + point.x - g.start.x,
-              y: t.y + point.y - g.start.y,
-            },
-          });
+          useMindMapStore
+            .getState()
+            .replaceInkItems(
+              translateInkItems(
+                g.items,
+                g.selectedIds,
+                point.x - g.start.x,
+                point.y - g.start.y,
+              ),
+            );
+      } else if (g.kind === "reshape" && g.item && isStroke(g.item)) {
+        const changed = deformStrokeAt(g.item, g.fraction ?? 0.5, point);
+        if (changed !== g.item)
+          useMindMapStore
+            .getState()
+            .replaceInkItems(
+              g.items.map((s) => (s.id === changed.id ? changed : s)),
+            );
+      } else if (g.kind === "lasso") {
+        appendInkPoint(g.path, point, g.zoom, true);
+        const ids = selectInkInPolygon(g.items, g.path);
+        useMindMapStore
+          .getState()
+          .selectInkItems(e.shiftKey ? [...g.selectedIds, ...ids] : ids);
       } else if (g.item && !isStroke(g.item)) {
         useMindMapStore.getState().addInkObject(g.item);
       }
@@ -382,9 +574,14 @@ export function InkLayer() {
     contacts.current.delete(e.pointerId);
     gesture.current = null;
     setLive(null);
+    setPreviews([]);
+    setLassoPath([]);
+    setJoinPreview(null);
     if (eraser.current) eraser.current.style.display = "none";
     setHidden(new Set());
     useMindMapStore.setState({ inkGestureActive: false });
+    if (g?.kind === "lasso" && useMindMapStore.getState().selectedInkIds.length)
+      useMindMapStore.getState().setInkTool("select");
     if (contacts.current.size) startCamera();
     else {
       camera.current = null;
@@ -464,6 +661,52 @@ export function InkLayer() {
           }}
         >
           {live && <AnalogMark item={live} />}
+          {previews.map((s) => (
+            <AnalogMark key={s.id} item={s} />
+          ))}
+          {lassoPath.length > 1 && (
+            <path
+              data-ink-lasso
+              d={
+                lassoPath
+                  .map((p, i) => `${i ? "L" : "M"}${p.x},${p.y}`)
+                  .join(" ") + "Z"
+              }
+              fill="#ed5269"
+              fillOpacity={0.06}
+              stroke="#ed5269"
+              strokeWidth={1.5 / flow.getZoom()}
+              strokeDasharray={`${5 / flow.getZoom()} ${3 / flow.getZoom()}`}
+            />
+          )}
+          {joinPreview && (
+            <circle
+              data-ink-junction
+              cx={joinPreview.point.x}
+              cy={joinPreview.point.y}
+              r={6 / flow.getZoom()}
+              fill="#fcf5e8"
+              stroke="#246d56"
+              strokeWidth={2 / flow.getZoom()}
+            />
+          )}
+          {tool === "reshape" &&
+            selected &&
+            isStroke(selected) &&
+            strokeEditHandles(
+              live?.id === selected.id && isStroke(live) ? live : selected,
+            ).map((h) => (
+              <circle
+                data-curve-handle={h.id}
+                key={h.id}
+                cx={h.point.x}
+                cy={h.point.y}
+                r={7 / flow.getZoom()}
+                fill="#fffefb"
+                stroke="#ed5269"
+                strokeWidth={2 / flow.getZoom()}
+              />
+            ))}
           <circle
             ref={eraser}
             fill="none"
@@ -472,37 +715,38 @@ export function InkLayer() {
             style={{ display: "none" }}
           />
         </svg>
-        {tool === "select" &&
-          selected &&
-          (() => {
-            const b = itemBounds(live?.id === selected.id ? live : selected);
-            return (
-              <svg
-                data-studio-selection
-                width="1"
-                height="1"
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  top: 0,
-                  overflow: "visible",
-                  pointerEvents: "none",
-                  zIndex: 22,
-                }}
-              >
-                <rect
-                  x={b.x}
-                  y={b.y}
-                  width={b.width}
-                  height={b.height}
-                  fill="none"
-                  stroke="#ed5269"
-                  strokeWidth={1.5 / flow.getZoom()}
-                  strokeDasharray={`${5 / flow.getZoom()} ${3 / flow.getZoom()}`}
-                />
-              </svg>
-            );
-          })()}
+        {(tool === "select" || tool === "lasso") && selectedIds.length > 0 && (
+          <svg
+            data-studio-selection
+            width="1"
+            height="1"
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              overflow: "visible",
+              pointerEvents: "none",
+              zIndex: 22,
+            }}
+          >
+            {items
+              .filter((s) => selectedIds.includes(s.id))
+              .map((s) => {
+                const b = itemBounds(previews.find((p) => p.id === s.id) ?? s);
+                return (
+                  <rect
+                    key={s.id}
+                    data-selected-ink={s.id}
+                    {...b}
+                    fill="none"
+                    stroke="#ed5269"
+                    strokeWidth={1.5 / flow.getZoom()}
+                    strokeDasharray={`${5 / flow.getZoom()} ${3 / flow.getZoom()}`}
+                  />
+                );
+              })}
+          </svg>
+        )}
       </ViewportPortal>
       {active && (
         <div
@@ -517,6 +761,9 @@ export function InkLayer() {
           onPointerMove={move}
           onPointerUp={up}
           onPointerCancel={reset}
+          onPointerLeave={() => {
+            if (!contacts.current.size) setJoinPreview(null);
+          }}
           onLostPointerCapture={(e) => {
             if (contacts.current.has(e.pointerId)) reset();
           }}
