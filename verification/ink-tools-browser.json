@@ -1,0 +1,211 @@
+{
+  "checks": [
+    {
+      "quickSelection": "pen → pencil → marker, three direct toolbar clicks",
+      "markerSettings": {
+        "color": "#cbdcf3",
+        "width": 20,
+        "brush": "marker",
+        "opacity": 0.42,
+        "materialStyle": "classic",
+        "texture": 0.6,
+        "taper": 0.8
+      }
+    },
+    {
+      "markerAboveBlackKoreanText": {
+        "beforeSize": [
+          1286,
+          960
+        ],
+        "afterSize": [
+          1286,
+          960
+        ],
+        "blackCoreSamples": 996,
+        "whitePaperSamples": 1053,
+        "afterForegroundLuminanceP90": 0.1031431824474508,
+        "afterPaperLuminanceP10": 0.875207717744918,
+        "conservativeContrast": 6.041455472968193,
+        "retainedDarkFraction": 1,
+        "paperColorChangeMedian": 19
+      }
+    },
+    {
+      "darkPenRestored": {
+        "color": "#285b85",
+        "width": 4,
+        "brush": "pen",
+        "opacity": 1,
+        "materialStyle": "classic",
+        "texture": 0.6,
+        "taper": 0.8
+      }
+    },
+    "All six quick tools stay available in selection/eraser modes and return directly to drawing; drawing options use the visible/accessibility name '그리기 도구'.",
+    {
+      "mobileLayout": {
+        "viewport": 320,
+        "scrollWidth": 320,
+        "toolbar": {
+          "left": 8,
+          "right": 312
+        },
+        "buttons": [
+          {
+            "name": "색연필 도구",
+            "width": 44,
+            "height": 44,
+            "left": 23,
+            "right": 67
+          },
+          {
+            "name": "펜 도구",
+            "width": 44,
+            "height": 44,
+            "left": 69,
+            "right": 113
+          },
+          {
+            "name": "마커 도구",
+            "width": 44,
+            "height": 44,
+            "left": 115,
+            "right": 159
+          },
+          {
+            "name": "형광펜 도구",
+            "width": 44,
+            "height": 44,
+            "left": 161,
+            "right": 205
+          },
+          {
+            "name": "브러시 도구",
+            "width": 44,
+            "height": 44,
+            "left": 207,
+            "right": 251
+          },
+          {
+            "name": "유기적 가지 도구",
+            "width": 44,
+            "height": 44,
+            "left": 253,
+            "right": 297
+          }
+        ],
+        "colors": [
+          {
+            "width": 44,
+            "height": 44
+          },
+          {
+            "width": 44,
+            "height": 44
+          },
+          {
+            "width": 44,
+            "height": 44
+          },
+          {
+            "width": 44,
+            "height": 44
+          },
+          {
+            "width": 44,
+            "height": 44
+          },
+          {
+            "width": 44,
+            "height": 44
+          }
+        ]
+      }
+    },
+    {
+      "mobileLayout": {
+        "viewport": 375,
+        "scrollWidth": 375,
+        "toolbar": {
+          "left": 35.5,
+          "right": 339.5
+        },
+        "buttons": [
+          {
+            "name": "색연필 도구",
+            "width": 44,
+            "height": 44,
+            "left": 50.5,
+            "right": 94.5
+          },
+          {
+            "name": "펜 도구",
+            "width": 44,
+            "height": 44,
+            "left": 96.5,
+            "right": 140.5
+          },
+          {
+            "name": "마커 도구",
+            "width": 44,
+            "height": 44,
+            "left": 142.5,
+            "right": 186.5
+          },
+          {
+            "name": "형광펜 도구",
+            "width": 44,
+            "height": 44,
+            "left": 188.5,
+            "right": 232.5
+          },
+          {
+            "name": "브러시 도구",
+            "width": 44,
+            "height": 44,
+            "left": 234.5,
+            "right": 278.5
+          },
+          {
+            "name": "유기적 가지 도구",
+            "width": 44,
+            "height": 44,
+            "left": 280.5,
+            "right": 324.5
+          }
+        ],
+        "colors": [
+          {
+            "width": 44,
+            "height": 44
+          },
+          {
+            "width": 44,
+            "height": 44
+          },
+          {
+            "width": 44,
+            "height": 44
+          },
+          {
+            "width": 44,
+            "height": 44
+          },
+          {
+            "width": 44,
+            "height": 44
+          },
+          {
+            "width": 44,
+            "height": 44
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [],
+  "physicalDevices": "Not tested; mouse input and mobile viewport emulation.",
+  "browser": "140.0.7339.186",
+  "passed": true
+}

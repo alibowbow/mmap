@@ -2,7 +2,14 @@ import type { Edge, Node } from "@xyflow/react";
 
 // ── Node taxonomy ──────────────────────────────────────────────────────────
 export type MindMapNodeType =
-  "root" | "plain" | "idea" | "task" | "note" | "question" | "warning" | "link";
+  | "root"
+  | "plain"
+  | "idea"
+  | "task"
+  | "note"
+  | "question"
+  | "warning"
+  | "link";
 
 // Which way a first-level branch extends from the root in bidirectional layout.
 export type BranchSide = "left" | "right";
@@ -70,8 +77,17 @@ export type MindMapRelation = {
 // Immutable world-space ink. Pointer samples are collected outside the store;
 // only completed gestures enter history and persistence.
 export type InkPoint = { x: number; y: number; pressure: number };
+export type InkErasure = {
+  points: { x: number; y: number }[];
+  radius: number;
+};
 export type AnalogBrush =
-  "pen" | "pencil" | "marker" | "highlighter" | "brush" | "branch";
+  | "pen"
+  | "pencil"
+  | "marker"
+  | "highlighter"
+  | "brush"
+  | "branch";
 export type InkTransform = {
   x: number;
   y: number;
@@ -120,18 +136,30 @@ export type InkStroke = {
   taper?: number;
   // Absent/classic retains the released renderer; hand-v1 is deterministic.
   branchStyle?: "classic" | "hand-v1";
+  materialStyle?: "classic" | "grain-v1";
+  // Local-space masks preserve the original pressure/taper after partial erase.
+  erasures?: InkErasure[];
+  joinWidth?: number;
   curve?: number;
   transform?: InkTransform;
 };
 export type InkData = {
-  version: 1 | 2 | 3;
+  version: 1 | 2 | 3 | 4;
   strokes: InkStroke[];
   objects?: InkObject[];
   order?: string[];
   paper?: PaperSpec;
 };
 export type InkTool =
-  "node" | "pen" | "eraser" | "pan" | "select" | "stamp" | "label";
+  | "node"
+  | "pen"
+  | "eraser"
+  | "pan"
+  | "select"
+  | "lasso"
+  | "reshape"
+  | "stamp"
+  | "label";
 export type InkSettings = {
   color: string;
   width: number;
@@ -141,6 +169,10 @@ export type InkSettings = {
   taper?: number;
   // Absent/classic retains the released renderer; hand-v1 is deterministic.
   branchStyle?: "classic" | "hand-v1";
+  materialStyle?: "classic" | "grain-v1";
+  connectBranches?: boolean;
+  eraserMode?: "stroke" | "partial";
+  labelOnBranch?: boolean;
   curve?: number;
   shape?: StampKind;
   text?: string;

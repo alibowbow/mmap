@@ -1,0 +1,70 @@
+{
+  "checks": [
+    "Visible tool settings: opt-in junction assistance and grain-v1 material; real drawing snaps a child onto the parent.",
+    "A Korean label uses branch placement with a readable capped rotation.",
+    "Actual curve middle-handle drag changes bend while preserving stored endpoints and seed; one undo/redo restores both states.",
+    {
+      "partialErase": "cancel + committed mask + atomic undo/redo + erased hit rejection + disabled curve explanation",
+      "before": {
+        "width": 1504,
+        "height": 1420,
+        "samples": [
+          [
+            219,
+            45,
+            45,
+            255
+          ],
+          [
+            219,
+            45,
+            45,
+            255
+          ]
+        ]
+      },
+      "after": {
+        "width": 1504,
+        "height": 1420,
+        "samples": [
+          [
+            255,
+            254,
+            251,
+            255
+          ],
+          [
+            220,
+            45,
+            45,
+            255
+          ]
+        ]
+      },
+      "exportMaskCount": 2
+    },
+    "Real closed lasso selects a stroke, Korean label and stamp; group drag translates all three together with one undo/redo.",
+    "Three-item group scaling grows all world-center distances by 1.15; rotation preserves distances and turns every pair by 15°; each single undo restores the group.",
+    "Whole-item eraser removes a stamp and undo restores it independently of partial stroke masks.",
+    "Real v6 JSON download → autosave/reload → fresh-context import preserves masks, transforms and settings; PNG is byte-identical.",
+    {
+      "mobileViewport": "375 × 812",
+      "layout": {
+        "width": 375,
+        "scrollWidth": 375,
+        "left": 35.5,
+        "right": 339.5
+      },
+      "dialog": {
+        "x": 0,
+        "y": 24,
+        "width": 375,
+        "height": 714.546875
+      }
+    }
+  ],
+  "errors": [],
+  "physicalDevices": "Not tested. Mouse pointer input and 375 px Chromium viewport emulation only.",
+  "browser": "140.0.7339.186",
+  "passed": true
+}

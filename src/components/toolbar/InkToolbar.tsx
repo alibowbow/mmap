@@ -1,6 +1,8 @@
 "use client";
 import {
   Eraser,
+  Lasso,
+  Spline,
   Hand,
   MousePointer2,
   PenLine,
@@ -32,18 +34,39 @@ import {
   inkItems,
   isStroke,
   identityTransform,
+  itemBounds,
+  itemCenter,
 } from "@/lib/ink";
 import { branchStudyDocument } from "@/lib/branchExamples";
+import { editingStudioDocument } from "@/lib/analogEditingExamples";
 import { studioDocument } from "@/lib/studioExamples";
 import { exportDocumentJson } from "@/lib/export";
-import type { InkTool } from "@/types/mindmap";
+import { brushPaintSettings, MARKER_PALETTE } from "@/lib/inkToolSettings";
+import type { AnalogBrush, InkTool } from "@/types/mindmap";
 const modes: { id: InkTool; label: string; icon: typeof Hand }[] = [
   { id: "node", label: "노드", icon: MousePointer2 },
   { id: "pen", label: "그리기", icon: PenLine },
   { id: "select", label: "선택", icon: Move },
+  { id: "lasso", label: "올가미", icon: Lasso },
   { id: "eraser", label: "지우개", icon: Eraser },
   { id: "pan", label: "이동", icon: Hand },
 ];
+const brushLabels = {
+  pencil: "연필",
+  pen: "펜",
+  marker: "마커",
+  highlighter: "형광펜",
+  brush: "붓",
+  branch: "가지",
+};
+const inkPalette = [
+  "#0f172a",
+  "#2563eb",
+  "#16a34a",
+  "#dc2626",
+  "#9333ea",
+  "#d39b27",
+] as const;
 const shapeNames = {
   circle: "원",
   box: "상자",
@@ -62,8 +85,11 @@ export function InkToolbar() {
     settings = useMindMapStore((s) => s.inkSettings);
   const busy = useMindMapStore((s) => s.inkGestureActive),
     board = useMindMapStore((s) => s.boardMode),
-    selectedId = useMindMapStore((s) => s.selectedInkId);
-  const selected = inkItems(ink).find((s) => s.id === selectedId);
+    selectedId = useMindMapStore((s) => s.selectedInkId),
+    selectedIds = useMindMapStore((s) => s.selectedInkIds);
+  const items = inkItems(ink);
+  const selected = items.find((s) => s.id === selectedId);
+  const selectedItems = items.filter((s) => selectedIds.includes(s.id));
   const setTool = useMindMapStore((s) => s.setInkTool),
     setSettings = useMindMapStore((s) => s.setInkSettings);
   const undo = useMindMapStore((s) => s.history.length > 0),
@@ -90,17 +116,66 @@ export function InkToolbar() {
         ...(settings.recentColors ?? []).filter((c) => c !== color),
       ].slice(0, 8),
     });
-  const transform = (scale: number, rotate: number) => {
-    if (!selected) return;
-    const t = selected.transform ?? identityTransform();
-    useMindMapStore.getState().updateInkItem(selected.id, {
-      transform: {
-        ...t,
-        scale: Math.min(10, Math.max(0.1, t.scale * scale)),
-        rotation: t.rotation + rotate,
-      },
+  const softBrush = brush === "marker" || brush === "highlighter";
+  const chooseBrush = (next: AnalogBrush) => {
+    setTool("pen");
+    if (brush === next) return;
+    setSettings({
+      brush: next,
+      width: BRUSH_WIDTH[next],
+      ...brushPaintSettings(settings, next),
+      ...(next === "branch"
+        ? { branchStyle: "hand-v1", taper: 0.94, texture: 0.45 }
+        : {}),
     });
   };
+  const transform = (scale: number, rotate: number) => {
+    if (!selectedItems.length) return;
+    if (
+      selectedItems.some((item) => {
+        const nextScale = (item.transform?.scale ?? 1) * scale;
+        return nextScale < 0.1 || nextScale > 10;
+      })
+    )
+      return;
+    const bounds = selectedItems.map(itemBounds);
+    const cx =
+      (Math.min(...bounds.map((b) => b.x)) +
+        Math.max(...bounds.map((b) => b.x + b.width))) /
+      2;
+    const cy =
+      (Math.min(...bounds.map((b) => b.y)) +
+        Math.max(...bounds.map((b) => b.y + b.height))) /
+      2;
+    const radians = (rotate * Math.PI) / 180,
+      cos = Math.cos(radians),
+      sin = Math.sin(radians);
+    useMindMapStore.getState().replaceInkItems(
+      items.map((item) => {
+        if (!selectedIds.includes(item.id)) return item;
+        const t = item.transform ?? identityTransform(),
+          center = itemCenter(item);
+        const x = (center.x + t.x - cx) * scale,
+          y = (center.y + t.y - cy) * scale;
+        return {
+          ...item,
+          transform: {
+            x: cx + x * cos - y * sin - center.x,
+            y: cy + x * sin + y * cos - center.y,
+            scale: t.scale * scale,
+            rotation: t.rotation + rotate,
+          },
+        };
+      }),
+    );
+  };
+  const bringForward = () =>
+    useMindMapStore
+      .getState()
+      .replaceInkItems([
+        ...items.filter((item) => !selectedIds.includes(item.id)),
+        ...selectedItems,
+      ]);
   const modebar = (
     <div
       data-ink-modebar
@@ -122,7 +197,7 @@ export function InkToolbar() {
             btn,
             "flex-col gap-0.5 px-2",
             tool === id
-              ? "bg-brand text-brand-contrast hover:bg-brand"
+              ? "bg-brand text-brand-contrast hover:!bg-brand hover:bg-brand"
               : "text-ink-soft",
           )}
         >
@@ -185,67 +260,184 @@ export function InkToolbar() {
           style={{ bottom: "calc(.75rem + env(safe-area-inset-bottom))" }}
           className="absolute left-1/2 z-30 max-w-[calc(100%-1rem)] -translate-x-1/2 rounded-2xl border border-line bg-surface-raised/95 p-1 shadow-float backdrop-blur-md"
         >
-          {selected && tool === "select" && (
+          <div
+            data-ink-brushbar
+            role="toolbar"
+            aria-label="빠른 그리기 도구"
+            className="flex justify-center gap-0.5 border-b border-line pb-1"
+          >
+            {BRUSHES.map((b) => {
+              const paint = brushPaintSettings(settings, b);
+              return (
+                <button
+                  key={b}
+                  aria-label={BRUSH_NAMES[b] + " 도구"}
+                  aria-pressed={tool === "pen" && brush === b}
+                  disabled={busy}
+                  onClick={() => chooseBrush(b)}
+                  className={cn(
+                    btn,
+                    "w-11 flex-col gap-0 px-0",
+                    tool === "pen" &&
+                      brush === b &&
+                      "bg-brand text-brand-contrast hover:!bg-brand",
+                  )}
+                >
+                  <svg
+                    viewBox="0 0 50 16"
+                    className="h-4 w-8"
+                    aria-hidden="true"
+                  >
+                    <AnalogMark
+                      item={{
+                        id: "quick-" + b,
+                        brush: b,
+                        color: paint.color ?? settings.color,
+                        opacity: paint.opacity ?? settings.opacity,
+                        width:
+                          b === "branch"
+                            ? 7
+                            : Math.min(10, BRUSH_WIDTH[b] * 0.35),
+                        seed: 7,
+                        materialStyle: settings.materialStyle,
+                        branchStyle:
+                          b === "branch" || b === "brush"
+                            ? "hand-v1"
+                            : undefined,
+                        points: [
+                          { x: 5, y: 10, pressure: 0.75 },
+                          { x: 22, y: 6, pressure: 1 },
+                          { x: 45, y: 9, pressure: 0.65 },
+                        ],
+                      }}
+                    />
+                  </svg>
+                  <span className="text-[10px]">{brushLabels[b]}</span>
+                </button>
+              );
+            })}
+          </div>
+          {tool === "pen" && (
             <div
-              className="flex justify-center border-b border-line pb-1"
-              role="toolbar"
-              aria-label="선택 항목 변환"
+              data-ink-colors
+              role="group"
+              aria-label="빠른 색상"
+              className="flex justify-center border-b border-line py-1"
             >
-              <button
-                className={btn}
-                disabled={busy}
-                aria-label="선택 항목 작게"
-                onClick={() => transform(1 / 1.15, 0)}
-              >
-                <ZoomOut size={17} />
-              </button>
-              <button
-                className={btn}
-                disabled={busy}
-                aria-label="선택 항목 크게"
-                onClick={() => transform(1.15, 0)}
-              >
-                <ZoomIn size={17} />
-              </button>
-              <button
-                className={btn}
-                disabled={busy}
-                aria-label="선택 항목 왼쪽 회전"
-                onClick={() => transform(1, -15)}
-              >
-                <RotateCcw size={17} />
-              </button>
-              <button
-                className={btn}
-                disabled={busy}
-                aria-label="선택 항목 오른쪽 회전"
-                onClick={() => transform(1, 15)}
-              >
-                <RotateCw size={17} />
-              </button>
-              <button
-                className={btn}
-                disabled={busy}
-                aria-label="선택 항목 맨 앞으로"
-                onClick={() =>
-                  useMindMapStore.getState().reorderInk(selected.id, true)
-                }
-              >
-                <Layers size={17} />
-              </button>
-              <button
-                className={btn}
-                disabled={busy}
-                aria-label="선택 항목 삭제"
-                onClick={() =>
-                  useMindMapStore.getState().eraseInkStrokes([selected.id])
-                }
-              >
-                <Trash2 size={17} />
-              </button>
+              {swatches(softBrush ? MARKER_PALETTE : inkPalette)}
             </div>
           )}
+          {selectedItems.length > 0 &&
+            (tool === "select" || tool === "reshape") && (
+              <div
+                className="flex justify-center overflow-x-auto border-b border-line pb-1"
+                role="toolbar"
+                aria-label="선택 항목 변환"
+              >
+                <button
+                  className={btn}
+                  disabled={busy}
+                  aria-label="선택 항목 작게"
+                  onClick={() => transform(1 / 1.15, 0)}
+                >
+                  <ZoomOut size={17} />
+                </button>
+                <button
+                  className={btn}
+                  disabled={busy}
+                  aria-label="선택 항목 크게"
+                  onClick={() => transform(1.15, 0)}
+                >
+                  <ZoomIn size={17} />
+                </button>
+                <button
+                  className={btn}
+                  disabled={busy}
+                  aria-label="선택 항목 왼쪽 회전"
+                  onClick={() => transform(1, -15)}
+                >
+                  <RotateCcw size={17} />
+                </button>
+                <button
+                  className={btn}
+                  disabled={busy}
+                  aria-label="선택 항목 오른쪽 회전"
+                  onClick={() => transform(1, 15)}
+                >
+                  <RotateCw size={17} />
+                </button>
+                <button
+                  className={btn}
+                  disabled={busy}
+                  aria-label="선택 항목 맨 앞으로"
+                  onClick={bringForward}
+                >
+                  <Layers size={17} />
+                </button>
+                <button
+                  className={btn}
+                  disabled={busy}
+                  aria-label="선택 항목 삭제"
+                  onClick={() =>
+                    useMindMapStore.getState().eraseInkStrokes(selectedIds)
+                  }
+                >
+                  <Trash2 size={17} />
+                </button>
+              </div>
+            )}
+          {selectedItems.length === 1 &&
+            selected &&
+            isStroke(selected) &&
+            (selected.brush === "brush" || selected.brush === "branch") && (
+              <button
+                className={cn(btn, "w-full border-b border-line")}
+                disabled={busy || !!selected.erasures?.length}
+                title={
+                  selected.erasures?.length
+                    ? "부분 지운 획은 곡선을 다듬을 수 없습니다"
+                    : undefined
+                }
+                onClick={() =>
+                  setTool(tool === "reshape" ? "select" : "reshape")
+                }
+              >
+                <Spline size={16} />
+                {tool === "reshape" ? "곡선 다듬기 완료" : "곡선 다듬기"}
+              </button>
+            )}
+          {selectedItems.length === 1 &&
+          selected &&
+          isStroke(selected) &&
+          selected.erasures?.length ? (
+            <p className="px-2 py-1 text-center text-[10px] text-ink-soft">
+              부분 지운 획은 곡선 다듬기를 지원하지 않습니다.
+            </p>
+          ) : null}
           {modebar}
+          {tool === "eraser" && (
+            <div
+              className="flex justify-center gap-1 border-t border-line pt-1"
+              role="group"
+              aria-label="지우개 방식"
+            >
+              {(["partial", "stroke"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  className={cn(
+                    btn,
+                    (settings.eraserMode ?? "stroke") === mode &&
+                      "bg-brand text-brand-contrast hover:!bg-brand",
+                  )}
+                  aria-pressed={(settings.eraserMode ?? "stroke") === mode}
+                  disabled={busy}
+                  onClick={() => setSettings({ eraserMode: mode })}
+                >
+                  {mode === "partial" ? "부분 지우기" : "획 지우기"}
+                </button>
+              ))}
+            </div>
+          )}
           <div
             className="flex justify-center gap-0.5 border-t border-line pt-1"
             role="toolbar"
@@ -254,7 +446,7 @@ export function InkToolbar() {
             <button
               className={cn(btn, "flex-col w-16 px-0 text-ink")}
               disabled={busy}
-              aria-label="아날로그 도구함"
+              aria-label="그리기 도구"
               onClick={() => setOptions(true)}
             >
               <span className="flex gap-1">
@@ -264,14 +456,7 @@ export function InkToolbar() {
                 />
                 <SlidersHorizontal size={14} />
               </span>
-              <span className="text-[10px]">
-                {tool === "stamp"
-                  ? "그림"
-                  : tool === "label"
-                    ? "글씨"
-                    : BRUSH_NAMES[brush]}{" "}
-                {settings.width}px
-              </span>
+              <span className="text-[10px]">설정 · {settings.width}px</span>
             </button>
             <button
               className={btn}
@@ -327,25 +512,33 @@ export function InkToolbar() {
             aria-live="polite"
           >
             {tool === "select"
-              ? "획·그림을 탭하고 끌기 · 도구함에서 옵션"
-              : tool === "eraser"
-                ? "닿은 획·그림 지우기 · 노드는 유지"
-                : tool === "pan"
-                  ? "한 손가락 이동 · 두 손가락 확대"
-                  : tool === "label"
-                    ? "도구함에서 글씨 입력 → 화면 탭"
-                    : tool === "stamp"
-                      ? "탭해서 그림 · 끌어서 크기 정하기"
-                      : brush === "branch"
-                        ? "시작에서 끝으로 끌기 · 두 손가락 이동"
-                        : "자유 필기 · 펜/손가락 그리기 · 두 손가락 이동"}
+              ? selectedItems.length > 1
+                ? `${selectedItems.length}개 선택 · 끌어서 함께 이동`
+                : "획·그림을 탭하고 끌기 · Shift로 추가 선택"
+              : tool === "lasso"
+                ? "획·그림을 둘러싸기 → 선택 모드에서 함께 이동"
+                : tool === "reshape"
+                  ? "시작·중간·끝 손잡이를 끌어 곡선 다듬기"
+                  : tool === "eraser"
+                    ? settings.eraserMode === "partial"
+                      ? "닿은 부분만 지우기 · 실행 취소로 복원"
+                      : "닿은 획·그림 지우기"
+                    : tool === "pan"
+                      ? "한 손가락 이동 · 두 손가락 확대"
+                      : tool === "label"
+                        ? "도구함에서 글씨 입력 → 화면 탭"
+                        : tool === "stamp"
+                          ? "탭해서 그림 · 끌어서 크기 정하기"
+                          : brush === "branch"
+                            ? "시작에서 끝으로 끌기 · 두 손가락 이동"
+                            : "자유 필기 · 펜/손가락 그리기 · 두 손가락 이동"}
           </p>
         </div>
       )}
       {board === "blank" && !inkItems(ink).length && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-8 text-center text-sm text-ink-faint">
           <p>
-            아날로그 모드 · 빈 종이에 자유롭게 그려보세요.
+            빈 종이에 자유롭게 그려보세요.
             <br />
             <span className="text-xs">
               가지·손글씨·채색 그림을 직접 · 보조 도구는 선택 사항
@@ -356,7 +549,7 @@ export function InkToolbar() {
       <Modal
         open={options}
         onClose={() => setOptions(false)}
-        title="아날로그 도구함"
+        title="그리기 도구"
         className="max-w-md"
       >
         <div
@@ -373,7 +566,7 @@ export function InkToolbar() {
               className={cn(
                 btn,
                 "px-2",
-                panel === p && "bg-brand text-brand-contrast",
+                panel === p && "bg-brand text-brand-contrast hover:!bg-brand",
               )}
             >
               {p}
@@ -388,16 +581,7 @@ export function InkToolbar() {
                   key={b}
                   aria-label={BRUSH_NAMES[b] + " 도구"}
                   aria-pressed={brush === b && tool === "pen"}
-                  onClick={() => {
-                    setTool("pen");
-                    setSettings({
-                      brush: b,
-                      width: BRUSH_WIDTH[b],
-                      ...(b === "branch"
-                        ? { branchStyle: "hand-v1", taper: 0.94, texture: 0.45 }
-                        : {}),
-                    });
-                  }}
+                  onClick={() => chooseBrush(b)}
                   className={cn(
                     "min-h-20 rounded-xl border border-line p-2 text-xs",
                     brush === b && "ring-2 ring-brand",
@@ -408,9 +592,15 @@ export function InkToolbar() {
                       item={{
                         id: "sample-" + b,
                         brush: b,
-                        color: settings.color,
+                        color:
+                          brushPaintSettings(settings, b).color ??
+                          settings.color,
+                        opacity:
+                          brushPaintSettings(settings, b).opacity ??
+                          settings.opacity,
                         width: b === "branch" ? 15 : BRUSH_WIDTH[b] * 0.65,
                         seed: 7,
+                        materialStyle: settings.materialStyle,
                         branchStyle: b === "branch" ? "hand-v1" : undefined,
                         points: Array.from({ length: 30 }, (_, i) => ({
                           x: 10 + i * 2.6,
@@ -437,7 +627,7 @@ export function InkToolbar() {
                       btn.replace("hover:bg-surface-sunken", ""),
                       "border border-line",
                       (settings.branchStyle ?? "classic") === style &&
-                        "bg-brand text-brand-contrast hover:bg-brand",
+                        "bg-brand text-brand-contrast hover:!bg-brand hover:bg-brand",
                       (settings.branchStyle ?? "classic") !== style &&
                         "hover:bg-surface-sunken",
                     )}
@@ -456,6 +646,54 @@ export function InkToolbar() {
                 ))}
               </div>
             )}
+            <div
+              className="mt-3 grid grid-cols-2 gap-2"
+              role="group"
+              aria-label="재료 표현"
+            >
+              {(["classic", "grain-v1"] as const).map((style) => (
+                <button
+                  key={style}
+                  className={cn(
+                    btn,
+                    "border border-line",
+                    (settings.materialStyle ?? "classic") === style &&
+                      "bg-brand text-brand-contrast hover:!bg-brand",
+                  )}
+                  aria-pressed={(settings.materialStyle ?? "classic") === style}
+                  onClick={() => setSettings({ materialStyle: style })}
+                >
+                  {style === "classic" ? "기본 필치" : "재료 필치"}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-ink-soft">
+              재료 필치로 색연필의 종이 결, 마커의 납작한 닙, 붓의 안료를
+              표현합니다.
+            </p>
+            {(brush === "brush" || brush === "branch") && (
+              <label className="mt-2 flex min-h-11 items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="h-5 w-5"
+                  checked={settings.connectBranches ?? false}
+                  onChange={(e) =>
+                    setSettings({
+                      connectBranches: e.target.checked,
+                      ...(e.target.checked ? { branchStyle: "hand-v1" } : {}),
+                    })
+                  }
+                />
+                가지 연결 보조
+              </label>
+            )}
+            {(brush === "brush" || brush === "branch") &&
+              settings.connectBranches && (
+                <p className="text-xs text-ink-soft">
+                  가까운 가지에서 시작하면 연결됩니다. Alt를 누르면 자유롭게
+                  시작합니다.
+                </p>
+              )}
             <div className="mt-4 space-y-1">
               {range("펜 굵기", settings.width, 1, 64, 1, (width) =>
                 setSettings({ width }),
@@ -510,32 +748,44 @@ export function InkToolbar() {
         )}
         {panel === "색" && (
           <>
-            <div className="mb-3 flex gap-1">
-              {Object.keys(PALETTES).map((p) => (
-                <button
-                  key={p}
-                  className={cn(
-                    btn,
-                    palette === p && "bg-brand text-brand-contrast",
-                  )}
-                  onClick={() => setPalette(p as keyof typeof PALETTES)}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-            {swatches(PALETTES[palette])}
-            <p className="mb-1 mt-3 text-xs text-ink-soft">기본 색</p>
-            {swatches([
-              "#2563eb",
-              "#0f172a",
-              "#dc2626",
-              "#16a34a",
-              "#9333ea",
-              "#f4c343",
-            ])}
-            <p className="mb-1 mt-3 text-xs text-ink-soft">최근 색</p>
-            {swatches(settings.recentColors ?? [])}
+            {softBrush ? (
+              <>
+                <p className="mb-2 text-xs text-ink-soft">
+                  글씨 위에 칠하기 좋은 연한 색
+                </p>
+                {swatches(MARKER_PALETTE)}
+              </>
+            ) : (
+              <>
+                <div className="mb-3 flex gap-1">
+                  {Object.keys(PALETTES).map((p) => (
+                    <button
+                      key={p}
+                      className={cn(
+                        btn,
+                        palette === p &&
+                          "bg-brand text-brand-contrast hover:!bg-brand",
+                      )}
+                      onClick={() => setPalette(p as keyof typeof PALETTES)}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+                {swatches(PALETTES[palette])}
+                <p className="mb-1 mt-3 text-xs text-ink-soft">기본 색</p>
+                {swatches([
+                  "#2563eb",
+                  "#0f172a",
+                  "#dc2626",
+                  "#16a34a",
+                  "#9333ea",
+                  "#f4c343",
+                ])}
+                <p className="mb-1 mt-3 text-xs text-ink-soft">최근 색</p>
+                {swatches(settings.recentColors ?? [])}
+              </>
+            )}
             <label className="mt-3 flex h-11 items-center gap-3 text-sm">
               직접 선택
               <input
@@ -605,8 +855,22 @@ export function InkToolbar() {
             {range("글씨 크기", settings.fontSize ?? 28, 8, 96, 1, (fontSize) =>
               setSettings({ fontSize }),
             )}
+            <label className="my-2 flex min-h-11 items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="h-5 w-5"
+                checked={settings.labelOnBranch ?? false}
+                onChange={(e) =>
+                  setSettings({ labelOnBranch: e.target.checked })
+                }
+              />
+              가까운 가지 위에 글씨 놓기
+            </label>
             <button
-              className={cn(btn, "w-full bg-brand text-brand-contrast")}
+              className={cn(
+                btn,
+                "w-full bg-brand text-brand-contrast hover:!bg-brand",
+              )}
               onClick={() => {
                 setTool("label");
                 setOptions(false);
@@ -624,7 +888,8 @@ export function InkToolbar() {
                   key={kind}
                   className={cn(
                     btn,
-                    paper.kind === kind && "bg-brand text-brand-contrast",
+                    paper.kind === kind &&
+                      "bg-brand text-brand-contrast hover:!bg-brand",
                   )}
                   onClick={() =>
                     useMindMapStore.getState().setInkPaper({ ...paper, kind })
@@ -670,12 +935,23 @@ export function InkToolbar() {
             >
               새 문서로 가지 필치 비교 열기
             </button>
+            <button
+              className={cn(btn, "w-full border border-line")}
+              onClick={() => {
+                useMindMapStore
+                  .getState()
+                  .importJson(exportDocumentJson(editingStudioDocument()));
+                setOptions(false);
+              }}
+            >
+              새 문서로 손그림 편집 연습 열기
+            </button>
             <p className="text-xs text-ink-soft">
               기존 문서는 그대로 보존하며 새 예제를 엽니다.
             </p>
           </div>
         )}
-        {selected && (
+        {selected && selectedItems.length === 1 && (
           <div className="mt-4 border-t border-line pt-3">
             <button
               className={cn(btn, "w-full border border-line")}
@@ -690,6 +966,7 @@ export function InkToolbar() {
                       taper: settings.taper ?? 0.8,
                       branchStyle: settings.branchStyle ?? "classic",
                       curve: settings.curve ?? 0.25,
+                      materialStyle: settings.materialStyle ?? "classic",
                     }
                   : selected.kind === "label"
                     ? {
@@ -735,7 +1012,10 @@ export function InkToolbar() {
             전체 지우기
           </button>
           <button
-            className={cn(btn, "flex-1 bg-brand text-brand-contrast")}
+            className={cn(
+              btn,
+              "flex-1 bg-brand text-brand-contrast hover:!bg-brand",
+            )}
             onClick={() => setOptions(false)}
           >
             완료

@@ -13,6 +13,19 @@ export const DEFAULT_INK_SETTINGS: InkSettings = { color: "#2563eb", width: 4 };
 export const MAX_INK_POINTS = 250_000;
 export const MAX_STROKE_POINTS = 12_000;
 export const MAX_INK_STROKES = 5_000;
+export const MAX_INK_ERASURES = 128;
+export const MAX_ERASURE_POINTS = 8192;
+export const hasEditingStyle = (s: Partial<InkStroke>) =>
+  s.materialStyle === "grain-v1" ||
+  s.joinWidth !== undefined ||
+  !!s.erasures?.length;
+export function inkVersion(ink: InkData): InkData["version"] {
+  if (ink.version === 4 || ink.strokes.some(hasEditingStyle)) return 4;
+  return ink.version === 3 ||
+    ink.strokes.some((s) => s.branchStyle === "hand-v1")
+    ? 3
+    : 2;
+}
 export const inkColor = (v: unknown): v is string =>
   typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
 export const inkWidth = (v: unknown): v is number =>
@@ -27,7 +40,7 @@ export function validateInk(
   if (raw === undefined) return { ok: true, ink: EMPTY_INK };
   if (
     !object(raw) ||
-    ![1, 2, 3].includes(raw.version as number) ||
+    ![1, 2, 3, 4].includes(raw.version as number) ||
     !Array.isArray(raw.strokes)
   )
     return { ok: false, error: "잉크 버전 또는 획 형식이 올바르지 않습니다." };
@@ -51,10 +64,22 @@ export function validateInk(
       return { ok: false, error: "잉크의 id·색·굵기·좌표를 확인하세요." };
     if (!validStrokeStyle(s))
       return { ok: false, error: "도구 속성 또는 변환이 올바르지 않습니다." };
-    if (s.branchStyle === "hand-v1" && raw.version !== 3)
+    if (s.branchStyle === "hand-v1" && (raw.version as number) < 3)
       return { ok: false, error: "가지 필치는 잉크 v3 형식이 필요합니다." };
+    if (hasEditingStyle(s as Partial<InkStroke>) && raw.version !== 4)
+      return {
+        ok: false,
+        error: "새 필치와 부분 지우개는 잉크 v4 형식이 필요합니다.",
+      };
+    if (!validErasures(s.erasures))
+      return { ok: false, error: "부분 지우개 좌표 또는 크기를 확인하세요." };
     ids.add(s.id);
     count += s.points.length;
+    if (Array.isArray(s.erasures))
+      count += s.erasures.reduce(
+        (n, mask) => n + (mask as { points: unknown[] }).points.length,
+        0,
+      );
     if (count > MAX_INK_POINTS)
       return {
         ok: false,
@@ -87,6 +112,14 @@ export function validateInk(
       width: s.width,
       points,
       ...pickStyle(s),
+      ...(s.erasures !== undefined
+        ? {
+            erasures: (s.erasures as InkStroke["erasures"])!.map((m) => ({
+              radius: m.radius,
+              points: m.points.map((p) => ({ ...p })),
+            })),
+          }
+        : {}),
     });
   }
   const objects: InkObject[] = [];
@@ -116,7 +149,7 @@ export function validateInk(
   return {
     ok: true,
     ink: {
-      version: raw.version as 1 | 2 | 3,
+      version: raw.version as InkData["version"],
       strokes,
       ...(raw.objects !== undefined ? { objects } : {}),
       ...(raw.paper !== undefined
@@ -371,11 +404,40 @@ function validStrokeStyle(s: Record<string, unknown>) {
     (s.seed === undefined || seedOK(s.seed)) &&
     (s.branchStyle === undefined ||
       ["classic", "hand-v1"].includes(s.branchStyle as string)) &&
+    (s.materialStyle === undefined ||
+      ["classic", "grain-v1"].includes(s.materialStyle as string)) &&
+    (s.joinWidth === undefined ||
+      (typeof s.joinWidth === "number" &&
+        Number.isFinite(s.joinWidth) &&
+        s.joinWidth >= 0.1 &&
+        s.joinWidth <= 64)) &&
     [s.opacity, s.texture, s.taper].every((v) => v === undefined || unit(v)) &&
     (s.curve === undefined ||
       (typeof s.curve === "number" && s.curve >= -1 && s.curve <= 1)) &&
     (s.transform === undefined || validTransform(s.transform))
   );
+}
+function validErasures(raw: unknown): boolean {
+  if (raw === undefined) return true;
+  if (!Array.isArray(raw) || raw.length > MAX_INK_ERASURES) return false;
+  let points = 0;
+  return raw.every((m) => {
+    if (
+      !object(m) ||
+      typeof m.radius !== "number" ||
+      !Number.isFinite(m.radius) ||
+      m.radius <= 0 ||
+      m.radius > 2000 ||
+      !Array.isArray(m.points) ||
+      !m.points.length
+    )
+      return false;
+    points += m.points.length;
+    return (
+      points <= MAX_ERASURE_POINTS &&
+      m.points.every((p) => object(p) && finite(p.x) && finite(p.y))
+    );
+  });
 }
 function pickStyle(s: Record<string, unknown>): Partial<InkStroke> {
   const result: Record<string, unknown> = {};
@@ -386,6 +448,8 @@ function pickStyle(s: Record<string, unknown>): Partial<InkStroke> {
     "texture",
     "taper",
     "branchStyle",
+    "materialStyle",
+    "joinWidth",
     "curve",
     "transform",
   ])
@@ -433,6 +497,11 @@ export function validInkSettings(s: unknown): s is InkSettings {
     inkColor(s.color) &&
     inkWidth(s.width) &&
     validStrokeStyle(s) &&
+    (s.connectBranches === undefined ||
+      typeof s.connectBranches === "boolean") &&
+    (s.labelOnBranch === undefined || typeof s.labelOnBranch === "boolean") &&
+    (s.eraserMode === undefined ||
+      ["stroke", "partial"].includes(s.eraserMode as string)) &&
     (s.shape === undefined ||
       STAMPS.includes(s.shape as (typeof STAMPS)[number])) &&
     (s.text === undefined ||
@@ -710,9 +779,16 @@ export function branchGeometry(s: InkStroke): BranchGeometry {
         (0.55 +
           0.3 * Math.sin((distance / wavelength) * 6.283 + phase) +
           0.15 * Math.sin(distance / 13 + phase));
-    return Math.max(
+    const original = Math.max(
       0.06,
       (s.width / 2) * (0.55 + 0.45 * pressure) * envelope * grain,
+    );
+    if (s.joinWidth === undefined) return original;
+    const blend = Math.min(1, distance / Math.max(12, s.width * 1.5));
+    const smooth = blend * blend * (3 - 2 * blend);
+    return Math.min(
+      original,
+      s.joinWidth / 2 + (original - s.joinWidth / 2) * smooth,
     );
   });
   const result = { points, radii, distances };

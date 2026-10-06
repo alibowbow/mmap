@@ -87,7 +87,7 @@ export function HomeScreen({ onCreate, onCreateInk, onOpenDocument, onImport }: 
             <p className="mf-hero-lede">흩어진 아이디어를 하나의 흐름으로.</p>
             <div className="mf-hero-actions">
               <button type="button" className="mf-cta" onClick={() => onCreate("blank")}>새 마인드맵 시작</button>
-              <button type="button" className="mf-textlink min-h-11" aria-label="빈 손그림 보드" onClick={onCreateInk}>아날로그 모드 · 빈 손그림 보드</button>
+              <button type="button" className="mf-textlink min-h-11" aria-label="손그림" onClick={onCreateInk}>손그림</button>
               {recent[0] && (
                 <button type="button" className="mf-textlink" onClick={() => onOpenDocument(recent[0].id)}>
                   최근 작업 이어가기 <ArrowRight size={16} aria-hidden="true" />
