@@ -9,10 +9,19 @@ import {
 import type { MindMapWorkspace } from "@/types/mindmap";
 import { appearanceFrom } from "./appearance";
 
-const BACKUP_KEY = `${STORAGE_KEY}-corrupt-backup`;
+// A failed durable write still survives an in-tab account/workspace switch.
+// This memory cache is scoped by the same owner key and is never a cross-tab
+// synchronization source; reload protection must still warn about failed saves.
+const volatileWorkspaces = new Map<string, string>();
+const lastKnownWorkspaces = new Map<string, string>();
+
+// Cloud caches never share a key with the original, logged-out workspace.
+export function workspaceStorageKey(ownerId: string | null = null): string {
+  return ownerId ? `${STORAGE_KEY}:cloud:${encodeURIComponent(ownerId)}` : STORAGE_KEY;
+}
 
 export type LoadResult =
-  | { ok: true; workspace: MindMapWorkspace; droppedDocs: number }
+  | { ok: true; workspace: MindMapWorkspace; droppedDocs: number; volatile?: boolean }
   | { ok: false; empty: true }
   | { ok: false; corrupted: true; raw: string };
 
@@ -29,9 +38,15 @@ function isUsableDoc(d: unknown): boolean {
 }
 
 // Read + migrate the workspace from localStorage.
-export function loadWorkspaceFromStorage(): LoadResult {
+export function loadWorkspaceFromStorage(ownerId: string | null = null): LoadResult {
   if (typeof window === "undefined") return { ok: false, empty: true };
-  const raw = window.localStorage.getItem(STORAGE_KEY);
+  const key = workspaceStorageKey(ownerId);
+  let raw: string | null = volatileWorkspaces.get(key) ?? null;
+  let volatile = raw !== null;
+  if (!volatile) {
+    try { raw = window.localStorage.getItem(key); }
+    catch { raw = lastKnownWorkspaces.get(key) ?? null; volatile = raw !== null; }
+  }
   if (!raw) return { ok: false, empty: true };
   try {
     const parsed = JSON.parse(raw) as Partial<MindMapWorkspace>;
@@ -43,17 +58,18 @@ export function loadWorkspaceFromStorage(): LoadResult {
     const good = all.filter(isUsableDoc) as MindMapWorkspace["documents"];
     const droppedDocs = all.length - good.length;
     const workspace = migrateWorkspace({ ...parsed, documents: good });
-    return { ok: true, workspace, droppedDocs };
+    lastKnownWorkspaces.set(key, raw);
+    return { ok: true, workspace, droppedDocs, ...(volatile ? { volatile: true } : {}) };
   } catch {
     return { ok: false, corrupted: true, raw };
   }
 }
 
 // Preserve an unparseable blob so a bad write never destroys recoverable data.
-export function backupCorruptData(raw: string): void {
+export function backupCorruptData(raw: string, ownerId: string | null = null): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(BACKUP_KEY, raw);
+    window.localStorage.setItem(`${workspaceStorageKey(ownerId)}-corrupt-backup`, raw);
   } catch {
     /* backup is best-effort */
   }
@@ -95,14 +111,17 @@ function migrateWorkspace(
 export type SaveResult = { ok: true } | { ok: false; quota: boolean };
 
 export function saveWorkspaceToStorage(
-  workspace: MindMapWorkspace
+  workspace: MindMapWorkspace,
+  ownerId: string | null = null,
 ): SaveResult {
   if (typeof window === "undefined") return { ok: false, quota: false };
+  const key = workspaceStorageKey(ownerId);
   try {
-    window.localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ ...workspace, version: WORKSPACE_VERSION })
-    );
+    const raw = JSON.stringify({ ...workspace, version: WORKSPACE_VERSION });
+    volatileWorkspaces.set(key, raw);
+    lastKnownWorkspaces.set(key, raw);
+    window.localStorage.setItem(key, raw);
+    volatileWorkspaces.delete(key);
     return { ok: true };
   } catch (e) {
     const quota =
@@ -114,7 +133,9 @@ export function saveWorkspaceToStorage(
   }
 }
 
-export function clearWorkspaceStorage(): void {
+export function clearWorkspaceStorage(ownerId: string | null = null): void {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(STORAGE_KEY);
+  volatileWorkspaces.delete(workspaceStorageKey(ownerId));
+  lastKnownWorkspaces.delete(workspaceStorageKey(ownerId));
+  window.localStorage.removeItem(workspaceStorageKey(ownerId));
 }

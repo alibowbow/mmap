@@ -43,3 +43,6 @@ next-env.d.ts
 /verification/editing/
 
 /verification/ink-tool-access/
+
+/supabase/.temp/
+/verification/cloud/

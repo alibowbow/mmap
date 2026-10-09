@@ -4,6 +4,8 @@ import { MotionConfig } from "framer-motion";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { CloudWorkspacePanel } from "@/components/cloud/CloudWorkspacePanel";
+import { useCloudWorkspace } from "@/hooks/useCloudWorkspace";
 import { HomeScreen } from "@/components/home/HomeScreen";
 import { ImportJsonDialog } from "@/components/dialogs/ImportJsonDialog";
 import { BrandMark } from "@/components/ui/BrandMark";
@@ -80,6 +82,7 @@ function closeEditorSurfaces() {
 export function MindForgeApp() {
   const [view, setView] = useState<AppView>("booting");
   const handledShare = useRef<string | null>(null);
+  const cancelCloudNavigation = useRef<(() => void) | null>(null);
 
   const hydrated = useMindMapStore((state) => state.hydrated);
   const activeDocumentId = useMindMapStore((state) => state.activeDocumentId);
@@ -95,12 +98,18 @@ export function MindForgeApp() {
   }, [loadWorkspace]);
 
   const resolveLocation = useCallback(() => {
-    const state = useMindMapStore.getState();
+    cancelCloudNavigation.current?.();
+    let state = useMindMapStore.getState();
     const hash = window.location.hash;
     const shareCode = readShareCodeFromHash(hash);
     const containsShare = hasShareHash(hash);
 
     if (containsShare && handledShare.current !== hash) {
+      // Legacy snapshot links still import into the original local workspace.
+      if (state.workspaceOwnerId) {
+        state.switchWorkspaceOwner(null);
+        state = useMindMapStore.getState();
+      }
       handledShare.current = hash;
       const imported = shareCode
         ? state.importSharedDocument(shareCode)
@@ -185,6 +194,7 @@ export function MindForgeApp() {
 
   const createAndOpen = useCallback(
     (template: TemplateType = "blank") => {
+      cancelCloudNavigation.current?.();
       const state = useMindMapStore.getState();
       state.discardFreshDocument();
       state.createDocument(template);
@@ -196,12 +206,14 @@ export function MindForgeApp() {
   );
 
   const createInkAndOpen = useCallback(() => {
+    cancelCloudNavigation.current?.();
     const state = useMindMapStore.getState(); state.createInkBoard(); state.saveWorkspace();
     const id = useMindMapStore.getState().activeDocumentId; if (id) showEditor(id);
   }, [showEditor]);
 
   const openDocument = useCallback(
     (documentId: string) => {
+      cancelCloudNavigation.current?.();
       const state = useMindMapStore.getState();
       if (state.freshDocumentId !== documentId) state.discardFreshDocument();
       if (state.activeDocumentId !== documentId) state.setActiveDocument(documentId);
@@ -212,16 +224,19 @@ export function MindForgeApp() {
   );
 
   const openImport = useCallback(() => {
+    cancelCloudNavigation.current?.();
     useMindMapStore.getState().setDialog("import");
   }, []);
 
   const openImportedDocument = useCallback(() => {
+    cancelCloudNavigation.current?.();
     const state = useMindMapStore.getState();
     state.saveWorkspace();
     if (state.activeDocumentId) showEditor(state.activeDocumentId);
   }, [showEditor]);
 
   const goHome = useCallback(() => {
+    cancelCloudNavigation.current?.();
     useMindMapStore.getState().discardFreshDocument();
     useMindMapStore.getState().saveWorkspace();
     closeEditorSurfaces();
@@ -231,6 +246,14 @@ export function MindForgeApp() {
       document.querySelector<HTMLElement>("[data-home-heading]")?.focus();
     });
   }, []);
+
+  const showLocalHome = useCallback(() => {
+    closeEditorSurfaces();
+    writeDocumentUrl(null, "replace");
+    setView("home");
+  }, []);
+  const cloud = useCloudWorkspace(showEditor, showLocalHome);
+  cancelCloudNavigation.current = cloud.cancelNavigation;
 
   return (
     <MotionConfig reducedMotion="user">
@@ -257,6 +280,7 @@ export function MindForgeApp() {
         ) : (
           <AppShell onHome={goHome} />
         )}
+        {hydrated && view !== "booting" && <CloudWorkspacePanel cloud={cloud} />}
         <ToastViewport />
       </div>
     </MotionConfig>
