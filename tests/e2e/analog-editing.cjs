@@ -181,7 +181,7 @@ async function main() {
       }
       assert.ok(started, "Production server did not start: " + logs);
     }
-    browser = await chromium.launch({ headless: true, args: ["--no-sandbox"] });
+    browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH, args: ["--no-sandbox"] });
     report.browser = browser.version();
     const { ctx, p } = await context(browser, { width: 1440, height: 1000 });
     const fixturePath = path.join(output, "fixture.json");

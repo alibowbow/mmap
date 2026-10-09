@@ -231,6 +231,9 @@ export type MindMapState = {
   future: HistoryEntry[];
 
   // ── Persistence ──
+  workspaceOwnerId: string | null;
+  switchWorkspaceOwner: (ownerId: string | null) => void;
+  openCloudDocument: (ownerId: string, document: MindMapDocument) => void;
   saveStatus: SaveStatus;
   lastSavedAt: string | null;
   revision: number;
@@ -900,6 +903,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     history: [],
     future: [],
 
+    workspaceOwnerId: null,
     saveStatus: "idle",
     lastSavedAt: null,
     revision: 0,
@@ -1061,7 +1065,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         revision: s.revision + 1,
       }));
       if (nextActive) get().fitToView();
-      get().addToast("문서를 삭제했습니다", "info");
+      get().addToast(get().workspaceOwnerId
+        ? "이 계정의 브라우저 사본을 삭제했습니다. 클라우드 문서와 공유 링크는 유지됩니다."
+        : "문서를 삭제했습니다", "info");
     },
 
     renameDocument: (documentId, title) => {
@@ -1110,13 +1116,53 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       get().fitToView();
     },
 
+    switchWorkspaceOwner: (ownerId) => {
+      if (get().workspaceOwnerId === ownerId) return;
+      // Flush to the OLD key before changing the scope. The next load cannot
+      // write an account document into the original local workspace.
+      get().saveWorkspace();
+      layoutRuntime.cancel(true);
+      set({
+        workspaceOwnerId: ownerId, hydrated: false, documents: [],
+        activeDocumentId: null, nodes: [], edges: [], relations: [],
+        ink: EMPTY_INK, boardMode: "map", inkSettings: DEFAULT_INK_SETTINGS,
+        selectedInkId: null, selectedInkIds: [], inkGestureActive: false,
+        history: [], future: [], clipboard: null, freshDocumentId: null,
+        ...selectionFor(null), editingNodeId: null, editSeed: null,
+        selectedRelationId: null, focusModeNodeId: null, connectMode: false,
+        dialog: null, contextMenu: null, searchOpen: false, searchQuery: "",
+        searchTypes: [], searchStatuses: [], commandPaletteOpen: false,
+        mobileDrawerOpen: false, mobileMoreOpen: false, mobileSheetOpen: false,
+        tutorialStep: null, presentationMode: false, dropTargetId: null,
+        dropPendingId: null, toasts: [], revision: get().revision + 1,
+      });
+      get().loadWorkspace();
+    },
+
+    openCloudDocument: (ownerId, document) => {
+      get().switchWorkspaceOwner(ownerId);
+      layoutRuntime.cancel(true);
+      set((s) => ({
+        documents: [document, ...s.documents.filter((d) => d.id !== document.id)],
+        freshDocumentId: null,
+      }));
+      get().setActiveDocument(document.id);
+      get().saveWorkspace();
+    },
+
     loadWorkspace: () => {
       // Load once. A second call (React StrictMode's dev double-mount, or any
       // future re-invocation) would re-read localStorage and clobber in-memory
       // state — including a just-imported shared document that hasn't been
       // persisted yet. The first load sets hydrated, so this stays a no-op.
       if (get().hydrated) return;
-      const result = loadWorkspaceFromStorage();
+      const result = loadWorkspaceFromStorage(get().workspaceOwnerId);
+      if (get().workspaceOwnerId && (!result.ok || !result.workspace.documents.length)) {
+        // A new account cache starts empty; local sample documents stay local.
+        set({ hydrated: true, saveStatus: "idle", lastSavedAt: null });
+        if (!result.ok && "corrupted" in result) backupCorruptData(result.raw, get().workspaceOwnerId);
+        return;
+      }
       if (result.ok) {
         const ws = result.workspace;
         let documents = ws.documents;
@@ -1140,8 +1186,8 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
           sidebarCollapsed: ws.sidebarCollapsed,
           inspectorOpen: ws.inspectorOpen,
           hydrated: true,
-          lastSavedAt: nowIso(),
-          saveStatus: "saved",
+          lastSavedAt: result.volatile ? null : nowIso(),
+          saveStatus: result.volatile ? "error" : "saved",
         });
       } else {
         // Empty or corrupted → start fresh with a sample document.
@@ -1159,7 +1205,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         });
         if ("corrupted" in result && result.corrupted) {
           // Keep the unparseable blob so it isn't destroyed by the next save.
-          backupCorruptData(result.raw);
+          backupCorruptData(result.raw, get().workspaceOwnerId);
           get().addToast(
             "저장된 데이터가 손상되어 새로 시작합니다. 이전 데이터는 백업해 두었습니다.",
             "error",
@@ -1219,7 +1265,7 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         rainbowBranches,
         sidebarCollapsed,
         inspectorOpen,
-      });
+      }, get().workspaceOwnerId);
       set({
         saveStatus: result.ok ? "saved" : "error",
         lastSavedAt: result.ok ? nowIso() : get().lastSavedAt,
