@@ -667,3 +667,43 @@ test('consuming an archived draft removes only its exact identity and rejects a 
     assert.equal(listOwnerPendingCloudSaves('bob')[0].document.title, 'bob private draft');
   });
 });
+
+test('queue context changes retain independent writer drafts and old flushes cannot save or acknowledge the new context', async () => {
+  await withBrowser(async ({ queue, network }) => {
+    const oldRequest = deferred<CloudDocumentRecord>();
+    const requests: { revision: number; title: string; signal: AbortSignal }[] = [];
+    const acknowledged: string[] = [];
+    const current = queue(async (id, revision, doc, signal) => {
+      requests.push({ revision, title: doc.title, signal });
+      return requests.length === 1 ? oldRequest.promise : record(doc, revision + 1, id);
+    }, { onAcknowledged: (_saved, sent) => acknowledged.push(sent.title) });
+    current.register(record());
+    current.enqueue('record-a', document('prior-context pending work'));
+    const prior = current.getPendingSnapshots()[0];
+    const oldFlush = current.flush();
+    const oldJoiningFlush = current.flush();
+    await Promise.resolve();
+    current.forgetBindings();
+    assert.equal(requests[0].signal.aborted, true);
+    assert.equal(current.entries.size, 0);
+    assert.equal(current.getPendingSnapshots()[0].writeId, prior.writeId);
+    current.register(record(document('new server copy'), 2));
+    current.enqueue('record-a', document('new-context pending work'));
+    const newer = current.entries.get('record-a')?.pendingSnapshot!;
+    assert.notEqual(newer.writerId, prior.writerId);
+    network.onLine = false;
+    assert.equal(await current.flush(), false);
+    oldRequest.resolve(record(document('prior-context pending work'), 2));
+    assert.deepEqual(await Promise.all([oldFlush, oldJoiningFlush]), [false, false]);
+    assert.deepEqual(acknowledged, []);
+    assert.equal(requests.length, 1);
+    assert.equal(current.entries.get('record-a')?.document.title, 'new-context pending work');
+    assert.deepEqual(new Set(listOwnerPendingCloudSaves('alice').map(draft => draft.document.title)),
+      new Set(['prior-context pending work', 'new-context pending work']));
+    network.onLine = true;
+    assert.equal(await current.flush(), true);
+    assert.deepEqual(acknowledged, ['new-context pending work']);
+    assert.equal(listOwnerPendingCloudSaves('alice')[0].writeId, prior.writeId);
+    assert.equal(current.getPendingSnapshots()[0].writeId, prior.writeId);
+  });
+});

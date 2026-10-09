@@ -1065,7 +1065,9 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         revision: s.revision + 1,
       }));
       if (nextActive) get().fitToView();
-      get().addToast("문서를 삭제했습니다", "info");
+      get().addToast(get().workspaceOwnerId
+        ? "이 계정의 브라우저 사본을 삭제했습니다. 클라우드 문서와 공유 링크는 유지됩니다."
+        : "문서를 삭제했습니다", "info");
     },
 
     renameDocument: (documentId, title) => {

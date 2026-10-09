@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { cloudConfigured, cloudDocumentPayload, cloudRequest, CloudError, getCloudClient, type CloudDocumentRecord, type CloudDocumentSummary } from "@/lib/cloudClient";
 import { CloudSaveQueue, documentFingerprint, listOwnerPendingCloudSaves, listPendingCloudSaves, type PendingCloudSave } from "@/lib/cloudSync";
+import { cacheDocumentFingerprint, CloudCacheDraftGuard } from "@/lib/cloudCache";
+import { loadWorkspaceFromStorage } from "@/lib/storage";
 import { useMindMapStore } from "@/store/mindMapStore";
 import { createId } from "@/lib/id";
 
@@ -20,6 +22,7 @@ export function useCloudWorkspace(onOpen: (documentId: string) => void, onLocal:
   const [shareLinks, setShareLinks] = useState<Record<string, string>>({});
   const [recovery, setRecovery] = useState<RecoveryChoice | null>(null);
   const queue = useRef<CloudSaveQueue | null>(null);
+  const cacheDrafts = useRef<CloudCacheDraftGuard | null>(null);
   const owner = useRef<string | null>(null);
   const generation = useRef(0);
   const navigation = useRef(0);
@@ -41,8 +44,9 @@ export function useCloudWorkspace(onOpen: (documentId: string) => void, onLocal:
 
   const retainDrafts = useCallback(() => {
     const userId = owner.current;
-    if (!userId || !queue.current) return;
-    const drafts = [...(volatileDrafts.current.get(userId) ?? []), ...queue.current.getPendingSnapshots()];
+    if (!userId) return;
+    const drafts = [...(volatileDrafts.current.get(userId) ?? []),
+      ...(queue.current?.getPendingSnapshots() ?? []), ...(cacheDrafts.current?.getPendingSnapshots() ?? [])];
     volatileDrafts.current.set(userId, [...new Map(drafts.map(draft => [draftKey(draft), draft])).values()]);
   }, []);
 
@@ -54,6 +58,8 @@ export function useCloudWorkspace(onOpen: (documentId: string) => void, onLocal:
       navigation.current += 1;
       queue.current?.dispose();
       queue.current = null;
+      cacheDrafts.current?.dispose();
+      cacheDrafts.current = null;
       requests.current.abort();
       requests.current = new AbortController();
       owner.current = nextOwner;
@@ -70,6 +76,12 @@ export function useCloudWorkspace(onOpen: (documentId: string) => void, onLocal:
       }
       if (nextOwner) {
         const expectedGeneration = generation.current;
+        const draftCleared = (draft: PendingCloudSave) => {
+          const old = volatileDrafts.current.get(draft.ownerId) ?? [];
+          volatileDrafts.current.set(draft.ownerId, old.filter(value => draftKey(value) !== draftKey(draft)));
+        };
+        const guard = new CloudCacheDraftGuard({ ownerId: nextOwner, onDraftCleared: draftCleared });
+        cacheDrafts.current = guard;
         queue.current = new CloudSaveQueue({
           ownerId: nextOwner,
           save: async (id, expectedRevision, document, signal) => {
@@ -81,9 +93,10 @@ export function useCloudWorkspace(onOpen: (documentId: string) => void, onLocal:
           onChange: () => {
             if (generation.current === expectedGeneration) setVersion(v => v + 1);
           },
+          onAcknowledged: (record, document) => guard.rememberAcknowledged(record, document),
           onDraftCleared: draft => {
-            const old = volatileDrafts.current.get(draft.ownerId) ?? [];
-            volatileDrafts.current.set(draft.ownerId, old.filter(value => draftKey(value) !== draftKey(draft)));
+            guard.consumeRecoveryDraft(draft);
+            draftCleared(draft);
           },
           onSessionExpired: () => {
             if (generation.current !== expectedGeneration) return;
@@ -131,6 +144,8 @@ export function useCloudWorkspace(onOpen: (documentId: string) => void, onLocal:
       retainDrafts();
       queue.current?.dispose();
       queue.current = null;
+      cacheDrafts.current?.dispose();
+      cacheDrafts.current = null;
       requests.current.abort();
       owner.current = null;
       generation.current += 1;
@@ -139,6 +154,13 @@ export function useCloudWorkspace(onOpen: (documentId: string) => void, onLocal:
   }, [resetSession, retainDrafts]);
 
   useEffect(() => useMindMapStore.subscribe((state, before) => {
+    if (before.workspaceOwnerId === owner.current && before.workspaceOwnerId && state.workspaceOwnerId !== before.workspaceOwnerId) {
+      // Reloading an account workspace may read another tab's older cache.
+      // Preserve drafts, but never carry autosave authority into that cache.
+      retainDrafts();
+      queue.current?.forgetBindings();
+      cacheDrafts.current?.forgetObservedBindings();
+    }
     if (!suppressChanges.current && state.activeDocumentId !== before.activeDocumentId) {
       navigation.current += 1;
       setRecovery(null);
@@ -148,14 +170,30 @@ export function useCloudWorkspace(onOpen: (documentId: string) => void, onLocal:
       const current = state.documents.find(d => d.id === entry.document.id);
       if (current) queue.current?.enqueue(recordId, current);
     }
-  }), []);
+    // A cache selected from the ordinary document list has no queue binding
+    // after reload. Its edits still need an independent durable writer draft.
+    if (before.workspaceOwnerId !== state.workspaceOwnerId) return;
+    let preserved = false;
+    for (const document of state.documents) {
+      if ([...(queue.current?.entries.values() ?? [])].some(entry => entry.document.id === document.id)) continue;
+      const previous = before.documents.find(value => value.id === document.id);
+      if (previous && documentFingerprint(previous) === documentFingerprint(document)) continue;
+      const result = cacheDrafts.current?.preserveDocument(document);
+      if (result?.draft) {
+        preserved = true;
+        if (!result.recoveryAvailable) setError("브라우저 복구 저장에 실패했습니다. 이 창을 닫기 전에 JSON으로 내보내세요.");
+      }
+    }
+    if (preserved) setVersion(value => value + 1);
+  }), [retainDrafts]);
 
   useEffect(() => {
     const flush = () => { void queue.current?.flush(); };
     const hide = () => { if (document.visibilityState === "hidden") flush(); };
     const protectPending = (event: BeforeUnloadEvent) => {
       const hasUnsaved = [...(queue.current?.entries.values() ?? [])].some(entry => entry.status !== "saved");
-      const hasVolatile = [...volatileDrafts.current.values()].some(drafts => drafts.length);
+      const hasVolatile = [...volatileDrafts.current.values()].some(drafts => drafts.length) ||
+        (cacheDrafts.current?.getPendingSnapshots().length ?? 0) > 0;
       if (hasUnsaved || hasVolatile || useMindMapStore.getState().saveStatus === "error") {
         event.preventDefault();
         event.returnValue = "";
@@ -227,6 +265,7 @@ export function useCloudWorkspace(onOpen: (documentId: string) => void, onLocal:
       }
     }
     const entry = q.register(record, pending);
+    cacheDrafts.current?.rememberAcknowledged(record);
     suppressChanges.current = true;
     try { useMindMapStore.getState().openCloudDocument(userId, entry.document); }
     finally { suppressChanges.current = false; }
@@ -234,6 +273,34 @@ export function useCloudWorkspace(onOpen: (documentId: string) => void, onLocal:
     onOpenRef.current(entry.document.id);
     if (pending) useMindMapStore.getState().addToast("선택한 저장 대기 내용을 복구했습니다.", "info");
   }, [retainDrafts]);
+
+  const openBrowserDraft = useCallback((draft: PendingCloudSave) => {
+    const userId = owner.current;
+    if (!userId || draft.ownerId !== userId) return;
+    const available = [...listOwnerPendingCloudSaves(userId),
+      ...(volatileDrafts.current.get(userId) ?? []), ...(queue.current?.getPendingSnapshots() ?? []),
+      ...(cacheDrafts.current?.getPendingSnapshots() ?? [])];
+    if (!available.some(value => draftKey(value) === draftKey(draft))) return;
+    navigation.current += 1;
+    setRecovery(null);
+    const document = { ...draft.document, id: createId("doc"), title: `${draft.document.title} (브라우저 복구)` };
+    // The new copy has its own durable writer identity. A different tab may
+    // replace the shared workspace cache without affecting these edits.
+    const preserved = cacheDrafts.current?.preserveBrowserCopy(document, draft);
+    if (!preserved?.draft) {
+      setError("복구 사본을 보관하지 못했습니다. 현재 내용을 유지했습니다. JSON으로 내보내세요.");
+      return;
+    }
+    // This is an account-scoped browser copy, deliberately NOT registered for
+    // cloud autosave. Its source may have been deleted on the server.
+    suppressChanges.current = true;
+    try { useMindMapStore.getState().openCloudDocument(userId, document); }
+    finally { suppressChanges.current = false; }
+    browserRecovery.current = { documentId: document.id, draft };
+    if (!preserved.recoveryAvailable) setError("브라우저 복구 저장에 실패했습니다. 이 창을 닫기 전에 JSON으로 내보내세요.");
+    onOpenRef.current(document.id);
+    setVersion(value => value + 1);
+  }, []);
 
   const openDocument = useCallback(async (id: string) => {
     const stamp = generation.current;
@@ -244,8 +311,20 @@ export function useCloudWorkspace(onOpen: (documentId: string) => void, onLocal:
     await q?.flush();
     if (stamp !== generation.current || userId !== owner.current || request !== navigation.current) return;
     await perform((currentOwner, signal) => cloudRequest<{ record: CloudDocumentRecord }>(currentOwner, "documents", { action: "get", id }, signal), result => {
+      // Check at the replacement point, including edits made while GET was in
+      // flight and a dormant owner cache that is about to be hydrated.
+      const state = useMindMapStore.getState();
+      const loaded = state.workspaceOwnerId === userId ? null : loadWorkspaceFromStorage(userId!);
+      const cached = (state.workspaceOwnerId === userId ? state.documents : loaded?.ok ? loaded.workspace.documents : [])
+        .find(document => document.id === result.record.document.id);
+      const preserved = cached ? cacheDrafts.current?.preserveDocument(cached, { serverRecord: result.record }) : null;
+      if (preserved && !preserved.recoveryAvailable && !preserved.draft) {
+        setError("브라우저 사본을 안전하게 보관하지 못해 서버본을 열지 않았습니다. 현재 문서를 JSON으로 내보내세요.");
+        return;
+      }
       retainDrafts();
-      const drafts = [...listPendingCloudSaves(userId!, id), ...(volatileDrafts.current.get(userId!) ?? []).filter(draft => draft.recordId === id)];
+      const drafts = [...listPendingCloudSaves(userId!, id), ...(volatileDrafts.current.get(userId!) ?? []).filter(draft => draft.recordId === id && !draft.browserOnly)];
+      if (preserved?.draft && (preserved.draft.browserOnly || preserved.draft.recordId === id)) drafts.push(preserved.draft);
       const unique = [...new Map(drafts.map(draft => [draftKey(draft), draft])).values()];
       if (unique.length) setRecovery({ record: result.record, drafts: unique });
       else activate(result.record);
@@ -254,11 +333,12 @@ export function useCloudWorkspace(onOpen: (documentId: string) => void, onLocal:
 
   const recoverPending = useCallback((draft: PendingCloudSave | null) => {
     if (!recovery || !owner.current || !queue.current) return;
-    if (draft && (draft.ownerId !== owner.current || draft.recordId !== recovery.record.id || !recovery.drafts.some(value => draftKey(value) === draftKey(draft)))) return;
+    if (draft && (draft.ownerId !== owner.current || (!draft.browserOnly && draft.recordId !== recovery.record.id) || !recovery.drafts.some(value => draftKey(value) === draftKey(draft)))) return;
     navigation.current += 1;
+    if (draft?.browserOnly) { openBrowserDraft(draft); return; }
     // Opening the server copy does not discard another writer's recovery draft.
     activate(recovery.record, draft);
-  }, [activate, recovery]);
+  }, [activate, openBrowserDraft, recovery]);
 
   const copySelected = useCallback(async () => {
     const state = useMindMapStore.getState();
@@ -279,9 +359,14 @@ export function useCloudWorkspace(onOpen: (documentId: string) => void, onLocal:
       const recovered = browserRecovery.current;
       if (recovered?.documentId === source.id && recovered.draft.ownerId === owner.current) {
         queue.current?.consumeRecoveryDraft(recovered.draft);
+        cacheDrafts.current?.consumeRecoveryDraft(recovered.draft);
         const old = volatileDrafts.current.get(recovered.draft.ownerId) ?? [];
         volatileDrafts.current.set(recovered.draft.ownerId, old.filter(value => draftKey(value) !== draftKey(recovered.draft)));
         browserRecovery.current = null;
+      }
+      const copiedDraft = cacheDrafts.current?.getCurrentSnapshot(source.id);
+      if (copiedDraft && cacheDocumentFingerprint(copiedDraft.document) === cacheDocumentFingerprint(source)) {
+        cacheDrafts.current?.consumeRecoveryDraft(copiedDraft);
       }
       activate(result.record);
       useMindMapStore.getState().addToast("선택한 문서의 클라우드 사본을 만들었습니다. 이 사본만 자동 저장됩니다.", "success");
@@ -439,7 +524,6 @@ export function useCloudWorkspace(onOpen: (documentId: string) => void, onLocal:
     navigation.current += 1;
     setRecovery(null);
     retainDrafts();
-    void queue.current?.flush();
     useMindMapStore.getState().switchWorkspaceOwner(null);
     onLocalRef.current();
   }, [retainDrafts]);
@@ -448,26 +532,8 @@ export function useCloudWorkspace(onOpen: (documentId: string) => void, onLocal:
     ...listOwnerPendingCloudSaves(session.user.id),
     ...(volatileDrafts.current.get(session.user.id) ?? []),
     ...(queue.current?.getPendingSnapshots() ?? []),
+    ...(cacheDrafts.current?.getPendingSnapshots() ?? []),
   ].map(draft => [draftKey(draft), draft])).values()] : [];
-
-  const openBrowserDraft = useCallback((draft: PendingCloudSave) => {
-    const userId = owner.current;
-    if (!userId || draft.ownerId !== userId) return;
-    const available = [...listOwnerPendingCloudSaves(userId),
-      ...(volatileDrafts.current.get(userId) ?? []), ...(queue.current?.getPendingSnapshots() ?? [])];
-    if (!available.some(value => draftKey(value) === draftKey(draft))) return;
-    navigation.current += 1;
-    setRecovery(null);
-    const document = { ...draft.document, id: createId("doc"), title: `${draft.document.title} (브라우저 복구)` };
-    // This is an account-scoped browser copy, deliberately NOT registered for
-    // cloud autosave. Its source may have been deleted on the server.
-    suppressChanges.current = true;
-    try { useMindMapStore.getState().openCloudDocument(userId, document); }
-    finally { suppressChanges.current = false; }
-    browserRecovery.current = { documentId: document.id, draft };
-    onOpenRef.current(document.id);
-    setVersion(value => value + 1);
-  }, []);
 
   const cancelNavigation = useCallback(() => { navigation.current += 1; setRecovery(null); }, []);
   const cancelRecovery = cancelNavigation;

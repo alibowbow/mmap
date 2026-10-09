@@ -98,7 +98,7 @@ export function CloudWorkspacePanel({ cloud }: { cloud: CloudWorkspace }) {
                 <p className="text-xs leading-relaxed text-ink-soft">복구할 내용을 직접 선택해 주세요. 다른 탭의 변경은 지우지 않습니다. 서버 버전과 다르면 자동 저장을 멈추고 사본 저장을 선택할 수 있습니다.</p>
                 <ul className="space-y-2">{cloud.recovery.drafts.map(draft => <li key={`${draft.writerId}:${draft.writeId}`} className="rounded-xl border border-line bg-surface-raised p-3">
                   <p className="text-sm font-medium">{draft.document.title}</p>
-                  <p className="mt-1 text-xs text-ink-soft">{new Date(draft.savedAt).toLocaleString("ko-KR")} · v{draft.expectedRevision} · 탭 {draft.writerId.slice(0, 8)}</p>
+                  <p className="mt-1 text-xs text-ink-soft">{new Date(draft.savedAt).toLocaleString("ko-KR")} · {draft.browserOnly ? "브라우저 전용 · 자동 업로드 없음" : `v${draft.expectedRevision}`} · 탭 {draft.writerId.slice(0, 8)}</p>
                   <Button size="sm" className="mt-2" onClick={() => cloud.recoverPending(draft)} aria-label={`저장 대기 내용 복구 · ${draft.document.title} · ${draft.writerId.slice(0, 8)}`}>저장 대기 내용 복구</Button>
                 </li>)}</ul>
                 <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => cloud.recoverPending(null)}>서버 최신본 열기</Button><Button size="sm" variant="ghost" onClick={cloud.cancelRecovery}>취소</Button></div>
@@ -161,7 +161,7 @@ export function CloudWorkspacePanel({ cloud }: { cloud: CloudWorkspace }) {
                 <ul className="space-y-2">{cloud.browserDrafts.map(draft => <li key={`${draft.recordId}:${draft.writerId}:${draft.writeId}`}>
                   <button className="w-full rounded-xl border border-line p-3 text-left hover:bg-surface-overlay" onClick={() => cloud.openBrowserDraft(draft)} aria-label={`브라우저 복구 문서 열기 · ${draft.document.title} · ${draft.writerId.slice(0, 8)}`}>
                     <span className="block truncate text-sm font-medium">{draft.document.title}</span>
-                    <span className="mt-1 block text-xs text-ink-soft">{new Date(draft.savedAt).toLocaleString("ko-KR")} · v{draft.expectedRevision}</span>
+                    <span className="mt-1 block text-xs text-ink-soft">{new Date(draft.savedAt).toLocaleString("ko-KR")} · {draft.browserOnly ? "브라우저 전용 · 자동 업로드 없음" : `v${draft.expectedRevision}`}</span>
                   </button>
                 </li>)}</ul>
               </section>}

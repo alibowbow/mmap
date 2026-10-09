@@ -115,7 +115,11 @@ async function startMock(port) {
         if (body.action === 'list') return json(res, 200, { documents: [...state.records.values()].filter(value => value.ownerId === ownerId).map(value => summary(value.record)) });
         const value = body.id && state.records.get(body.id);
         if (body.id && value?.ownerId !== ownerId) return error(res, 404, 'DOCUMENT_NOT_FOUND', '문서를 찾을 수 없습니다.');
-        if (body.action === 'get') return json(res, 200, { record: value.record });
+        if (body.action === 'get') {
+          const record = clone(value.record), hold = state.responseHolds.get(`/api/cloud/documents:get:${body.id}`);
+          if (hold) await hold;
+          return json(res, 200, { record });
+        }
         if (body.action === 'delete') {
           if (body.expectedRevision !== value.record.revision) return error(res, 409, 'REVISION_CONFLICT', '삭제 전 버전이 변경됐습니다.', value.record.revision);
           state.records.delete(body.id);

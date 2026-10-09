@@ -6,6 +6,8 @@ export type CloudSaveStatus = "saved" | "pending" | "saving" | "offline" | "erro
 export type PendingCloudSave = {
   ownerId: string; recordId: string; expectedRevision: number; document: MindMapDocument;
   writerId: string; writeId: string; savedAt: string;
+  browserOnly?: true;
+  source?: { recordId: string; writerId: string; writeId: string };
 };
 export type CloudSaveEntry = {
   record: CloudDocumentRecord;
@@ -52,6 +54,11 @@ function listStoredPendingCloudSaves(ownerId: string, recordId?: string): Pendin
             key !== pendingCloudKey(ownerId, value.recordId, value.writerId, value.writeId)) ||
           typeof value.savedAt !== "string" || !Number.isFinite(Date.parse(value.savedAt)) ||
           !Number.isSafeInteger(value.expectedRevision) || value.expectedRevision < 1 ||
+          (value.browserOnly !== undefined && value.browserOnly !== true) ||
+          (value.source !== undefined && (!value.source ||
+            typeof value.source.recordId !== "string" || !value.source.recordId.trim() ||
+            typeof value.source.writerId !== "string" || !value.source.writerId.trim() ||
+            typeof value.source.writeId !== "string" || !value.source.writeId.trim())) ||
           !value.document || typeof value.document.updatedAt !== "string") continue;
         const parsed = parseImportJson(JSON.stringify(value.document));
         if (!parsed.ok) continue;
@@ -59,6 +66,10 @@ function listStoredPendingCloudSaves(ownerId: string, recordId?: string): Pendin
           ownerId, recordId: value.recordId, expectedRevision: value.expectedRevision,
           writerId: value.writerId, writeId: value.writeId, savedAt: value.savedAt,
           document: { ...parsed.document, updatedAt: value.document.updatedAt },
+          ...(value.browserOnly ? { browserOnly: true as const } : {}),
+          ...(value.source ? { source: {
+            recordId: value.source.recordId, writerId: value.source.writerId, writeId: value.source.writeId,
+          } } : {}),
         };
         const identity = JSON.stringify([value.recordId, value.writerId]);
         const previous = drafts.get(identity);
@@ -70,7 +81,7 @@ function listStoredPendingCloudSaves(ownerId: string, recordId?: string): Pendin
 }
 
 export function listPendingCloudSaves(ownerId: string, recordId: string): PendingCloudSave[] {
-  return listStoredPendingCloudSaves(ownerId, recordId);
+  return listStoredPendingCloudSaves(ownerId, recordId).filter(draft => !draft.browserOnly);
 }
 
 // Include drafts whose remote record has been deleted or no longer appears in
@@ -116,6 +127,7 @@ type QueueOptions = {
   onChange: () => void;
   onSessionExpired: () => void;
   onDraftCleared?: (draft: PendingCloudSave) => void;
+  onAcknowledged?: (record: CloudDocumentRecord, document: MindMapDocument) => void;
   debounceMs?: number;
 };
 
@@ -123,9 +135,10 @@ type QueueOptions = {
 export class CloudSaveQueue {
   readonly entries = new Map<string, CloudSaveEntry>();
   private stopped = false;
+  private generation = 0;
   private sessionExpired = false;
   private lastSavedAt = 0;
-  private readonly writerId = randomId();
+  private writerId = randomId();
   private controller = new AbortController();
   private timer: ReturnType<typeof setTimeout> | undefined;
   private inFlight = new Map<string, Promise<boolean>>();
@@ -134,7 +147,7 @@ export class CloudSaveQueue {
   constructor(private options: QueueOptions) {}
 
   register(record: CloudDocumentRecord, pending: PendingCloudSave | null = null): CloudSaveEntry {
-    if (pending && (pending.ownerId !== this.options.ownerId || pending.recordId !== record.id ||
+    if (pending && (pending.browserOnly || pending.ownerId !== this.options.ownerId || pending.recordId !== record.id ||
       !Number.isSafeInteger(pending.expectedRevision) || pending.expectedRevision < 1)) {
       throw new Error("복구 초안의 계정 또는 문서가 일치하지 않습니다.");
     }
@@ -272,6 +285,29 @@ export class CloudSaveQueue {
     this.options.onChange();
   }
 
+  // A shared account-cache rehydrate starts a separate writer context. Prior
+  // pending work stays recoverable and late work from the previous context is
+  // unable to acknowledge, overwrite, or flush newly registered documents.
+  forgetBindings(): void {
+    if (this.stopped) return;
+    for (const snapshot of this.getPendingSnapshots()) this.retainedSnapshots.set(this.snapshotIdentity(snapshot), snapshot);
+    for (const entry of this.entries.values()) {
+      if (entry.recoverySource) this.retainedSnapshots.set(this.snapshotIdentity(entry.recoverySource), entry.recoverySource);
+    }
+    for (const durable of this.durableSnapshots.values()) {
+      for (const snapshot of durable.snapshots.values()) this.retainedSnapshots.set(this.snapshotIdentity(snapshot), snapshot);
+    }
+    this.generation++;
+    this.entries.clear();
+    this.durableSnapshots.clear();
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = undefined;
+    this.controller.abort();
+    this.controller = new AbortController();
+    this.inFlight.clear();
+    this.writerId = randomId();
+  }
+
   private schedule(): void {
     if (this.stopped || this.sessionExpired) return;
     if (this.timer) clearTimeout(this.timer);
@@ -283,17 +319,19 @@ export class CloudSaveQueue {
     if (this.timer) clearTimeout(this.timer);
     this.timer = undefined;
     const ids = recordId ? [recordId] : [...this.entries.keys()];
-    const results = await Promise.all(ids.map(id => this.saveOne(id)));
+    const generation = this.generation;
+    const results = await Promise.all(ids.map(id => this.saveOne(id, generation)));
     return results.every(Boolean);
   }
 
-  private async saveOne(id: string): Promise<boolean> {
+  private async saveOne(id: string, generation: number): Promise<boolean> {
+    if (generation !== this.generation) return false;
     const active = this.inFlight.get(id);
     if (active) {
       await active;
-      if (this.stopped || this.sessionExpired) return false;
+      if (this.stopped || this.sessionExpired || generation !== this.generation) return false;
       const status = this.entries.get(id)?.status;
-      return status === "pending" || status === "saving" ? this.saveOne(id) : status === "saved";
+      return status === "pending" || status === "saving" ? this.saveOne(id, generation) : status === "saved";
     }
     const entry = this.entries.get(id);
     if (!entry || this.stopped || this.sessionExpired) return false;
@@ -306,26 +344,29 @@ export class CloudSaveQueue {
     }
     // Register the job before invoking callbacks so a reentrant flush joins the
     // same request rather than starting a second revision compare-and-swap.
-    const job = Promise.resolve().then(() => this.performSave(id, entry));
+    const job = Promise.resolve().then(() => this.performSave(id, entry, generation));
     this.inFlight.set(id, job);
     const result = await job;
     if (this.inFlight.get(id) === job) this.inFlight.delete(id);
-    if (!this.stopped && !this.sessionExpired && this.entries.get(id) === entry && entry.status === "pending") return this.saveOne(id);
+    if (!this.stopped && !this.sessionExpired && generation === this.generation && this.entries.get(id) === entry && entry.status === "pending") return this.saveOne(id, generation);
     return result;
   }
 
-  private async performSave(id: string, entry: CloudSaveEntry): Promise<boolean> {
-    if (this.stopped || this.sessionExpired || this.entries.get(id) !== entry) return false;
+  private async performSave(id: string, entry: CloudSaveEntry, generation: number): Promise<boolean> {
+    if (this.stopped || this.sessionExpired || generation !== this.generation || this.entries.get(id) !== entry) return false;
     const document = entry.document;
     const fingerprint = documentFingerprint(document);
     entry.status = "saving";
     this.options.onChange();
+    if (this.stopped || generation !== this.generation || this.entries.get(id) !== entry) return false;
     try {
       const saved = await this.options.save(id, entry.record.revision, document, this.controller.signal);
-      if (this.stopped || this.entries.get(id) !== entry) return false;
+      if (this.stopped || generation !== this.generation || this.entries.get(id) !== entry) return false;
       entry.record = saved;
       entry.savedFingerprint = fingerprint;
       entry.error = null;
+      this.options.onAcknowledged?.(saved, document);
+      if (this.stopped || generation !== this.generation || this.entries.get(id) !== entry) return false;
       if (documentFingerprint(entry.document) === fingerprint) {
         entry.status = "saved";
         this.discardPending(id);
@@ -338,7 +379,7 @@ export class CloudSaveQueue {
       this.options.onChange();
       return entry.status === "saved";
     } catch (error) {
-      if (this.stopped || this.entries.get(id) !== entry) return false;
+      if (this.stopped || generation !== this.generation || this.entries.get(id) !== entry) return false;
       if (error instanceof CloudError && error.status === 401) {
         entry.status = "error";
         entry.error = error.message;

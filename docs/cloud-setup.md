@@ -159,6 +159,26 @@ writer/tab has a distinct pending draft, so saving one tab's edits cannot clear
 another tab's newer draft. Recovery data stays on this browser; it does not make
 an unsaved edit available on another device.
 
+Cloud records opened from the account panel also save account-scoped
+acknowledgment metadata: the record/document identities, server revision and a
+content fingerprint. Editing an account cache from the main document list
+preserves an independent writer draft even after reload, when no autosave queue
+binding exists. Before a server response replaces the cache, divergent browser
+work is preserved and offered for explicit recovery, including edits made while
+the fetch is pending. If the cached content's revision basis cannot be proved,
+recovery opens a browser copy with a `(브라우저 복구)` title suffix. This also
+applies to a previously opened cloud cache when its saved acknowledgment no
+longer establishes that basis; metadata presence alone is not proof. The edited
+title and body remain in the copy. The app does not infer an upload target from
+a document ID or automatically upload that unknown-basis content.
+Returning to local documents preserves recovery drafts, then clears the
+autosave bindings and observed acknowledgment state from the previous account
+workspace. A cache later restored or replaced by another tab cannot inherit
+those runtime bindings as authority to upload stale content.
+The previous editing context's drafts remain archived, and the new context uses
+a new writer identity so editing the same document cannot supersede an earlier
+independent browser draft during cleanup.
+
 Opening a cloud document with pending drafts shows **저장 대기 내용 선택**.
 Choose a dated draft with **저장 대기 내용 복구**, open **서버 최신본 열기**,
 or cancel. Opening the server copy at this stage keeps all recovery drafts.
@@ -174,6 +194,17 @@ when a new cloud record is wanted. A successful copy of the unchanged selection
 consumes only its exact recovery source; other writers' and newer drafts remain.
 A failed copy or edits made while a copy is in flight leave the recovery work
 available.
+
+Edits to that browser recovery copy have their own writer draft in addition to
+the account workspace cache. Another tab saving its workspace cannot consume
+that independent draft or the original recovery source. The copy remains
+browser-only until **선택한 문서를 클라우드로 복사** is explicitly confirmed.
+
+In an account workspace, the main document-list menu uses **브라우저 사본 삭제**.
+Its confirmation and completion message explain that only this browser copy is
+removed; the cloud document and shared link remain active. To delete the server
+record and invalidate its link, use **클라우드 문서 삭제** in the account panel
+and confirm that action. Local-workspace deletion keeps its existing behavior.
 
 | Status/action | Meaning and next step |
 | --- | --- |
@@ -237,6 +268,25 @@ network responses. Local browser tests with mocked Auth/cloud endpoints verify
 UI behavior and recovery flows, not a deployed Supabase service or Google OAuth.
 Passing these checks does not establish live provider or Data API integration.
 
+External Astra review of branch head `6e63337` identified two P1 data-loss cases
+in cache/recovery editing and one P2 ambiguity in browser-copy deletion. Six
+focused browser reproductions passed 0 of 6 on that head. Follow-up corrections
+and regression tests are in the same draft PR. The final unit aggregate passed
+222 checks with no failures or skips, including the authorized private original.
+A scoped follow-up read-only review completed with 41 independent cache/queue/store
+checks passing. The local mock production-browser suite passed 28 scenarios with
+no failures or uncaught page errors. The blank-configuration production app also
+passed startup, 23 IO checks with 13 downloads, nine editing checks and six
+ink-tools check groups, with no page errors. Follow-up review also found related
+P1 boundaries where retained
+runtime bindings could autosave a stale account cache after returning to local
+documents or newer same-document edits could supersede a previous context's
+browser draft. These boundaries have their own corrections and regressions. The
+scoped follow-up review is not an overall reapproval from the original external
+Astra reviewer or a live-service acceptance result. See
+[the verification report](../verification/cloud-sharing.md)
+for the current executed results and their limits.
+
 No successful Google OAuth flow, live Supabase project, applied remote migration,
 or production cloud integration is verified yet. After authorized setup and a
 later approved deployment, verify with disposable documents:
@@ -256,6 +306,19 @@ later approved deployment, verify with disposable documents:
    writers' drafts.
 7. The same link shows a new saved version; rotation, revocation, and deletion
    prevent new lookups. A viewer remains read-only and excludes private fields.
+8. After refresh, browser restart, account switch and offline editing, reopen an
+   account cache from the main document list and then from the account panel.
+   Its edits must remain recoverable before any server replacement. Repeat while
+   a server GET is delayed and with missing legacy acknowledgment metadata.
+9. Edit a browser recovery copy, save another account document in a second tab,
+   then reload. The edited copy and its unconsumed source draft must remain;
+   neither uploads until an explicit cloud-copy action.
+10. Main-list **브라우저 사본 삭제** removes only the browser copy and says so;
+    account-panel **클라우드 문서 삭제** removes the server record and invalidates
+    the shared link.
+11. Return to local documents, let another tab replace the account workspace
+    cache, then open a different cloud record. The stale cached document must
+    not autosave using a binding from the previous account workspace.
 
 This checklist is a future verification plan. It is not authorization to create
 infrastructure, change providers, apply a migration, or deploy.

@@ -7,21 +7,36 @@ restoration. Remote main was unchanged and no existing cloud branch or open PR
 was overwritten. No main merge, remote schema change, or production deployment
 was performed.
 
+The follow-up on draft PR #13 addresses two P1 data-loss findings and one P2
+deletion-scope finding from external Astra review of branch head `6e63337`.
+Six focused browser cases reproduced all three findings on that head: **0 of 6
+passed before the fixes**. Backend routes and the staged SQL migration are
+unchanged by this follow-up. Final unit checks, the local mock production-browser
+suite, local-only IO/editing/ink-tools regressions and a scoped follow-up review
+have completed. An overall reapproval from the original external Astra reviewer
+is not claimed. The earlier branch results alone did not cover these corrections.
+Follow-up review also identified related P1 boundaries: runtime bindings retained
+after returning to local documents could give a reloaded stale account cache
+authority to autosave, and new edits after rehydration could supersede an earlier
+same-document browser draft. Their corrections and additional regressions are
+included in the same follow-up and covered by the final unit, scoped-review and
+local mock production-browser runs.
+
 ## Executed checks
 
 | Check | Result | Scope |
 | --- | --- | --- |
 | Locked dependency installation | Passed | `npm ci` |
-| TypeScript | Passed | `npx tsc --noEmit` |
-| ESLint | Passed, no warnings | `npm run lint`, including viewer cleanup |
-| Production build with local mock public configuration | Passed | Next.js build; public test configuration only |
-| Production build with all public cloud values blank | Passed | Existing local-only operation remains available |
-| Layout, layout integration, IO, ink, and cloud tests | 207 passed; 0 failed; 0 skipped | Final application source, with the authorized private fixture enabled |
-| Cloud production-browser scenarios | 18 passed; 0 failed; 0 uncaught page errors | Chromium 140.0.7339.186, local HTTP mocks only |
+| TypeScript | Passed | Post-build `tsc --noEmit --incremental false` on frozen source |
+| ESLint | Passed, no warnings | Post-build `npm run lint` on frozen source |
+| Production build/start with local mock public configuration | Passed | Full optimization, route table and traces; production JSON manifests valid; actual startup passed in browser suite; public test configuration only |
+| Production build/start with all public cloud values blank | Build exited 0; actual production startup passed | Nonempty BUILD_ID and six valid core manifests; startup corroborated by the IO suite |
+| Layout, layout integration, IO, ink, and cloud tests | 222 passed; 0 failed; 0 skipped | Existing 207 + 14 cache checks + 1 queue check; authorized 749-node/748-edge private fixture enabled |
+| Cloud production-browser scenarios | 28 passed; 0 failed; 0 uncaught page errors | Chromium 140.0.7339.186; original 18 + six baseline cases + two legacy/delayed-GET + two context-boundary cases; local HTTP mocks only |
 | Existing JSON/image IO browser regression | 23 checks; 13 downloads; 0 page errors | Clean unconfigured production build, fresh Chromium contexts |
 | Existing ink editing browser regression | 9 checks; 0 page errors | Masks/transforms/undo, v6 export/reload/import, 375 px UI |
-| Ink tools browser regression | 6 check groups; 0 page errors | Marker readability, persistence, 320/375 px no-overlap and unforced mode/account actions |
-| Independent security and data-loss review | No remaining blocker/P1/P2 found in the reviewed scope | Owner authorization/RLS, sharing projection, recovery, account boundaries, delayed actions, and SDK logout behavior |
+| Ink tools browser regression | 6 check groups; 0 page errors | Marker readability, persistence, 320/375 px no-overlap and unforced mode/account actions; six screenshots visually checked |
+| Follow-up scoped security and data-loss review | Completed; independent cache/queue/store checks 41 passed | Original two P1/one P2 fixes and related context boundaries; not an overall external Astra reapproval or live-service review |
 
 The aggregate command was:
 
@@ -31,13 +46,19 @@ MMAP_PRIVATE_FIXTURE=/private/path/to/document.json node --import tsx --test \
   tests/io/*.test.ts tests/ink/*.test.ts tests/cloud/*.test.ts
 ```
 
-An intermediate build left an empty `pages-manifest.json`
+An earlier intermediate build left an empty `pages-manifest.json`
 despite CLI exit 0; production startup caught that failure before publication.
-A clean rebuild completed optimization/traces and the full route table. All
-production JSON manifests were parsed and checked before final browser reruns.
+A clean mock-configuration rebuild completed optimization/traces and the full
+route table. Its production JSON manifests were parsed and checked before the
+final browser rerun. The final blank-configuration build exited 0 with a nonempty
+`BUILD_ID` and six valid core manifests, although its console log ended during
+static-page progress rather than showing the full final route table. Actual
+production startup and the successful IO/editing runs corroborated that bundle.
 
-The earlier 203-pass/1-skip result was superseded by this full run after the
-logout and mobile-toolbar corrections and new private-document tests. The private file is supplied
+Before the external findings, head `6e63337` passed 207 unit tests and 18 cloud
+browser scenarios, plus the existing IO, editing and tools regressions. Those
+checks did not cover the six subsequently failing reproductions. The prior
+203-pass/1-skip result was already superseded by that 207-test run. The private file is supplied
 only through `MMAP_PRIVATE_FIXTURE`; its contents are absent from the repository.
 Without that file, the optional private-document tests skip rather than embed a
 replacement fixture.
@@ -47,9 +68,24 @@ copy and local isolation, owner autosave, retry/offline/expiry/storage failures,
 two-tab compare-and-swap and explicit recovery, recovery after remote deletion,
 latest-navigation/account boundaries, delayed conflict/delete responses, the
 SDK's failed-server-logout outcome, capability creation/rotation/revocation,
-read-only viewer controls and palette/ink, and legacy `#m` links. Viewer/account
+read-only viewer controls and palette/ink, and legacy `#m` links. Follow-up cases
+cover cached main-list editing across refresh, browser restart, account switch
+and offline use; an edited recovery copy after another tab saves; explicit
+browser-copy deletion; edits during a delayed server GET; and missing legacy
+acknowledgment metadata. Additional cases check returning to local documents
+before another tab replaces the owner cache, then opening a different cloud
+document without uploading that stale cache, and retaining prior same-document
+browser drafts across context rehydration and later cleanup. Viewer/account
 screenshots were inspected; the viewer had no page overflow at 390/768 px. The
 suite uses fresh Chromium contexts, not a user's signed-in browser profile.
+
+Follow-up browser assertions accept an explicit browser-recovery title suffix
+while requiring the same edited title/body and no implicit upload. Cross-tab
+setups first establish the current server revision, and delayed-GET cases hold
+the response until the intended navigation occurs. These harness refinements
+avoid treating safe recovery, an already-stale setup or an elapsed delay as a
+new application defect; the original six failing baseline reproductions remain
+separate evidence.
 
 To reproduce only these **local mock** scenarios, build with the mock endpoint,
 then run the script; do not use these test values as service configuration:
@@ -95,6 +131,30 @@ PostgreSQL engine through PGlite. This is an actual-original regression check;
 it is **not a live Supabase or Google OAuth acceptance test**.
 
 ## Review corrections
+
+The follow-up fixes the externally reproduced findings:
+
+| Finding | Reproduced behavior | Follow-up correction |
+| --- | --- | --- |
+| P1: cached cloud document edited from the main list | After reload or switching documents, the cache lacked a queue binding; opening its server record could replace edits. Four focused cases cover refresh, restart, account switch and offline use. | Persist account-scoped acknowledgment metadata and independent writer drafts for cache edits. Before accepting a server GET, compare the cached document and preserve divergent work for explicit recovery. |
+| P1: edited browser recovery copy | Its edits depended on the shared account workspace cache; another tab's save could replace that cache and lose the copy after reload. | Give the browser copy an independent writer draft, retain its unconsumed source draft and recover it without automatic upload. |
+| P2: main document-list deletion | The generic delete action/message removed only a browser copy while the cloud record and shared link remained active. | Label and confirm **브라우저 사본 삭제**, then explain in the completion toast that the cloud document and shared link remain. Actual server deletion remains **클라우드 문서 삭제** in the account panel. |
+| Related P1 found during follow-up review: stale cache after leaving the account workspace | Runtime queue entries and observed acknowledgment state survived returning to local documents. Another tab could replace the account workspace with stale content; opening a different cloud record could then enqueue that content using the previously observed revision. | Preserve recovery drafts before leaving the account workspace, then clear queue bindings and observed runtime acknowledgment state. Reloaded account cache alone must not authorize an implicit upload. |
+| Related P1 found during follow-up review: an earlier draft after cache rehydration | A new editing context for the same document could supersede an earlier browser draft. | Archive prior context drafts and rotate the writer identity when observed bindings are cleared. Later writes and exact-key cleanup must retain those independent drafts. |
+
+Shared cache metadata alone does not prove the basis of a divergent document.
+When the cached revision basis cannot be proved, including absent or ambiguous
+metadata or divergent content despite a saved acknowledgment, recovery creates
+a browser copy with a `(브라우저 복구)` suffix. It preserves the edited title/body
+and avoids registering an unknown record for autosave. A delayed GET also
+preserves edits made while its response is pending. A scoped read-only follow-up
+review verified these paths, draft archiving/writer rotation, queue-generation
+guards, exact copy-source cleanup, quota/account isolation and desktop/mobile
+delete confirmation. Its independent cache/queue/store run passed 41 of 41
+checks. It found no remaining blocker/P1/P2 in those reviewed fixes and context
+boundaries; that limited result does not establish an overall external Astra
+reapproval or live Google/Supabase integration. Production-browser evidence is
+recorded separately above.
 
 The known per-writer API/type mismatch and viewer ref-cleanup warning were
 resolved. Additional checks led to restrictive permanent-account RLS, direct

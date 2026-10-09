@@ -17,7 +17,7 @@ const authPort = Number(process.env.CLOUD_AUTH_PORT || 43121);
 const base = `http://127.0.0.1:${appPort}`;
 const mockBase = `http://127.0.0.1:${authPort}`;
 const output = fs.mkdtempSync(path.join(os.tmpdir(), 'mindbranch-cloud-browser-'));
-const report = { scope: 'Local HTTP mock only; no live Google OAuth, Supabase, RLS, deployment, or real browser-profile verification.', browser: '', checks: [], failures: [], pageErrors: [] };
+const report = { scope: 'Local HTTP mock only; no live Google OAuth, Supabase, RLS, deployment, or real browser-profile verification.', browser: '', checks: [], failures: [], observations: [], pageErrors: [] };
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 let browser, mock, server, logs = '';
 
@@ -58,8 +58,29 @@ async function drafts(page) {
   return page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('mindbranch-cloud-pending-v2:')).map(key => ({ key, value: JSON.parse(localStorage.getItem(key)) })));
 }
 async function localWorkspace(page) { return page.evaluate(key => JSON.parse(localStorage.getItem(key)), LOCAL_KEY); }
+async function ownerWorkspace(page, name = 'alice') { return page.evaluate(key => JSON.parse(localStorage.getItem(key)), `${LOCAL_KEY}:cloud:${encodeURIComponent(USERS[name].id)}`); }
+async function editRoot(page, label) {
+  const node = page.locator('.react-flow__node[data-id="root"]');
+  await node.dblclick(); await node.locator('textarea').fill(label); await node.locator('textarea').press('Enter');
+  await node.getByText(label, { exact: true }).waitFor();
+}
+async function cachedHomeOpen(page, documentId) {
+  await page.getByRole('button', { name: '메인으로', exact: true }).click();
+  await page.locator(`#documents-list li[data-document-id="${documentId}"] .mf-doc-open`).click();
+  await ready(page);
+}
+async function switchSession(page, name) {
+  const session = mock.registerSession(name);
+  await page.evaluate(({ session, authKey }) => {
+    localStorage.setItem(authKey, JSON.stringify(session));
+    const channel = new BroadcastChannel(authKey); channel.postMessage({ event: 'SIGNED_IN', session }); channel.close();
+  }, { session, authKey: AUTH_KEY });
+  const dialog = await panel(page);
+  await dialog.getByText(USERS[name].email, { exact: true }).waitFor();
+  return dialog;
+}
 async function newContext(options = {}) {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true, ...(options.storageState ? { storageState: options.storageState } : {}) });
   context.setDefaultTimeout(12000);
   const workspace = options.workspace || workspaceFixture();
   const session = options.signedIn ? mock.registerSession(options.user || 'alice') : null;
@@ -111,6 +132,14 @@ async function openCloud(page, record) {
   await page.waitForFunction(id => location.search.includes(id), record.document.id);
   await ready(page);
   return dialog;
+}
+async function openServerVersion(page, recordId, label) {
+  const dialog = await panel(page);
+  const response = page.waitForResponse(response => response.url().endsWith('/api/cloud/documents') && response.request().postDataJSON()?.action === 'get' && response.request().postDataJSON()?.id === recordId);
+  await dialog.getByRole('button', { name: label }).click(); await response; await delay(100);
+  const latest = dialog.getByRole('button', { name: '서버 최신본 열기', exact: true });
+  if (await latest.isVisible()) await latest.click();
+  await ready(page); await closePanel(page); await delay(1100); await status(page, 'saved');
 }
 async function runCase(name, work) {
   if (process.env.CLOUD_BROWSER_CASE && !new RegExp(process.env.CLOUD_BROWSER_CASE).test(name)) return;
@@ -330,6 +359,278 @@ async function main() {
       } finally { await context.close(); }
     });
 
+    for (const variant of ['refresh', 'restart', 'account switch', 'offline', 'legacy baseline']) await runCase(`P1 cached cloud A survives main-list editing after ${variant}`, async () => {
+      const a = mock.addRecord('alice', documentFixture(`cached-a-${variant.replace(/ /g, '-')}`, `캐시 A ${variant}`));
+      const b = mock.addRecord('alice', documentFixture(`cached-b-${variant.replace(/ /g, '-')}`, `캐시 B ${variant}`));
+      const editedTitle = `편집된 캐시 A ${variant}`, editedRoot = `유실되면 안 되는 A 본문 ${variant}`;
+      let context = await newContext({ signedIn: true });
+      try {
+        let page = await appPage(context);
+        await openCloud(page, a); await closePanel(page); await delay(1100); await status(page, 'saved');
+        if (variant === 'legacy baseline') await page.evaluate(ownerId => {
+          for (const key of Object.keys(localStorage)) if (key.startsWith(`mindbranch-cloud-baseline-v1:${encodeURIComponent(ownerId)}:`)) localStorage.removeItem(key);
+        }, USERS.alice.id);
+        await page.reload();
+        await openCloud(page, b); await closePanel(page); await delay(1100); await status(page, 'saved');
+        await cachedHomeOpen(page, a.document.id);
+        if (variant === 'offline') await context.setOffline(true);
+        await title(page, editedTitle); await editRoot(page, editedRoot);
+        await poll(async () => (await ownerWorkspace(page)).documents.some(document => document.id === a.document.id && document.title === editedTitle && document.nodes[0].data.label === editedRoot), 'Edited cached A was not persisted in its owner workspace');
+        await delay(1100);
+        const before = { displayedTitle: await currentTitle(page), cache: (await ownerWorkspace(page)).documents.find(document => document.id === a.document.id), drafts: await drafts(page), saves: saveRequests().filter(request => request.body.id === a.id).length };
+        if (variant === 'offline') await context.setOffline(false);
+        if (variant === 'restart') {
+          const storageState = await context.storageState(); await context.close();
+          context = await newContext({ signedIn: true, storageState });
+          page = await appPage(context); await openCloud(page, mock.state.records.get(b.id).record); await closePanel(page);
+          await cachedHomeOpen(page, a.document.id);
+        }
+        if (variant === 'account switch') {
+          const requestBoundary = mock.state.requests.length;
+          await switchSession(page, 'bob'); await closePanel(page);
+          await openLocal(page); await title(page, 'Bob 인증 중 별도 로컬 편집'); await delay(1100);
+          assert.equal(mock.state.requests.slice(requestBoundary).some(request => request.ownerId === USERS.bob.id && request.body.id === a.id), false, 'Alice cached edits must not be sent with Bob credentials');
+          await switchSession(page, 'alice'); await closePanel(page);
+          await openCloud(page, mock.state.records.get(b.id).record); await closePanel(page); await cachedHomeOpen(page, a.document.id);
+        }
+        const dialog = await panel(page);
+        const response = page.waitForResponse(response => response.url().endsWith('/api/cloud/documents') && response.request().postDataJSON()?.action === 'get' && response.request().postDataJSON()?.id === a.id);
+        await dialog.getByRole('button', { name: new RegExp('^클라우드 문서 열기 · .*캐시 A ' + variant + '$') }).click();
+        await response;
+        const recovery = dialog.getByRole('button', { name: new RegExp('^저장 대기 내용 복구 · ' + editedTitle + ' ·') });
+        await recovery.waitFor();
+        const writerPrefix = (await recovery.getAttribute('aria-label')).split(' · ').at(-1);
+        const selectedDraft = (await drafts(page)).find(draft => draft.value.document.title === editedTitle && draft.value.writerId.startsWith(writerPrefix));
+        assert.ok(selectedDraft, 'The recovery choice must refer to independently durable edited content');
+        assert.equal(selectedDraft.value.document.nodes[0].data.label, editedRoot);
+        assert.equal(saveRequests().filter(request => request.body.id === a.id).length, before.saves, 'Opening a cached edit must await explicit recovery before any owner write');
+        if (variant === 'refresh') await page.screenshot({ path: path.join(output, 'cached-a-explicit-recovery.png') });
+        await recovery.click();
+        await ready(page);
+        report.observations.push({ name: `cached A ${variant}`, before, after: { displayedTitle: await currentTitle(page), root: await page.locator('.react-flow__node[data-id="root"]').innerText(), drafts: await drafts(page), remoteTitle: mock.state.records.get(a.id).record.document.title, remoteRoot: mock.state.records.get(a.id).record.document.nodes[0].data.label, aSaves: saveRequests().filter(request => request.body.id === a.id).length } });
+        const restoredTitle = await currentTitle(page), browserCopy = restoredTitle === editedTitle + ' (브라우저 복구)';
+        assert.ok(restoredTitle === editedTitle || browserCopy, 'Account-panel open must retain the exact edited title, optionally with the browser recovery suffix');
+        await page.locator('.react-flow__node[data-id="root"]').getByText(editedRoot, { exact: true }).waitFor();
+        if (variant === 'refresh') await page.screenshot({ path: path.join(output, 'cached-a-restored-content.png') });
+        if (variant === 'legacy baseline') assert.equal(browserCopy, true, 'Unknown legacy provenance must recover a browser copy');
+        if (browserCopy) {
+          assert.notEqual(new URL(page.url()).searchParams.get('doc'), a.document.id);
+          assert.equal(saveRequests().filter(request => request.body.id === a.id).length, before.saves, 'Unknown legacy binding must recover a browser copy without implicit upload');
+          assert.equal(mock.state.records.get(a.id).record.document.title, a.document.title);
+        } else assert.equal(new URL(page.url()).searchParams.get('doc'), a.document.id, 'Registered recovery must retain the owner document identity');
+        assert.equal(mock.state.records.get(b.id).record.document.title, b.document.title);
+      } finally { await context.close(); }
+    });
+
+    await runCase('P1 delayed server GET preserves unbound cache edits made before replacement', async () => {
+      const a = mock.addRecord('alice', documentFixture('delayed-cache-a', '지연 캐시 A'));
+      const b = mock.addRecord('alice', documentFixture('delayed-cache-b', '지연 캐시 B'));
+      const context = await newContext({ signedIn: true });
+      let releaseGet = () => {};
+      try {
+        const page = await appPage(context); await openCloud(page, a); await closePanel(page); await delay(1100); await status(page, 'saved');
+        await page.reload(); await openCloud(page, b); await closePanel(page); await delay(1100); await status(page, 'saved');
+        await cachedHomeOpen(page, a.document.id);
+        await page.route('**/api/cloud/documents', async route => {
+          const body = route.request().postDataJSON();
+          if (body.action === 'get' && body.id === a.id) await new Promise(resolve => releaseGet = resolve);
+          await route.fallback();
+        });
+        const dialog = await panel(page), countBefore = saveRequests().length;
+        const delayed = page.waitForRequest(request => request.url().endsWith('/api/cloud/documents') && request.postDataJSON()?.action === 'get' && request.postDataJSON()?.id === a.id);
+        await dialog.getByRole('button', { name: '클라우드 문서 열기 · 지연 캐시 A', exact: true }).click(); await delayed;
+        await closePanel(page); await title(page, 'GET 중 편집한 캐시 A'); await editRoot(page, 'GET 응답보다 늦게 만든 본문');
+        assert.equal((await drafts(page)).some(draft => draft.value.document.title === 'GET 중 편집한 캐시 A'), true, 'Unbound edit must become independently durable before GET completes');
+        const response = page.waitForResponse(response => response.url().endsWith('/api/cloud/documents') && response.request().postDataJSON()?.action === 'get' && response.request().postDataJSON()?.id === a.id);
+        releaseGet(); await response;
+        const choice = await panel(page);
+        await choice.getByRole('button', { name: /^저장 대기 내용 복구 · GET 중 편집한 캐시 A ·/ }).waitFor();
+        assert.equal(await currentTitle(page), 'GET 중 편집한 캐시 A');
+        assert.equal(saveRequests().length, countBefore, 'GET and recovery prompt must not implicitly upload the unbound edits');
+        await choice.getByRole('button', { name: /^저장 대기 내용 복구 · GET 중 편집한 캐시 A ·/ }).click(); await ready(page);
+        assert.ok(['GET 중 편집한 캐시 A', 'GET 중 편집한 캐시 A (브라우저 복구)'].includes(await currentTitle(page)));
+        await page.locator('.react-flow__node[data-id="root"]').getByText('GET 응답보다 늦게 만든 본문', { exact: true }).waitFor();
+      } finally { releaseGet(); await context.close(); }
+    });
+
+    await runCase('P1 edited browser recovery copy survives another tab cache save and restart', async () => {
+      const source = mock.addRecord('alice', documentFixture('recovery-source', '복구 원본'));
+      const normal = mock.addRecord('alice', documentFixture('normal-other-tab', '다른 탭 정상 원본'));
+      const context = await newContext({ signedIn: true });
+      try {
+        const first = await appPage(context);
+        await openCloud(first, source); await closePanel(first); await delay(1100); await status(first, 'saved');
+        await first.route('**/api/cloud/documents', route => route.request().postDataJSON().action === 'save' ? route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'CLOUD_REQUEST_FAILED', message: 'Recovery source mock failure' } }) }) : route.fallback());
+        await title(first, '먼저 남긴 원본 복구 초안'); await status(first, 'error');
+        const sourceDraft = (await drafts(first)).find(draft => draft.value.document.title === '먼저 남긴 원본 복구 초안');
+        assert.ok(sourceDraft);
+        await (await panel(first)).getByRole('button', { name: '이 브라우저의 로컬 문서로 돌아가기', exact: true }).click(); await closePanel(first);
+        const second = await appPage(context); await second.bringToFront(); await openCloud(second, normal); await closePanel(second); await delay(1100); await status(second, 'saved');
+        await first.bringToFront();
+        await (await panel(first)).getByRole('button', { name: /^브라우저 복구 문서 열기 · 먼저 남긴 원본 복구 초안 ·/ }).click(); await ready(first); await closePanel(first);
+        await title(first, '복구 사본에 추가한 독립 편집'); await editRoot(first, '다른 탭에도 보존할 복구 본문'); await delay(1100);
+        const copyId = new URL(first.url()).searchParams.get('doc');
+        assert.notEqual(copyId, source.document.id);
+        await (await panel(first)).getByRole('button', { name: '이 브라우저의 로컬 문서로 돌아가기', exact: true }).click(); await closePanel(first);
+        const requestBoundary = saveRequests().length;
+        await second.bringToFront(); await title(second, '다른 탭 정상 저장 완료'); await status(second, 'saved');
+        await poll(() => mock.state.records.get(normal.id).record.document.title === '다른 탭 정상 저장 완료', 'Second tab cloud save missing');
+        assert.equal(saveRequests().slice(requestBoundary).every(request => request.body.id === normal.id), true, 'Unregistered recovery copy must not upload implicitly');
+        await first.bringToFront(); await first.reload();
+        const dialog = await panel(first);
+        const after = await drafts(first);
+        report.observations.push({ name: 'edited recovery copy after other-tab save', copyId, ownerCache: await ownerWorkspace(first), drafts: after, sourceRemoteTitle: mock.state.records.get(source.id).record.document.title });
+        assert.equal(after.some(draft => draft.value.document.title === '복구 사본에 추가한 독립 편집' && draft.value.document.nodes[0].data.label === '다른 탭에도 보존할 복구 본문'), true, 'Edited recovery copy needs an independent writer draft even when another tab overwrites the account workspace cache');
+        assert.equal(after.some(draft => draft.key === sourceDraft.key), true, 'Editing a recovery copy must retain its original unconsumed draft');
+        await dialog.getByRole('button', { name: /^브라우저 복구 문서 열기 · 복구 사본에 추가한 독립 편집 ·/ }).click(); await ready(first);
+        assert.match(await currentTitle(first), /^복구 사본에 추가한 독립 편집/);
+        await first.locator('.react-flow__node[data-id="root"]').getByText('다른 탭에도 보존할 복구 본문', { exact: true }).waitFor();
+        assert.equal(mock.state.records.get(source.id).record.document.title, source.document.title);
+      } finally { await context.close(); }
+    });
+
+    await runCase('P1 return-local invalidates cloud bindings before another tab stale cache hydration', async () => {
+      const x = mock.addRecord('alice', documentFixture('context-x', '이전 캐시 X'));
+      const y = mock.addRecord('alice', documentFixture('context-y', '정상 문서 Y'));
+      const context = await newContext({ signedIn: true });
+      try {
+        const first = await appPage(context), second = await appPage(context);
+        await first.bringToFront(); await openCloud(first, x); await closePanel(first); await delay(1100); await status(first, 'saved');
+        await second.bringToFront(); await openCloud(second, mock.state.records.get(x.id).record); await closePanel(second); await delay(1100); await status(second, 'saved');
+        await openCloud(second, y); await closePanel(second); await delay(1100); await status(second, 'saved');
+        await first.bringToFront(); await openServerVersion(first, x.id, /^클라우드 문서 열기 · .*X$/);
+        await title(first, '첫 탭 최신 저장 X'); await editRoot(first, '서버에 보존할 최신 X 본문'); await delay(1100); await status(first, 'saved');
+        const latestX = clone(mock.state.records.get(x.id).record), sourceSaveCount = saveRequests().filter(request => request.body.id === x.id).length;
+        assert.equal(latestX.document.title, '첫 탭 최신 저장 X');
+        await (await panel(first)).getByRole('button', { name: '이 브라우저의 로컬 문서로 돌아가기', exact: true }).click(); await closePanel(first);
+        await second.bringToFront(); await title(second, '두 번째 탭 저장 Y'); await delay(1100); await status(second, 'saved');
+        await poll(async () => (await ownerWorkspace(second)).documents.find(document => document.id === x.document.id)?.title === '이전 캐시 X', 'Second tab did not write its older X cache with unrelated Y save');
+        await first.bringToFront();
+        await (await panel(first)).getByRole('button', { name: /^클라우드 문서 열기 · .*Y$/ }).click(); await ready(first); await closePanel(first);
+        await title(first, '첫 탭 새 컨텍스트 Y'); await delay(1100); await status(first, 'saved');
+        report.observations.push({ name: 'return-local queue binding hydration', acknowledgedX: latestX, afterYEditX: clone(mock.state.records.get(x.id).record), sourceSaves: saveRequests().filter(request => request.body.id === x.id).map(request => ({ expectedRevision: request.body.expectedRevision, title: request.body.document.document.title })) });
+        assert.deepEqual(mock.state.records.get(x.id).record, latestX, 'Editing newly hydrated Y must not enqueue stale cached X with a surviving latest-revision binding');
+        assert.equal(saveRequests().filter(request => request.body.id === x.id).length, sourceSaveCount, 'Only Y may save after returning from the local workspace');
+        const dialog = await panel(first);
+        const response = first.waitForResponse(response => response.url().endsWith('/api/cloud/documents') && response.request().postDataJSON()?.action === 'get' && response.request().postDataJSON()?.id === x.id);
+        await dialog.getByRole('button', { name: /^클라우드 문서 열기 · .*X$/ }).click();
+        await response; await delay(100);
+        const latest = dialog.getByRole('button', { name: '서버 최신본 열기', exact: true });
+        const needsRecovery = await latest.isVisible();
+        if (needsRecovery) {
+          assert.equal((await drafts(first)).some(draft => draft.value.document.title === '이전 캐시 X'), true, 'An offered divergent-cache recovery must remain independently durable');
+          await latest.click();
+        }
+        await ready(first);
+        assert.equal(await currentTitle(first), latestX.document.title);
+        await first.locator('.react-flow__node[data-id="root"]').getByText('서버에 보존할 최신 X 본문', { exact: true }).waitFor();
+        if (needsRecovery) assert.equal((await drafts(first)).some(draft => draft.value.document.title === '이전 캐시 X'), true, 'Choosing server latest must retain the old-cache recovery draft');
+        assert.equal(mock.state.records.get(x.id).record.document.title, latestX.document.title);
+        assert.equal(mock.state.records.get(x.id).record.document.nodes[0].data.label, '서버에 보존할 최신 X 본문');
+      } finally { await context.close(); }
+    });
+
+    await runCase('P1 same-ID legacy draft forks survive context changes and browser restart', async () => {
+      const x = mock.addRecord('alice', documentFixture('legacy-fork-x', '이전 캐시 분기 X'));
+      const y = mock.addRecord('alice', documentFixture('legacy-fork-y', '분기 검증 Y'));
+      const context = await newContext({ signedIn: true });
+      try {
+        const first = await appPage(context), second = await appPage(context);
+        await first.bringToFront(); await openCloud(first, x); await closePanel(first); await delay(1100); await status(first, 'saved');
+        await second.bringToFront(); await openCloud(second, mock.state.records.get(x.id).record); await closePanel(second); await delay(1100); await status(second, 'saved');
+        await openCloud(second, y); await closePanel(second); await delay(1100); await status(second, 'saved');
+        await first.bringToFront(); await openServerVersion(first, x.id, /^클라우드 문서 열기 · .*X$/);
+        await title(first, '서버 최신 분기 X'); await editRoot(first, '서버 최신 분기 본문'); await delay(1100); await status(first, 'saved');
+        const latestX = clone(mock.state.records.get(x.id).record), savesBeforeLegacyEdit = saveRequests().filter(request => request.body.id === x.id).length;
+        await first.evaluate(documentId => {
+          for (const key of Object.keys(localStorage)) if (key.startsWith('mindbranch-cloud-baseline-v1:')) {
+            const metadata = JSON.parse(localStorage.getItem(key));
+            if (metadata.documentId === documentId) localStorage.removeItem(key);
+          }
+        }, x.document.id);
+        await first.reload(); await openCloud(first, mock.state.records.get(y.id).record); await closePanel(first);
+        await cachedHomeOpen(first, x.document.id);
+        await title(first, '더 새로운 미등록 분기 X'); await editRoot(first, '새 분기에서 보존할 독립 본문'); await delay(1100);
+        const newerDraft = (await drafts(first)).find(draft => draft.value.document.title === '더 새로운 미등록 분기 X');
+        assert.ok(newerDraft?.value.browserOnly, 'Unknown cache binding must create a browser-only writer draft');
+        await (await panel(first)).getByRole('button', { name: '이 브라우저의 로컬 문서로 돌아가기', exact: true }).click(); await closePanel(first);
+        await second.bringToFront(); await openServerVersion(second, y.id, /^클라우드 문서 열기 · .*Y$/);
+        assert.equal((await ownerWorkspace(second)).documents.find(document => document.id === x.document.id)?.title, '이전 캐시 분기 X', 'Refreshing Y must retain the second tab older X cache used by this regression');
+        assert.equal(saveRequests().filter(request => request.body.id === x.id).length, savesBeforeLegacyEdit);
+        await title(second, '다른 탭에서 저장한 분기 Y'); await delay(1100); await status(second, 'saved');
+        await poll(async () => (await ownerWorkspace(second)).documents.find(document => document.id === x.document.id)?.title === '이전 캐시 분기 X', 'Second tab did not replace account cache with old X branch');
+        await first.bringToFront();
+        await (await panel(first)).getByRole('button', { name: /^클라우드 문서 열기 · .*Y$/ }).click(); await ready(first);
+        const dialog = await panel(first);
+        await dialog.getByRole('button', { name: /^클라우드 문서 열기 · .*X$/ }).click();
+        await dialog.getByRole('button', { name: /^저장 대기 내용 복구 · 이전 캐시 분기 X ·/ }).waitFor();
+        const beforeRestart = (await drafts(first)).filter(draft => draft.value.document.id === x.document.id);
+        report.observations.push({ name: 'same-ID legacy context fork', newerDraft, beforeRestart, sourceRemote: clone(mock.state.records.get(x.id).record) });
+        assert.equal(beforeRestart.some(draft => draft.value.document.title === '더 새로운 미등록 분기 X' && draft.value.document.nodes[0].data.label === '새 분기에서 보존할 독립 본문'), true, 'Preserving older same-ID cache must not supersede newer independent branch');
+        assert.equal(beforeRestart.some(draft => draft.value.document.title === '이전 캐시 분기 X'), true);
+        assert.ok(new Set(beforeRestart.map(draft => draft.value.writerId)).size >= 2, 'A new cache context needs a distinct writer identity');
+        assert.equal(saveRequests().filter(request => request.body.id === x.id).length, savesBeforeLegacyEdit);
+        assert.deepEqual(mock.state.records.get(x.id).record, latestX, 'Neither same-ID browser branch may implicitly overwrite the server');
+        await first.reload();
+        const reloaded = (await panel(first)).locator('section[aria-label="브라우저 복구 문서"]');
+        await reloaded.getByRole('button', { name: /^브라우저 복구 문서 열기 · 더 새로운 미등록 분기 X ·/ }).waitFor();
+        await reloaded.getByRole('button', { name: /^브라우저 복구 문서 열기 · 이전 캐시 분기 X ·/ }).waitFor();
+        await reloaded.getByRole('button', { name: /^브라우저 복구 문서 열기 · 더 새로운 미등록 분기 X ·/ }).click(); await ready(first);
+        assert.equal(await currentTitle(first), '더 새로운 미등록 분기 X (브라우저 복구)');
+        await first.locator('.react-flow__node[data-id="root"]').getByText('새 분기에서 보존할 독립 본문', { exact: true }).waitFor();
+        assert.equal(saveRequests().filter(request => request.body.id === x.id).length, savesBeforeLegacyEdit);
+      } finally { await context.close(); }
+    });
+
+    await runCase('P2 document panel deletion explicitly removes a browser copy while cloud and share remain active', async () => {
+      const record = mock.addRecord('alice', documentFixture('scoped-delete', '브라우저 삭제 범위 검증'));
+      record.shareEnabled = true; const token = 'D'.repeat(43); mock.state.shares.set(token, record.id);
+      const context = await newContext({ signedIn: true }), recipient = await newContext();
+      try {
+        const page = await appPage(context); await openCloud(page, record); await closePanel(page); await delay(1100); await status(page, 'saved');
+        await page.getByRole('button', { name: '문서 패널 열기', exact: true }).click();
+        await page.getByRole('button', { name: '문서 메뉴', exact: true }).first().click();
+        const scoped = page.getByRole('menuitem', { name: '브라우저 사본 삭제', exact: true });
+        const correctlyLabeled = await scoped.count() > 0;
+        if (correctlyLabeled) {
+          await scoped.click();
+          const confirmation = page.getByRole('dialog', { name: '브라우저 사본 삭제', exact: true });
+          await confirmation.waitFor(); await confirmation.getByText('클라우드에 저장된 문서와 공유 링크는 유지됩니다.', { exact: true }).waitFor();
+          assert.equal((await ownerWorkspace(page)).documents.some(document => document.id === record.document.id), true, 'Opening scope confirmation must not delete the copy');
+          await confirmation.getByRole('button', { name: '취소', exact: true }).click();
+          await page.getByRole('button', { name: '문서 메뉴', exact: true }).first().click(); await scoped.click();
+          await confirmation.getByRole('button', { name: '브라우저 사본 삭제', exact: true }).click();
+        } else await page.getByRole('menuitem', { name: '삭제', exact: true }).click();
+        await poll(async () => !(await ownerWorkspace(page)).documents.some(document => document.id === record.document.id), 'Browser copy did not disappear');
+        const viewer = await recipient.newPage(); await viewer.goto(base + '/share#token=' + token);
+        await viewer.getByRole('heading', { name: record.document.title, exact: true }).waitFor();
+        report.observations.push({ name: 'document panel delete scope', correctlyLabeled, remoteExists: mock.state.records.has(record.id), shareActive: mock.state.shares.has(token), visibleText: (await page.locator('body').innerText()).slice(-1800) });
+        assert.equal(mock.state.records.has(record.id), true); assert.equal(mock.state.shares.has(token), true);
+        assert.equal(mock.state.requests.some(request => request.body.action === 'delete'), false);
+        assert.equal(correctlyLabeled, true, 'Account cache deletion must say browser copy and explain that server/shared document remains');
+        await page.getByRole('status').filter({ hasText: /브라우저 사본.*삭제/ }).waitFor();
+        assert.equal(await page.getByText('문서를 삭제했습니다', { exact: true }).count(), 0, 'Completion must identify browser-only deletion');
+        const mobileContext = await newContext({ signedIn: true });
+        try {
+          const mobile = await appPage(mobileContext); await mobile.setViewportSize({ width: 375, height: 900 });
+          await openCloud(mobile, mock.state.records.get(record.id).record); await closePanel(mobile); await delay(1100); await status(mobile, 'saved');
+          await mobile.getByRole('button', { name: '문서 목록 열기', exact: true }).click();
+          const drawer = mobile.getByRole('dialog', { name: '문서 목록', exact: true });
+          await drawer.getByRole('button', { name: '문서 메뉴', exact: true }).first().click();
+          await mobile.getByRole('menuitem', { name: '브라우저 사본 삭제', exact: true }).click();
+          const confirmation = mobile.getByRole('dialog', { name: '브라우저 사본 삭제', exact: true });
+          await confirmation.waitFor(); await drawer.waitFor({ state: 'hidden' });
+          assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+          await mobile.screenshot({ path: path.join(output, 'browser-copy-delete-375.png') });
+          await confirmation.getByRole('button', { name: '브라우저 사본 삭제', exact: true }).click();
+          await poll(async () => !(await ownerWorkspace(mobile)).documents.some(document => document.id === record.document.id), 'Mobile confirmation did not remove browser copy');
+          assert.equal(mock.state.records.has(record.id), true); assert.equal(mock.state.shares.has(token), true);
+          assert.equal(mock.state.requests.some(request => request.body.action === 'delete'), false);
+          await viewer.reload(); await viewer.getByRole('heading', { name: record.document.title, exact: true }).waitFor();
+        } finally { await mobileContext.close(); }
+      } finally { await context.close(); await recipient.close(); }
+    });
+
     await runCase('Rapid A/B open honors latest navigation and account switch rejects old responses', async () => {
       const a = mock.addRecord('alice', documentFixture('owned-a', '늦게 응답하는 A'));
       const b = mock.addRecord('alice', documentFixture('owned-b', '먼저 응답하는 B'));
@@ -361,18 +662,20 @@ async function main() {
     await runCase('Delayed cloud open cannot reopen the editor after going home', async () => {
       const record = mock.addRecord('alice', documentFixture('owned-home-race', '홈 이동 중 응답'));
       const context = await newContext({ signedIn: true });
+      let releaseGet = () => {};
       try {
         const page = await appPage(context), dialog = await panel(page);
-        mock.state.delays.set(`/api/cloud/documents:get:${record.id}`, 900);
+        mock.state.responseHolds.set(`/api/cloud/documents:get:${record.id}`, new Promise(resolve => releaseGet = resolve));
         await dialog.getByRole('button', { name: `클라우드 문서 열기 · ${record.document.title}`, exact: true }).click();
         await poll(() => mock.state.requests.some(request => request.body.action === 'get' && request.body.id === record.id), 'Delayed open request missing');
         await closePanel(page); await page.getByRole('button', { name: '메인으로', exact: true }).click();
         await page.getByRole('button', { name: '선택한 로컬 문서 열기', exact: true }).first().waitFor();
+        releaseGet();
         await delay(1100);
         assert.equal(new URL(page.url()).searchParams.has('doc'), false);
         assert.equal(await page.locator('[data-mindmap-canvas]').count(), 0, 'Late cloud response must not leave home');
         await status(page, 'local');
-      } finally { await context.close(); }
+      } finally { releaseGet(); await context.close(); }
     });
 
     for (const choice of ['latest', 'copy']) await runCase(`Conflict ${choice} response preserves edits made while request is pending`, async () => {
