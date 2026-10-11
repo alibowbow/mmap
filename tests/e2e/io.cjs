@@ -218,7 +218,7 @@ async function main() {
       await delay(500);
     }
     assert.ok(started, serverLogs);
-    browser = await chromium.launch({ headless: true, args: ["--no-sandbox"] });
+    browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH, args: ["--no-sandbox"] });
     report.browser = browser.version();
     const doc = portableFixture(),
       workspace = {

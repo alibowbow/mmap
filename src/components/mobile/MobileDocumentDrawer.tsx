@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import { useState } from "react";
 import {
   Copy,
   FilePlus2,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
+import { BrowserCopyDeleteDialog, type BrowserCopyDeleteTarget } from "@/components/dialogs/BrowserCopyDeleteDialog";
 import { Dropdown } from "@/components/ui/Dropdown";
 import { useDialogFocus } from "@/hooks/useDialogFocus";
 import { cn } from "@/lib/cn";
@@ -26,6 +28,8 @@ export function MobileDocumentDrawer() {
   const createDocument = useMindMapStore((s) => s.createDocument);
   const duplicateDocument = useMindMapStore((s) => s.duplicateDocument);
   const deleteDocument = useMindMapStore((s) => s.deleteDocument);
+  const workspaceOwnerId = useMindMapStore((s) => s.workspaceOwnerId);
+  const [deleteTarget, setDeleteTarget] = useState<BrowserCopyDeleteTarget | null>(null);
   const setDialog = useMindMapStore((s) => s.setDialog);
   const setImportTab = useMindMapStore((s) => s.setImportTab);
   const dialogRef = useDialogFocus<HTMLDivElement>(open, () => setOpen(false));
@@ -35,7 +39,7 @@ export function MobileDocumentDrawer() {
   );
 
   return (
-    <AnimatePresence>
+    <><AnimatePresence>
       {open && (
         <>
           {/* Dim backdrop — the canvas stays visible; tap to close. */}
@@ -116,10 +120,18 @@ export function MobileDocumentDrawer() {
                     },
                     {
                       id: "delete",
-                      label: "삭제",
+                      label: workspaceOwnerId ? "브라우저 사본 삭제" : "삭제",
                       icon: <Trash2 size={16} />,
                       danger: true,
-                      onSelect: () => deleteDocument(doc.id),
+                      onSelect: () => {
+                        if (useMindMapStore.getState().workspaceOwnerId !== workspaceOwnerId) return;
+                        if (workspaceOwnerId) {
+                          // Close the drawer before showing the shared modal,
+                          // which uses the editor's standard dialog layer.
+                          setOpen(false);
+                          setDeleteTarget({ id: doc.id, title: doc.title, ownerId: workspaceOwnerId });
+                        } else deleteDocument(doc.id);
+                      },
                     },
                   ]}
                 />
@@ -162,6 +174,6 @@ export function MobileDocumentDrawer() {
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence><BrowserCopyDeleteDialog target={deleteTarget} onClose={() => setDeleteTarget(null)} /></>
   );
 }

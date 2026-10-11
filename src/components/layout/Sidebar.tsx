@@ -21,6 +21,7 @@ import {
 
 import { BrandMark } from "@/components/ui/BrandMark";
 import { useMemo, useState } from "react";
+import { BrowserCopyDeleteDialog, type BrowserCopyDeleteTarget } from "@/components/dialogs/BrowserCopyDeleteDialog";
 
 import { OutlinePanel } from "@/components/panels/OutlinePanel";
 import { Button } from "@/components/ui/Button";
@@ -54,14 +55,16 @@ function DocumentCard({ doc }: { doc: MindMapDocument }) {
   const renameDocument = useMindMapStore((s) => s.renameDocument);
   const duplicateDocument = useMindMapStore((s) => s.duplicateDocument);
   const deleteDocument = useMindMapStore((s) => s.deleteDocument);
+  const workspaceOwnerId = useMindMapStore((s) => s.workspaceOwnerId);
   const toggleDocumentPin = useMindMapStore((s) => s.toggleDocumentPin);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(doc.title);
+  const [deleteTarget, setDeleteTarget] = useState<BrowserCopyDeleteTarget | null>(null);
   const active = doc.id === activeId;
 
   return (
-    <div
+    <><div
       className={cn(
         "group relative rounded-xl border p-1 transition-colors",
         active
@@ -127,7 +130,7 @@ function DocumentCard({ doc }: { doc: MindMapDocument }) {
         </button>
         <Dropdown
           align="right"
-          width={170}
+          width={workspaceOwnerId ? 200 : 170}
           trigger={
             <button
               aria-label="문서 메뉴"
@@ -160,15 +163,19 @@ function DocumentCard({ doc }: { doc: MindMapDocument }) {
             },
             {
               id: "delete",
-              label: "삭제",
+              label: workspaceOwnerId ? "브라우저 사본 삭제" : "삭제",
               icon: <Trash2 size={15} />,
               danger: true,
-              onSelect: () => deleteDocument(doc.id),
+              onSelect: () => {
+                if (useMindMapStore.getState().workspaceOwnerId !== workspaceOwnerId) return;
+                if (workspaceOwnerId) setDeleteTarget({ id: doc.id, title: doc.title, ownerId: workspaceOwnerId });
+                else deleteDocument(doc.id);
+              },
             },
           ]}
         />
       </div>
-    </div>
+    </div><BrowserCopyDeleteDialog target={deleteTarget} onClose={() => setDeleteTarget(null)} /></>
   );
 }
 

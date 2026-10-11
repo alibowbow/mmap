@@ -312,7 +312,7 @@ async function main() {
       }
       assert.ok(started, logs);
     }
-    browser = await chromium.launch({ headless: true, args: ["--no-sandbox"] });
+    browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH, args: ["--no-sandbox"] });
     report.browser = browser.version();
     const desktop = await open(browser, { width: 1440, height: 1000 }),
       p = desktop.p;
@@ -467,9 +467,14 @@ async function main() {
       await mobile.p
         .getByRole("button", { name: "그리기 모드", exact: true })
         .click();
+      const cloudEntry = mobile.p.locator("[data-cloud-status]");
+      await cloudEntry.waitFor({ state: "visible" });
       const layout = await mobile.p.evaluate(() => {
         const toolbar = document
           .querySelector("[data-ink-toolbar]")
+          .getBoundingClientRect();
+        const cloud = document
+          .querySelector("[data-cloud-status]")
           .getBoundingClientRect();
         const buttons = [
           ...document.querySelectorAll("[data-ink-brushbar] button"),
@@ -492,7 +497,8 @@ async function main() {
         return {
           viewport: innerWidth,
           scrollWidth: document.documentElement.scrollWidth,
-          toolbar: { left: toolbar.left, right: toolbar.right },
+          toolbar: { left: toolbar.left, right: toolbar.right, top: toolbar.top, bottom: toolbar.bottom },
+          cloud: { left: cloud.left, right: cloud.right, top: cloud.top, bottom: cloud.bottom },
           buttons,
           colors,
         };
@@ -515,6 +521,23 @@ async function main() {
         layout.colors.length >= 4 &&
           layout.colors.every((b) => b.width >= 44 && b.height >= 44),
       );
+      const cloudOverlapsTools = layout.cloud.left < layout.toolbar.right &&
+        layout.cloud.right > layout.toolbar.left &&
+        layout.cloud.top < layout.toolbar.bottom &&
+        layout.cloud.bottom > layout.toolbar.top;
+      assert.equal(cloudOverlapsTools, false, "Cloud entry obstructs mobile drawing tools: " + JSON.stringify(layout));
+      const accessibleModes = [];
+      for (const [name, tool] of [["올가미 모드", "lasso"], ["지우개 모드", "eraser"], ["이동 모드", "pan"]]) {
+        assert.ok(await cloudEntry.isVisible());
+        await mobile.p.getByRole("button", { name, exact: true }).click();
+        await mobile.p.locator(`[data-ink-input][data-tool="${tool}"]`).waitFor();
+        accessibleModes.push(name);
+      }
+      await mobile.p.getByRole("button", { name: /^계정 및 클라우드 문서 열기/ }).click();
+      const accountDialog = mobile.p.getByRole("dialog", { name: "계정 및 클라우드", exact: true });
+      await accountDialog.waitFor({ state: "visible" });
+      await accountDialog.getByRole("button", { name: "닫기", exact: true }).click();
+      await accountDialog.waitFor({ state: "hidden" });
       await quick(mobile.p)
         .getByRole("button", { name: "마커 도구", exact: true })
         .click();
@@ -522,7 +545,7 @@ async function main() {
       await mobile.p.screenshot({
         path: path.join(output, "quick-tools-mobile-" + width + ".png"),
       });
-      report.checks.push({ mobileLayout: layout });
+      report.checks.push({ mobileLayout: layout, accessibleModes, accountDialogAccessible: true });
       await mobile.ctx.close();
     }
     assert.deepEqual(report.errors, []);
