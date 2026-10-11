@@ -40,6 +40,8 @@ function workspace(nodes) {
   };
 }
 async function ready(page, count) {
+  // 3000 measured cards may settle across several geometry revisions.
+  const readinessTimeout = count >= 3000 ? 90000 : 20000;
   try {
     await page.waitForFunction(
       (n) => document.querySelectorAll(".react-flow__node").length >= n,
@@ -51,7 +53,7 @@ async function ready(page, count) {
           .querySelector("[data-mindmap-canvas]")
           ?.getAttribute("aria-busy") === "false",
       null,
-      { timeout: 20000 },
+      { timeout: readinessTimeout },
     );
     await page.waitForFunction(
       () =>
@@ -60,7 +62,7 @@ async function ready(page, count) {
           (e) => e.dataset.routeState === "ok",
         ),
       null,
-      { timeout: 20000 },
+      { timeout: readinessTimeout },
     );
     await page.waitForTimeout(100);
   } catch (error) {

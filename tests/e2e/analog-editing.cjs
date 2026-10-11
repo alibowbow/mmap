@@ -69,7 +69,7 @@ async function importFile(p, file) {
   if (p.viewportSize().width < 768) {
     await p.getByRole("button", { name: "노드 모드", exact: true }).click();
     await p.getByRole("button", { name: "더보기", exact: true }).click();
-    await p.getByRole("dialog", { name: "더 많은 도구", exact: true }).getByRole("button", { name: "JSON 열기", exact: true }).click();
+    await p.getByRole("dialog", { name: "더 많은 도구", exact: true }).getByRole("button", { name: "JSON 가져오기", exact: true }).click();
   } else await command(p, "JSON 가져오기");
   const dialog = p.getByRole("dialog", { name: "가져오기", exact: true });
   await dialog.locator('input[type="file"]').setInputFiles(file);

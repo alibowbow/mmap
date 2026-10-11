@@ -433,7 +433,7 @@ async function main() {
     assert.ok(s.points.length > 40 && s.points.every((p) => p.pressure === 1));
     assert.ok(branchGeometry(s).radii[0] > branchGeometry(s).radii.at(-1) * 8);
     assert.equal(
-      await p.locator('[data-branch-style="hand-v1"] path').count(),
+      await p.locator('[data-ink-layer] [data-branch-style="hand-v1"] path').count(),
       3,
     );
     const saved = s.points;

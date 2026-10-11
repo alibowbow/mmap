@@ -121,7 +121,7 @@ async function importFile(p, filename) {
     await p.getByRole("button", { name: "더보기", exact: true }).click();
     await p
       .getByRole("dialog", { name: "더 많은 도구", exact: true })
-      .getByRole("button", { name: "JSON 열기", exact: true })
+      .getByRole("button", { name: "JSON 가져오기", exact: true })
       .click();
   } else await command(p, "JSON 가져오기");
   const d = p.getByRole("dialog", { name: "가져오기", exact: true });

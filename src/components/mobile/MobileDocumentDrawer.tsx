@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Copy,
   FilePlus2,
+  FileUp,
   LayoutTemplate,
   MoreVertical,
   Trash2,
@@ -26,6 +27,7 @@ export function MobileDocumentDrawer() {
   const duplicateDocument = useMindMapStore((s) => s.duplicateDocument);
   const deleteDocument = useMindMapStore((s) => s.deleteDocument);
   const setDialog = useMindMapStore((s) => s.setDialog);
+  const setImportTab = useMindMapStore((s) => s.setImportTab);
   const dialogRef = useDialogFocus<HTMLDivElement>(open, () => setOpen(false));
 
   const sorted = [...documents].sort(
@@ -145,6 +147,17 @@ export function MobileDocumentDrawer() {
                 <LayoutTemplate size={17} /> 템플릿
               </Button>
             </div>
+            <Button
+              className="mt-2 h-11 w-full justify-center"
+              onClick={() => {
+                document.querySelector<HTMLButtonElement>('button[aria-label="문서 목록 열기"]')?.focus();
+                setOpen(false);
+                setImportTab("json");
+                setDialog("import");
+              }}
+            >
+              <FileUp size={17} /> JSON 가져오기
+            </Button>
           </div>
           </motion.div>
         </>

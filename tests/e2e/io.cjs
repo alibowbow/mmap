@@ -20,7 +20,7 @@ async function command(page, title) {
   await page.keyboard.press("Escape");
   if (page.viewportSize().width < 768 && title === "JSON 가져오기") {
     await page.getByRole("button", { name: "더보기", exact: true }).click();
-    await page.getByRole("button", { name: "JSON 열기", exact: true }).click();
+    await page.getByRole("button", { name: "JSON 가져오기", exact: true }).click();
     return;
   }
   await page.keyboard.press("Control+k");

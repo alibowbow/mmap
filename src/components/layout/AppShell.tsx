@@ -9,7 +9,6 @@ import {
   EyeOff,
   LayoutGrid,
   Redo2,
-  Search,
   Undo2,
   X,
 } from "lucide-react";
@@ -37,6 +36,7 @@ import { BulkActionBar } from "@/components/toolbar/BulkActionBar";
 import { CommandPalette } from "@/components/toolbar/CommandPalette";
 import { FloatingToolbar } from "@/components/toolbar/FloatingToolbar";
 import { NodeContextMenu } from "@/components/toolbar/NodeContextMenu";
+import { ViewControls } from "@/components/toolbar/ViewControls";
 import { TutorialCoach } from "@/components/tutorial/TutorialCoach";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { Button } from "@/components/ui/Button";
@@ -60,7 +60,6 @@ const ONBOARD_KEY = "mindforge-onboarded-v1";
 function MobileTopbar({ onHome }: { onHome: () => void }) {
   const doc = useMindMapStore(selectActiveDocument);
   const setMobileDrawerOpen = useMindMapStore((s) => s.setMobileDrawerOpen);
-  const setSearchOpen = useMindMapStore((s) => s.setSearchOpen);
   const undo = useMindMapStore((s) => s.undo);
   const redo = useMindMapStore((s) => s.redo);
   const autoLayout = useMindMapStore((s) => s.autoLayout);
@@ -111,13 +110,7 @@ function MobileTopbar({ onHome }: { onHome: () => void }) {
       >
         <LayoutGrid size={18} />
       </button>
-      <button
-        onClick={() => setSearchOpen(true)}
-        aria-label="검색"
-        className={iconBtn}
-      >
-        <Search size={19} />
-      </button>
+      <ViewControls mobile />
     </header>
   );
 }
