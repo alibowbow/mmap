@@ -167,6 +167,12 @@ export class LayoutRuntime {
     }
     this.set({ layoutBusy: false, layoutStamp: this.stamp });
   }
+  // History restores explicit coordinates. Late mount/size observations may
+  // refresh routing, but only a new edit should opt into placement again.
+  restorePositions() {
+    this.cancel(true);
+    this.preserveInitialPositions = true;
+  }
   reset() {
     this.cancel(true);
     this.ports.clear();
@@ -197,7 +203,7 @@ export class LayoutRuntime {
         if (before.editingNodeId)
           this.protectedIds.delete(before.editingNodeId);
         this.queue({
-          routingOnly: false,
+          routingOnly: this.kind === "view",
           changedNodeIds: before.editingNodeId ? [before.editingNodeId] : [],
         });
       }
@@ -264,7 +270,7 @@ export class LayoutRuntime {
       }
       if (structure) {
         structural = true;
-        if (p.data.collapsed && !n.data.collapsed) {
+        if (this.kind !== "view" && p.data.collapsed && !n.data.collapsed) {
           changed.push(n.id);
           const kids = s.nodes.filter((child) => child.data.parentId === n.id);
           if (
@@ -318,6 +324,7 @@ export class LayoutRuntime {
       previousObstacleRects: previous,
       compact: removed,
       routingOnly:
+        this.kind === "view" ||
         !!s.editingNodeId ||
         (this.preserveInitialPositions && !content && !structural) ||
         freeDrag ||
@@ -350,7 +357,7 @@ export class LayoutRuntime {
     this.queue({ changedNodeIds: changed, routingOnly: true });
   }
   dimensionsChanged() {
-    if (this.preserveInitialPositions) {
+    if (this.kind === "view" || this.preserveInitialPositions) {
       this.queue({ routingOnly: true });
       return;
     }

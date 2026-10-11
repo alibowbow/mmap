@@ -61,21 +61,70 @@ export function getSubtreeIds(nodes: MindMapNode[], nodeId: string): string[] {
   return [nodeId, ...getDescendantIds(nodes, nodeId)];
 }
 
-// Depth of every node in one pass (root = 0). Used for per-level sizing.
-export function computeDepths(nodes: MindMapNode[]): Map<string, number> {
-  const byId = getNodeMap(nodes), depths = new Map<string, number>();
-  for (const n of nodes) {
-    if (depths.has(n.id)) continue;
-    const path: string[] = [], seen = new Set<string>();
-    let current: MindMapNode | undefined = n;
-    while (current && !depths.has(current.id) && !seen.has(current.id)) {
-      path.push(current.id); seen.add(current.id);
-      current = current.data.parentId ? byId.get(current.data.parentId) : undefined;
+// A view-only forest from the actual parent relationships. Missing parents are
+// roots. A cycle has no natural root, so ignore the parent link of its smallest
+// id for traversal only. This is deterministic and never changes document data.
+function viewForest(nodes: MindMapNode[]) {
+  const byId = getNodeMap(nodes);
+  const parents = new Map<string, string | null>();
+  for (const node of nodes) {
+    const parent = node.data.parentId;
+    parents.set(node.id, parent && byId.has(parent) ? parent : null);
+  }
+  const complete = new Set<string>();
+  for (const node of nodes) {
+    const path: string[] = [], at = new Map<string, number>();
+    let id: string | null = node.id;
+    while (id !== null && !complete.has(id)) {
+      const cycleStart = at.get(id);
+      if (cycleStart !== undefined) {
+        const root = path.slice(cycleStart).reduce((a, b) => a < b ? a : b);
+        parents.set(root, null);
+        break;
+      }
+      at.set(id, path.length);
+      path.push(id);
+      id = parents.get(id) ?? null;
     }
-    let d = current && depths.has(current.id) ? depths.get(current.id)! + 1 : 0;
-    for (let i = path.length - 1; i >= 0; i--) depths.set(path[i], d++);
+    for (const visited of path) complete.add(visited);
+  }
+  const children = new Map<string, MindMapNode[]>(), roots: MindMapNode[] = [];
+  for (const node of nodes) {
+    const parent = parents.get(node.id);
+    if (parent === null) roots.push(node);
+    else {
+      const siblings = children.get(parent!) ?? [];
+      siblings.push(node);
+      children.set(parent!, siblings);
+    }
+  }
+  return { roots, children };
+}
+
+// Depth of every node (each root = 0), including forests and malformed cycles.
+export function computeDepths(nodes: MindMapNode[]): Map<string, number> {
+  const { roots, children } = viewForest(nodes), depths = new Map<string, number>();
+  const stack = roots.map(node => ({ node, depth: 0 }));
+  while (stack.length) {
+    const { node, depth } = stack.pop()!;
+    depths.set(node.id, depth);
+    for (const child of children.get(node.id) ?? []) stack.push({ node: child, depth: depth + 1 });
   }
   return depths;
+}
+
+// Reset the complete collapse state, rather than preserving hidden ancestors.
+// Leaves do not need a collapse flag. null means expand every level.
+export function nodesExpandedToDepth(nodes: MindMapNode[], depth: number | null): MindMapNode[] {
+  const depths = computeDepths(nodes), children = getChildrenMap(nodes);
+  let changed = false;
+  const next = nodes.map(node => {
+    const collapsed = depth !== null && (depths.get(node.id) ?? 0) >= depth && !!children.get(node.id)?.length;
+    if (!!node.data.collapsed === collapsed) return node;
+    changed = true;
+    return { ...node, data: { ...node.data, collapsed } };
+  });
+  return changed ? next : nodes;
 }
 
 export function getDepth(nodes: MindMapNode[], nodeId: string): number {
@@ -100,12 +149,10 @@ export function buildEdgesFromNodes(nodes: MindMapNode[]): Edge[] {
 
 // Determine which nodes are hidden because an ancestor is collapsed.
 export function getHiddenNodeIds(nodes: MindMapNode[]): Set<string> {
-  const children = getChildrenMap(nodes), hidden = new Set<string>(), seen = new Set<string>();
-  const stack = nodes.filter(n => !n.data.parentId).map(n => ({ n, hide: false }));
+  const { roots, children } = viewForest(nodes), hidden = new Set<string>();
+  const stack = roots.map(n => ({ n, hide: false }));
   while (stack.length) {
     const { n, hide } = stack.pop()!;
-    if (seen.has(n.id)) continue;
-    seen.add(n.id);
     if (hide) hidden.add(n.id);
     for (const child of children.get(n.id) ?? []) stack.push({ n: child, hide: hide || !!n.data.collapsed });
   }
@@ -135,17 +182,12 @@ export function walkTree(
   nodes: MindMapNode[],
   visitor: (node: MindMapNode, depth: number) => void
 ): void {
-  const childrenMap = getChildrenMap(nodes);
-  const root = getRootNode(nodes);
-  if (!root) return;
-  const seen = new Set<string>();
-  const stack = [root, ...nodes.filter(n => n.id !== root.id && !n.data.parentId)]
-    .reverse().map(node => ({ node, depth: 0 }));
+  const { roots, children } = viewForest(nodes);
+  const stack = roots.reverse().map(node => ({ node, depth: 0 }));
   while (stack.length) {
     const { node, depth } = stack.pop()!;
-    if (seen.has(node.id)) continue;
-    seen.add(node.id); visitor(node, depth);
-    const kids = childrenMap.get(node.id) ?? [];
+    visitor(node, depth);
+    const kids = children.get(node.id) ?? [];
     for (let i = kids.length - 1; i >= 0; i--) stack.push({ node: kids[i], depth: depth + 1 });
   }
 }

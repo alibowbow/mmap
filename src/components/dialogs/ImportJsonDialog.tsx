@@ -1,7 +1,7 @@
 "use client";
 
 import { FileUp, Upload } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -31,13 +31,46 @@ export function ImportJsonDialog({
   const setDialog = useMindMapStore((s) => s.setDialog);
   const importJson = useMindMapStore((s) => s.importJson);
   const importOutline = useMindMapStore((s) => s.importOutline);
+  const saveWorkspace = useMindMapStore((s) => s.saveWorkspace);
 
   const [jsonText, setJsonText] = useState("");
   const [outlineText, setOutlineText] = useState("");
   const [fileError, setFileError] = useState("");
+  const [readingFile, setReadingFile] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const readerRef = useRef<FileReader | null>(null);
+  const readIdRef = useRef(0);
+  const openRef = useRef(open);
+  openRef.current = open;
+
+  const cancelFileRead = useCallback(() => {
+    readIdRef.current += 1;
+    const reader = readerRef.current;
+    readerRef.current = null;
+    reader?.abort();
+  }, []);
+
+  useEffect(() => {
+    // A different dialog can close this one without calling close(). A late
+    // file callback must never repopulate a later import session.
+    cancelFileRead();
+    setReadingFile(false);
+    setJsonText("");
+    setOutlineText("");
+    setFileError("");
+    if (fileRef.current) fileRef.current.value = "";
+    return cancelFileRead;
+  }, [open, cancelFileRead]);
+
+  useEffect(() => {
+    cancelFileRead();
+    setReadingFile(false);
+    setFileError("");
+  }, [tab, cancelFileRead]);
 
   const close = () => {
+    cancelFileRead();
+    setReadingFile(false);
     setDialog(null);
     setJsonText("");
     setOutlineText("");
@@ -61,7 +94,11 @@ export function ImportJsonDialog({
   );
 
   const handleFile = (file: File) => {
+    cancelFileRead();
+    setReadingFile(false);
     setFileError("");
+    if (tab === "json") setJsonText("");
+    else setOutlineText("");
     const limit = tab === "json" ? MAX_IMPORT_BYTES : 10 * 1024 * 1024;
     if (file.size > limit) {
       setFileError(
@@ -72,21 +109,44 @@ export function ImportJsonDialog({
       return;
     }
     const reader = new FileReader();
+    readerRef.current = reader;
+    const readId = readIdRef.current;
     const targetTab = tab;
+    const currentRead = () =>
+      openRef.current &&
+      readIdRef.current === readId &&
+      readerRef.current === reader;
+    setReadingFile(true);
     reader.onload = () => {
+      if (!currentRead()) return;
+      readerRef.current = null;
+      setReadingFile(false);
       const text = String(reader.result ?? "").replace(/^\uFEFF/, "");
       if (targetTab === "json") setJsonText(text);
       else setOutlineText(text);
     };
-    reader.onerror = () =>
+    reader.onerror = () => {
+      if (!currentRead()) return;
+      readerRef.current = null;
+      setReadingFile(false);
       setFileError("파일을 읽지 못했습니다. 다시 선택하세요.");
+    };
     reader.readAsText(file);
   };
 
   const handleImport = () => {
+    if (
+      !canImport ||
+      readingFile ||
+      useMindMapStore.getState().dialog !== "import"
+    ) return;
+    // Follow the editor's existing blur-to-commit rule before replacing its
+    // active document. Cancel and invalid input never switch documents.
+    (document.activeElement as HTMLElement | null)?.blur();
     const imported =
       tab === "json" ? importJson(jsonText) : importOutline(outlineText);
     if (imported) {
+      saveWorkspace();
       close();
       onImported?.();
     }
@@ -105,7 +165,7 @@ export function ImportJsonDialog({
           <Button onClick={close}>취소</Button>
           <Button
             variant="primary"
-            disabled={!canImport}
+            disabled={!canImport || readingFile}
             onClick={handleImport}
           >
             <Upload size={15} /> 가져오기
@@ -159,6 +219,11 @@ export function ImportJsonDialog({
           {fileError}
         </p>
       )}
+      {readingFile && (
+        <p role="status" className="mb-3 text-sm text-ink-soft">
+          파일을 읽는 중…
+        </p>
+      )}
 
       {tab === "json" ? (
         <div className="space-y-3">
@@ -171,7 +236,12 @@ export function ImportJsonDialog({
           <Textarea
             aria-label="JSON 내용"
             value={jsonText}
-            onChange={(e) => setJsonText(e.target.value)}
+            onChange={(e) => {
+              cancelFileRead();
+              setReadingFile(false);
+              setFileError("");
+              setJsonText(e.target.value);
+            }}
             placeholder='{ "document": { ... } }'
             className="min-h-[160px] font-mono text-xs"
           />
@@ -209,7 +279,12 @@ export function ImportJsonDialog({
           <Textarea
             aria-label="아웃라인 내용"
             value={outlineText}
-            onChange={(e) => setOutlineText(e.target.value)}
+            onChange={(e) => {
+              cancelFileRead();
+              setReadingFile(false);
+              setFileError("");
+              setOutlineText(e.target.value);
+            }}
             placeholder={OUTLINE_PLACEHOLDER}
             className="min-h-[180px] font-mono text-xs"
           />

@@ -273,8 +273,9 @@ export function MobileMoreMenu() {
                 />
                 <Tile
                   icon={<Upload size={18} />}
-                  label="JSON 열기"
+                  label="JSON 가져오기"
                   onClick={() => {
+                    document.querySelector<HTMLButtonElement>('button[aria-label="더보기"]')?.focus();
                     setImportTab("json");
                     setDialog("import");
                   }}

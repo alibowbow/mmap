@@ -76,6 +76,7 @@ import {
   getRootNode,
   getSubtreeIds,
   getVisibleDfsOrder,
+  nodesExpandedToDepth,
 } from "@/lib/tree";
 import { decodeSharedDocument } from "@/lib/share";
 import { parseImportJson } from "@/lib/validation";
@@ -285,6 +286,9 @@ export type MindMapState = {
   promoteNodeToMap: (nodeId: string) => void;
   openLinkedDoc: (docId: string, nodeId?: string) => void;
   toggleCollapse: (nodeId: string) => void;
+  collapseAll: () => void;
+  expandAll: () => void;
+  expandToDepth: (depth: number) => void;
   setNodeSide: (nodeId: string, side: BranchSide | undefined) => void;
   selectNode: (nodeId: string | null) => void;
   toggleNodeSelection: (nodeId: string) => void;
@@ -617,6 +621,103 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
     layoutRuntime.record({ ...state, nodes: next.nodes, edges: next.edges });
     set({ nodes: next.nodes, edges: next.edges });
     syncActiveDocument(next.nodes, next.edges);
+  }
+
+  // Keep transient editing/selection state attached only to visible nodes.
+  // A global view preset exits branch focus without moving the camera.
+  function preserveCanvasFocus(
+    nodes: MindMapNode[],
+    visible: (id: string | null) => boolean,
+  ) {
+    if (typeof document === "undefined") return;
+    const active = document.activeElement;
+    const focusedNode = active?.closest<HTMLElement>(".react-flow__node");
+    const focusedId = focusedNode?.dataset.id;
+    const canvas = focusedNode?.closest<HTMLElement>('[data-mindmap-canvas="true"]');
+    if (!focusedId || !canvas || visible(focusedId)) return;
+    const nextById = getNodeMap(nodes), previousById = getNodeMap(get().nodes);
+    const ancestors: string[] = [], seen = new Set<string>();
+    let id: string | null = focusedId;
+    while (id && !seen.has(id)) {
+      seen.add(id);
+      ancestors.push(id);
+      const node: MindMapNode | undefined = nextById.get(id) ?? previousById.get(id);
+      id = node?.data.parentId ?? null;
+    }
+    requestAnimationFrame(() => {
+      if (!canvas.isConnected) return;
+      const currentFocus = document.activeElement;
+      // A toolbar/dialog or later deliberate focus change owns its focus.
+      if (currentFocus !== document.body && currentFocus !== active && !focusedNode?.contains(currentFocus)) return;
+      const state = get(), hidden = getHiddenNodeIds(state.nodes);
+      const currentIds = new Set(state.nodes.map(node => node.id));
+      const focusIds = state.focusModeNodeId ? new Set(getSubtreeIds(state.nodes, state.focusModeNodeId)) : null;
+      const stillVisible = (nodeId: string) => currentIds.has(nodeId) && !hidden.has(nodeId) && (!focusIds || focusIds.has(nodeId));
+      if (currentFocus === active && stillVisible(focusedId)) return;
+      const rendered = Array.from(canvas.querySelectorAll<HTMLElement>(".react-flow__node"));
+      const target = ancestors.map(nodeId => rendered.find(element => element.dataset.id === nodeId && stillVisible(nodeId))).find(Boolean)
+        ?? rendered.find(element => !!element.dataset.id && stillVisible(element.dataset.id))
+        ?? canvas.querySelector<HTMLElement>(".react-flow__pane")
+        ?? canvas;
+      if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
+      target.focus({ preventScroll: true });
+    });
+  }
+
+  function visibleState(
+    nodes: MindMapNode[],
+    relations = get().relations,
+    resetFocus = false,
+  ): Partial<MindMapState> {
+    const state = get(), hidden = getHiddenNodeIds(nodes);
+    const existing = new Set(nodes.map(node => node.id));
+    const focusModeNodeId = resetFocus || !state.focusModeNodeId || hidden.has(state.focusModeNodeId) || !existing.has(state.focusModeNodeId)
+      ? null : state.focusModeNodeId;
+    const focusIds = focusModeNodeId ? new Set(getSubtreeIds(nodes, focusModeNodeId)) : null;
+    const visible = (id: string | null) => !!id && existing.has(id) && !hidden.has(id) && (!focusIds || focusIds.has(id));
+    preserveCanvasFocus(nodes, visible);
+    const selectedNodeIds = [...new Set(state.selectedNodeIds.length ? state.selectedNodeIds : state.selectedNodeId ? [state.selectedNodeId] : [])].filter(visible);
+    const selectedNodeId = visible(state.selectedNodeId) && selectedNodeIds.includes(state.selectedNodeId!)
+      ? state.selectedNodeId : selectedNodeIds.at(-1) ?? null;
+    const editingNodeId = visible(state.editingNodeId) ? state.editingNodeId : null;
+    const selectedRelation = relations.find(relation => relation.id === state.selectedRelationId);
+    return {
+      selectedNodeIds,
+      selectedNodeId,
+      editingNodeId,
+      editSeed: editingNodeId ? state.editSeed : null,
+      selectedRelationId: selectedRelation && visible(selectedRelation.source) && visible(selectedRelation.target) ? selectedRelation.id : null,
+      contextMenu: state.contextMenu && visible(state.contextMenu.nodeId) ? state.contextMenu : null,
+      dropTargetId: visible(state.dropTargetId) ? state.dropTargetId : null,
+      dropPendingId: visible(state.dropPendingId) ? state.dropPendingId : null,
+      focusModeNodeId,
+      mobileSheetOpen: state.mobileSheetOpen && !!selectedNodeId,
+      presentationIndex: Math.min(state.presentationIndex, Math.max(0, getVisibleDfsOrder(nodes).length - 1)),
+    };
+  }
+
+  function setViewDepth(depth: number | null) {
+    const state = get();
+    if (state.inkGestureActive) return;
+    const nodes = nodesExpandedToDepth(state.nodes, depth);
+    if (nodes === state.nodes) {
+      set(visibleState(nodes, state.relations, true));
+      return;
+    }
+    // View changes get one undo entry, retain coordinates and viewport, and
+    // route links against the new visibility after any measurement updates.
+    layoutRuntime.begin("view");
+    layoutRuntime.record({ ...state, nodes });
+    set({ nodes, ...visibleState(nodes, state.relations, true) });
+    syncActiveDocument(nodes, state.edges);
+  }
+
+  function visibleDropTarget(id: string | null): string | null {
+    if (!id) return null;
+    const { nodes, focusModeNodeId } = get();
+    if (!nodes.some(node => node.id === id) || getHiddenNodeIds(nodes).has(id)) return null;
+    if (focusModeNodeId && !getSubtreeIds(nodes, focusModeNodeId).includes(id)) return null;
+    return id;
   }
 
   function focusSoon(nodeId: string) {
@@ -1609,6 +1710,14 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         ),
         edges: eds,
       }));
+      set(visibleState(get().nodes));
+    },
+
+    collapseAll: () => setViewDepth(0),
+    expandAll: () => setViewDepth(null),
+    expandToDepth: (depth) => {
+      if (!Number.isFinite(depth) || depth < 0) return;
+      setViewDepth(Math.floor(depth));
     },
 
     // Set a first-level branch's direction and re-run the bidirectional layout
@@ -1722,8 +1831,10 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       });
     },
 
-    setDropTargetId: (id) => set({ dropTargetId: id }),
-    setDropPendingId: (id) => set({ dropPendingId: id }),
+    // A delayed drag dwell callback must not re-arm a node hidden by a view
+    // change (or deleted while the callback was pending).
+    setDropTargetId: (id) => set({ dropTargetId: visibleDropTarget(id) }),
+    setDropPendingId: (id) => set({ dropPendingId: visibleDropTarget(id) }),
 
     // Re-parent a node onto a new parent (drag & drop). History is captured by
     // the drag start, so this mutation doesn't push its own history entry.
@@ -2294,9 +2405,10 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         relations: prev.relations ?? [],
         history: history.slice(0, -1),
         future: [current, ...s.future].slice(0, HISTORY_LIMIT),
+        ...visibleState(prev.nodes, prev.relations ?? []),
       }));
       syncActiveDocument(prev.nodes, prev.edges);
-      layoutRuntime.cancel(true);
+      layoutRuntime.restorePositions();
       layoutRuntime.queue({ routingOnly: true });
     },
 
@@ -2324,9 +2436,10 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
         relations: nextEntry.relations ?? [],
         history: [...s.history, current].slice(-HISTORY_LIMIT),
         future: future.slice(1),
+        ...visibleState(nextEntry.nodes, nextEntry.relations ?? []),
       }));
       syncActiveDocument(nextEntry.nodes, nextEntry.edges);
-      layoutRuntime.cancel(true);
+      layoutRuntime.restorePositions();
       layoutRuntime.queue({ routingOnly: true });
     },
 
@@ -2368,6 +2481,25 @@ export const useMindMapStore = create<MindMapState>((set, get) => {
       doc.snapshots = result.document.snapshots;
       doc.pinned = result.document.pinned;
       set((s) => ({
+        // Imported node IDs may match the current map, but this is a new
+        // document. None of the old map's temporary view/edit context follows.
+        focusModeNodeId: null,
+        presentationMode: false,
+        presentationIndex: 0,
+        connectMode: false,
+        dropTargetId: null,
+        dropPendingId: null,
+        contextMenu: null,
+        editSeed: null,
+        searchOpen: false,
+        searchQuery: "",
+        searchTypes: [],
+        searchStatuses: [],
+        commandPaletteOpen: false,
+        mobileDrawerOpen: false,
+        mobileMoreOpen: false,
+        mobileSheetOpen: false,
+        tutorialStep: null,
         documents: [doc, ...preserveDocumentDesign(s.documents, s)],
         activeDocumentId: doc.id,
         freshDocumentId: null,

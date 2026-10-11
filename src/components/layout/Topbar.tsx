@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Command,
   Download,
+  FileUp,
   History,
   LayoutGrid,
   Link2,
@@ -21,9 +22,10 @@ import {
   Sun,
   Undo2,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { DesignMenu } from "@/components/toolbar/DesignMenu";
+import { ViewControls } from "@/components/toolbar/ViewControls";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { Button } from "@/components/ui/Button";
 import { Dropdown } from "@/components/ui/Dropdown";
@@ -97,9 +99,11 @@ export function Topbar({
   const openPresentationMode = useMindMapStore((s) => s.openPresentationMode);
   const exportImage = useMindMapStore((s) => s.exportImage);
   const setDialog = useMindMapStore((s) => s.setDialog);
+  const setImportTab = useMindMapStore((s) => s.setImportTab);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  const moreTriggerRef = useRef<HTMLButtonElement>(null);
 
   const ThemeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
   const activeLayout =
@@ -242,6 +246,7 @@ export function Topbar({
             <Maximize size={17} />
           </Button>
         </Tooltip>
+        <ViewControls />
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
@@ -269,12 +274,24 @@ export function Topbar({
           width={238}
           trigger={
             <Tooltip label="더 많은 도구">
-              <Button variant="ghost" size="icon" aria-label="더 많은 도구">
+              <Button ref={moreTriggerRef} variant="ghost" size="icon" aria-label="더 많은 도구">
                 <MoreHorizontal size={18} />
               </Button>
             </Tooltip>
           }
           items={[
+            {
+              id: "import-json",
+              label: "JSON 가져오기",
+              icon: <FileUp size={16} />,
+              onSelect: () => {
+                // The menu item disappears; the modal must restore focus to
+                // its persistent trigger when cancelled.
+                moreTriggerRef.current?.focus();
+                setImportTab("json");
+                setDialog("import");
+              },
+            },
             {
               id: "commands",
               label: "명령 팔레트",
